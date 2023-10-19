@@ -1,0 +1,37 @@
+use crate::ast::*;
+
+grammar;
+
+Begin = "begin";
+End = "end";
+Procedure = "procedure";
+FuncName:String = <s:r"[a-zA-Z]+"> => s.to_string();
+
+pub ProgramBlock: Program = {
+    <pd: ProcedureDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, pd); return p;},
+    <md: MainDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, md); return p;},
+
+    () => Program{declarations: Vec::new()},
+}
+
+ProcedureDecl: Declaration = {
+    Procedure <f:FuncName> "(" ")" Begin <sb:StatementsBlock> End ";"=> Declaration::Function(FunctionBody{function_name: f, body: sb})
+};
+
+MainDecl: Declaration = {
+    Begin <sb:StatementsBlock> End "." => Declaration::Function(FunctionBody{function_name: "main".to_string(), body: sb})
+}
+
+StatementsBlock: StatementBlock = {
+    <s:Statement> ";" <mut sb: StatementsBlock> => {sb.insert(0, s); return sb;},
+    () => Vec::new(),
+}
+
+Statement: Statement = {
+    <p:Print> => p
+}
+
+Print: Statement = "print" "(" <e: Expr> ")" => Statement::Print(Box::new(e));
+
+Expr: Expr = <c: Constant> => Expr::Constant(c);
+Constant: Constant = <s:r#""[^\"]*""#> => Constant::String(s[1..(s.len()-1)].to_string());

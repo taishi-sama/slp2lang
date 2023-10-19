@@ -1,0 +1,8 @@
+procedure hello() 
+begin
+end;
+
+begin
+    print("Hello world!");
+    print("HIIIII");
+end.
