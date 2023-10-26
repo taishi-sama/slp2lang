@@ -4,6 +4,9 @@ use ast::{Program, Expr, Constant};
 use inkwell::{context::Context, AddressSpace, values::BasicMetadataValueEnum, targets::{Target, InitializationConfig, RelocMode, CodeModel, TargetTriple, FileType}, OptimizationLevel};
 use lalrpop_util::lalrpop_mod;
 pub mod ast;
+pub mod typechecker;
+pub mod typed_ast;
+pub mod codegen;
 
 lalrpop_mod!(pub grammar);
 fn main() {
@@ -32,18 +35,24 @@ pub fn try_compile_program(input: Program, output_filename: &str) {
                 builder.position_at_end(t);
                 for stmts in func.body {
                     match stmts {
-                        ast::Statement::CodeBlock(_) => todo!(),
-                        ast::Statement::Print(expr) => {
-                            if let Expr::Constant(Constant::String(string)) = *expr {
+                        ast::Statement::CodeBlock(_, _ ) => todo!(),
+                        ast::Statement::Print(_, expr) => {
+                            if let Expr::Constant(_, Constant::String(string)) = *expr {
                                 let p = builder.build_global_string_ptr(&string, "");
                                 builder.build_call(puts, &[BasicMetadataValueEnum::PointerValue(p.as_pointer_value())], "puts_call");
                                 
                             }
                         },
+                        ast::Statement::Assignment(_, _, _) => todo!(),
+                        ast::Statement::If(_, _, _, _) => todo!(),
+                        ast::Statement::While(_, _, _) => todo!(),
+                        ast::Statement::RepeatUntil(_, _, _) => todo!(),
+                        ast::Statement::VarDecl(_, _) => todo!(),
                     }
                 }
                 builder.build_return(None);
             },
+            ast::Declaration::ExternFunction(_) => todo!(),
         }
     }
     let res = module.verify();

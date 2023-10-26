@@ -5,21 +5,34 @@ grammar;
 Begin = "begin";
 End = "end";
 Procedure = "procedure";
-FuncName:String = <s:r"[a-zA-Z]+"> => s.to_string();
+Identificator:String = <s:r"[a-zA-Z_]+[a-zA-Z_0-9]"> => s.to_string();
 
 pub ProgramBlock: Program = {
-    <pd: ProcedureDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, pd); return p;},
-    <md: MainDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, md); return p;},
+    <pd: ProcedureDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(pd)); return p;},
+    <md: MainDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(md)); return p;},
 
     () => Program{declarations: Vec::new()},
 }
 
-ProcedureDecl: Declaration = {
-    Procedure <f:FuncName> "(" ")" Begin <sb:StatementsBlock> End ";"=> Declaration::Function(FunctionBody{function_name: f, body: sb})
+ProcedureDecl: FunctionBody = {
+    <tl:@L> Procedure <f:Identificator> "(" <fa:ArgsList> ")" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
 };
 
-MainDecl: Declaration = {
-    Begin <sb:StatementsBlock> End "." => Declaration::Function(FunctionBody{function_name: "main".to_string(), body: sb})
+MainDecl: FunctionBody = {
+    <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::Primitive("int32".to_string())}}
+}
+
+ArgsList: ArgDeclList = {
+    <d: ArgsDecl> ";" <mut adl: ArgsList> => {adl.insert(0, d); return adl;},
+    <d: ArgsDecl> => vec![d],
+    () => Vec::new(),
+}
+ArgsDecl: ArgDecl = {
+    <tl:@L> <il:IndList> ":" <t:TypeDecl> <tr:@R> => ArgDecl{names: il, ty: t, loc: Loc::new(tl, tr)}
+}
+IndList: Vec<String> = {
+    <id:Identificator> "," <mut il: IndList> => {il.insert(0, id.clone()); return il;},
+    <id:Identificator> => vec![id.clone()]
 }
 
 StatementsBlock: StatementBlock = {
@@ -27,11 +40,34 @@ StatementsBlock: StatementBlock = {
     () => Vec::new(),
 }
 
-Statement: Statement = {
-    <p:Print> => p
+CodeBlock : Statement = {
+    <tl:@L> Begin <sb:StatementsBlock> End ";" <tr:@R> => Statement::CodeBlock(Loc::new(tl, tr), sb)
 }
 
-Print: Statement = "print" "(" <e: Expr> ")" => Statement::Print(Box::new(e));
+Statement: Statement = {
+    <p:Print> => p,
+    <cb:CodeBlock> => cb
+}
 
-Expr: Expr = <c: Constant> => Expr::Constant(c);
-Constant: Constant = <s:r#""[^\"]*""#> => Constant::String(s[1..(s.len()-1)].to_string());
+Print: Statement = <tl:@L> "print" "(" <e: Expr> ")" <tr:@R> => Statement::Print(Loc::new(tl, tr), Box::new(e));
+
+Expr: Expr = {
+    <tl:@L>  <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c)
+
+};
+Constant: Constant = { 
+    <s: StringConstant> => Constant::String(s),
+    <i: IntegerConstant> => Constant::Int64(i)
+};
+
+IntegerConstant: i64 = <s:r#"(-)?[0-9]+"#> => s.parse().unwrap();
+StringConstant: String = <s:r#""[^\"]*""#> => s[1..(s.len()-1)].to_string();
+
+TypeDecl: TypeDecl = <tl:@L>  <t: Type> <tr:@R> => TypeDecl{ty: t, loc: Loc::new(tl, tr)};
+
+Type: Type = {
+    "^"<t: Type> => Type::Pointer(Box::new(t)),
+    "array" "of" <t: Type>  => Type::DynArray(Box::new(t)),
+    "array" "of" "[" <b: IntegerConstant> ".." <e: IntegerConstant> "]" <t: Type>  => Type::FixedArray(b, e, Box::new(t)),
+    <id: Identificator> => Type::Primitive(id.clone())
+};
