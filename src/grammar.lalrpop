@@ -2,22 +2,64 @@ use crate::ast::*;
 
 grammar;
 
-Begin = "begin";
-End = "end";
-Procedure = "procedure";
-Identificator:String = <s:r"[a-zA-Z_]+[a-zA-Z_0-9]"> => s.to_string();
+match {
+    r"\s*" => { }, // The default whitespace skipping is disabled if an `ignore pattern` is specified
+    r"//[^\n\r]*[\n\r]*" => { }, // Skip `// comments`
+    r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => { },  // Skip `/* comments */`
 
-pub ProgramBlock: Program = {
-    <pd: ProcedureDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(pd)); return p;},
-    <md: MainDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(md)); return p;},
-
-    () => Program{declarations: Vec::new()},
+    r"(?i)begin" => Begin,
+    r"(?i)end" => End, 
+    r"(?i)procedure" => Procedure, 
+    r"(?i)function" => Function, 
+    r"(?i)var" => Var, 
+    r"(?i)array" => Array, 
+    r"(?i)of" => Of, 
+    r"(?i)if" => If, 
+    r"(?i)then" => Then, 
+    r"(?i)else" => Else, 
+    "(",
+    ")",
+    "[",
+    "]",
+    ";",
+    "..",
+    ".",
+    ":=",
+    "=",
+    ":",
+    ",",
+    "^",
+    "print"
+} else {
+    
+    r"[a-zA-Z_]+[a-zA-Z_0-9]*" => ID,
+    r#"(-)?[0-9]+"# => Int,
+    r#""[^\"]*""# => StrLiteral,
 }
 
+Identificator:String = <s:ID> => s.to_string();
+
+//pub ProgramBlock: Program = {
+//    <pd: ProcedureDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(pd)); return p;},
+//    <md: MainDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(md)); return p;},
+//    <fd: FunctionDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(fd)); return p;},
+//    () => Program{declarations: Vec::new()},
+//}
+pub ProgramBlock: Program = {
+    <decs: Declarations*> => Program{declarations: decs}
+}
+Declarations: Declaration = {
+    <pd: ProcedureDecl>  => Declaration::Function(pd),
+    <md: MainDecl> => Declaration::Function(md),
+    <fd: FunctionDecl> => Declaration::Function(fd),
+}
 ProcedureDecl: FunctionBody = {
     <tl:@L> Procedure <f:Identificator> "(" <fa:ArgsList> ")" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
 };
 
+FunctionDecl: FunctionBody = {
+    <tl:@L> Function <f:Identificator> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: ret}
+}
 MainDecl: FunctionBody = {
     <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::Primitive("int32".to_string())}}
 }
@@ -40,13 +82,46 @@ StatementsBlock: StatementBlock = {
     () => Vec::new(),
 }
 
+Statement: Statement = {
+    <p: ClosedStatement> => p,
+    <p: OpenStatement> => p,
+
+}
+// https://github.com/lalrpop/lalrpop/blob/master/doc/pascal/lalrpop/src/pascal.lalrpop
+OpenStatement: Statement = {
+    <ifsmt: OpenIfStatement> => ifsmt,
+}
+ClosedStatement: Statement = {
+    <p:Print> => p,
+    <cb:CodeBlock> => cb,
+    <lvd: LocalVariableDecl> => lvd,
+    <asmt: AssigmentStatement> => asmt,
+    <ifsmt: ClosedIfStatement> => ifsmt,
+    () => Statement::Empty(),
+
+}
+
 CodeBlock : Statement = {
     <tl:@L> Begin <sb:StatementsBlock> End ";" <tr:@R> => Statement::CodeBlock(Loc::new(tl, tr), sb)
 }
 
-Statement: Statement = {
-    <p:Print> => p,
-    <cb:CodeBlock> => cb
+LocalVariableDecl: Statement = {
+    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::Multiple(il, ty)),
+    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> ":=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ExplicitType(il[0].clone(), ty, Box::new(e))),
+    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> "=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ExplicitType(il[0].clone(), ty, Box::new(e))),
+    <tl:@L> Var <il: IndList> ":=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ImplicitType(il[0].clone(), Box::new(e)))
+}
+
+OpenIfStatement: Statement = {
+    <tl:@L> If <cond:Expr> Then <trueStmt: Statement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), None),
+    <tl:@L> If <cond:Expr> Then <trueStmt: ClosedStatement> Else <falseStmt: OpenStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), Some(Box::new(falseStmt))),
+}
+ClosedIfStatement: Statement = {
+    <tl:@L> If <cond:Expr> Then <trueStmt: ClosedStatement> Else <falseStmt: ClosedStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), Some(Box::new(falseStmt))),
+}
+
+AssigmentStatement : Statement = {
+    <tl:@L> <lhs:Expr> ":=" <rhs:Expr> <tr:@R> => Statement::Assignment(Loc::new(tl, tr), Box::new(lhs), Box::new(rhs))
 }
 
 Print: Statement = <tl:@L> "print" "(" <e: Expr> ")" <tr:@R> => Statement::Print(Loc::new(tl, tr), Box::new(e));
@@ -60,14 +135,14 @@ Constant: Constant = {
     <i: IntegerConstant> => Constant::Int64(i)
 };
 
-IntegerConstant: i64 = <s:r#"(-)?[0-9]+"#> => s.parse().unwrap();
-StringConstant: String = <s:r#""[^\"]*""#> => s[1..(s.len()-1)].to_string();
+IntegerConstant: i64 = <s:Int> => s.parse().unwrap();
+StringConstant: String = <s:StrLiteral> => s[1..(s.len()-1)].to_string();
 
 TypeDecl: TypeDecl = <tl:@L>  <t: Type> <tr:@R> => TypeDecl{ty: t, loc: Loc::new(tl, tr)};
 
 Type: Type = {
     "^"<t: Type> => Type::Pointer(Box::new(t)),
-    "array" "of" <t: Type>  => Type::DynArray(Box::new(t)),
-    "array" "of" "[" <b: IntegerConstant> ".." <e: IntegerConstant> "]" <t: Type>  => Type::FixedArray(b, e, Box::new(t)),
+    Array Of <t: Type>  => Type::DynArray(Box::new(t)),
+    Array "[" <b: IntegerConstant> ".." <e: IntegerConstant> "]" Of <t: Type>  => Type::FixedArray(b, e, Box::new(t)),
     <id: Identificator> => Type::Primitive(id.clone())
 };

@@ -10,6 +10,16 @@ hello:
 	.size	hello, .Lfunc_end0-hello
 	.cfi_endproc
 
+	.globl	hi
+	.p2align	4, 0x90
+	.type	hi,@function
+hi:
+	.cfi_startproc
+	retq
+.Lfunc_end1:
+	.size	hi, .Lfunc_end1-hi
+	.cfi_endproc
+
 	.globl	main
 	.p2align	4, 0x90
 	.type	main,@function
@@ -24,8 +34,8 @@ main:
 	popq	%rax
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end1:
-	.size	main, .Lfunc_end1-main
+.Lfunc_end2:
+	.size	main, .Lfunc_end2-main
 	.cfi_endproc
 
 	.type	.L__unnamed_1,@object

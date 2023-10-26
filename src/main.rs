@@ -48,6 +48,7 @@ pub fn try_compile_program(input: Program, output_filename: &str) {
                         ast::Statement::While(_, _, _) => todo!(),
                         ast::Statement::RepeatUntil(_, _, _) => todo!(),
                         ast::Statement::VarDecl(_, _) => todo!(),
+                        ast::Statement::Empty() => todo!()
                     }
                 }
                 builder.build_return(None);
@@ -83,4 +84,33 @@ pub fn try_compile_program(input: Program, output_filename: &str) {
     println!("Emit asm file to {}", path_asm.to_string_lossy());
 
     
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{grammar, ast::{Declaration, Statement}};
+
+    #[test]
+    fn correct_if_parsing() {
+        let program = r##"
+        begin
+        if 123 then if 321 then print("trl") else print("ltr"); 
+        end.
+        "##;
+        let res =  grammar::ProgramBlockParser::new().parse(program).unwrap();
+        let m = res.declarations.iter().find(|&x| {if let Declaration::Function(f) = x.clone() {
+            f.function_name == "main"
+        } else {false}}).unwrap();
+        if let Declaration::Function(f) = m {
+            let external_if = f.body.first().unwrap();
+            if let Statement::If(_, _, d, c) = external_if {
+                assert!(c.is_none());
+                if let Statement::If(_, _, d, c) = &(**d) {
+                    assert!(c.is_some())
+                }
+            }
+            else {panic!()}
+        } else {panic!()}
+    }
 }

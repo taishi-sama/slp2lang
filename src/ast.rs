@@ -64,10 +64,10 @@ pub enum Expr {
     OpUnGetRef(Loc, Box<Expr>),
     
     //OpUnTypecast(Loc, TypeDecl, Box<Expr>),
-    
+    //Distinguish from typecast at next stages
     OpFunctionCall(Loc, String, Vec<Expr>),
     OpUnAs(Loc, Box<Expr>, TypeDecl),
-    OpMethodCall(Loc, String, String),
+    OpMethodCall(Loc, Box<Expr>, String),
 }
 #[derive(Debug, Clone)]
 pub enum Constant {
@@ -86,11 +86,12 @@ pub enum Statement {
     If(Loc, Box<Expr>, Box<Statement>, Option<Box<Statement>>),
     While(Loc, Box<Expr>, Box<Statement>),
     RepeatUntil(Loc, Box<Expr>, Box<Statement>),
-    VarDecl(Loc, VarDecl)
+    VarDecl(Loc, VarDecl),
+    Empty()
 }
 #[derive(Debug, Clone)]
 pub enum VarDecl{
-    Multiple(ArgDecl),
+    Multiple(Vec<String>, TypeDecl),
     ExplicitType(String, TypeDecl, Box<Expr>),
     ImplicitType(String, Box<Expr>),
 }

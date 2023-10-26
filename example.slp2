@@ -2,7 +2,12 @@ procedure hello()
 begin
 end;
 
+function hi(a: int32; b: array [1..4] of int64):int32 
+begin
+end;
+
 begin
     print("Hello world!");
     print("HIIIII");
+    if 123 then if 321 then print("trl") else print("ltr"); 
 end.
