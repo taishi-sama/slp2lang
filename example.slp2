@@ -9,5 +9,4 @@ end;
 begin
     print("Hello world!");
     print("HIIIII");
-    if 123 then if 321 then print("trl") else print("ltr"); 
 end.
