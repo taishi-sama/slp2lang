@@ -1,11 +1,11 @@
 use std::{path::Path, env::args, fs};
 
-use ast::{Program, Expr, Constant};
+use ast::{ProgramFile, Expr, Constant};
 use inkwell::{context::Context, AddressSpace, values::BasicMetadataValueEnum, targets::{Target, InitializationConfig, RelocMode, CodeModel, TargetTriple, FileType}, OptimizationLevel};
 use lalrpop_util::lalrpop_mod;
 pub mod ast;
 pub mod typechecker;
-pub mod typed_ast;
+pub mod semtree;
 pub mod codegen;
 
 lalrpop_mod!(pub grammar);
@@ -18,7 +18,7 @@ fn main() {
     try_compile_program(t, &file);
 }
 
-pub fn try_compile_program(input: Program, output_filename: &str) {
+pub fn try_compile_program(input: ProgramFile, output_filename: &str) {
     let context = Context::create();
     let module = context.create_module(output_filename);
     let builder = context.create_builder();

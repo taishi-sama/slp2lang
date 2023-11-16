@@ -7,7 +7,7 @@ impl Loc {
     pub fn new(begin: usize, end: usize) -> Self {Self{begin, end}}
 }
 #[derive(Debug, Clone)]
-pub struct Program {
+pub struct ProgramFile {
     pub declarations: Vec<Declaration>
 }
 #[derive(Debug, Clone)]
@@ -33,7 +33,7 @@ pub struct ExternFunctionBody {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Constant(Loc, Constant),
-    Variable(Loc, String),
+    Ident(Loc, String),
     OpBinPlus(Loc, Box<Expr>, Box<Expr>),
     OpBinMinus(Loc, Box<Expr>, Box<Expr>),
     //Multiplication
@@ -65,9 +65,11 @@ pub enum Expr {
     
     //OpUnTypecast(Loc, TypeDecl, Box<Expr>),
     //Distinguish from typecast at next stages
-    OpFunctionCall(Loc, String, Vec<Expr>),
+    OpFunctionCall(Loc, Box<Expr>, Vec<Expr>),
     OpUnAs(Loc, Box<Expr>, TypeDecl),
-    OpMethodCall(Loc, Box<Expr>, String),
+    //Can be just namespace specification or proper method call 
+    OpDot(Loc, Box<Expr>, String),
+    OpNew(Loc, Type, Vec<Expr>)
 }
 #[derive(Debug, Clone)]
 pub enum Constant {

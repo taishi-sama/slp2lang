@@ -17,6 +17,9 @@ match {
     r"(?i)if" => If, 
     r"(?i)then" => Then, 
     r"(?i)else" => Else, 
+    r"(?i)not" => Not, 
+    r"(?i)new" => New, 
+
     "(",
     ")",
     "[",
@@ -29,6 +32,11 @@ match {
     ":",
     ",",
     "^",
+    "@",
+    "+",
+    "-",
+    "*",
+    "/",
     "print"
 } else {
     
@@ -45,8 +53,8 @@ Identificator:String = <s:ID> => s.to_string();
 //    <fd: FunctionDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(fd)); return p;},
 //    () => Program{declarations: Vec::new()},
 //}
-pub ProgramBlock: Program = {
-    <decs: Declarations*> => Program{declarations: decs}
+pub ProgramBlock: ProgramFile = {
+    <decs: Declarations*> => ProgramFile{declarations: decs}
 }
 Declarations: Declaration = {
     <pd: ProcedureDecl>  => Declaration::Function(pd),
@@ -127,9 +135,31 @@ AssigmentStatement : Statement = {
 Print: Statement = <tl:@L> "print" "(" <e: Expr> ")" <tr:@R> => Statement::Print(Loc::new(tl, tr), Box::new(e));
 
 Expr: Expr = {
-    <tl:@L>  <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c)
-
+    Tier2
 };
+
+Tier2: Expr = {
+    <tl:@L> "@" <e:Tier2> <tr:@R>  => Expr::OpUnGetRef(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> Not <e:Tier2> <tr:@R>  => Expr::OpUnNot(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> "^" <e:Tier2> <tr:@R>  => Expr::OpUnDeref(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> "+" <e:Tier2> <tr:@R>  => Expr::OpUnPlus(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> "-" <e:Tier2> <tr:@R>  => Expr::OpUnMinus(Loc::new(tl, tr), Box::new(e)),
+
+    Tier1
+}
+
+Tier1: Expr = {
+    "(" <e:Expr> ")" => e,
+    <tl:@L> <e:Tier1> "." <id:Identificator> <tr:@R> => Expr::OpDot(Loc::new(tl, tr), Box::new(e), id),
+    <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, f),
+
+    <tl:@L> <e:Tier1> "(" <f:FuncCallArgList> ")" <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), Box::new(e), f),
+    <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c),
+    <tl:@L> <id: Identificator> <tr:@R> => Expr::Ident(Loc::new(tl, tr), id),
+    
+};
+
+
 Constant: Constant = { 
     <s: StringConstant> => Constant::String(s),
     <i: IntegerConstant> => Constant::Int64(i)
@@ -137,6 +167,12 @@ Constant: Constant = {
 
 IntegerConstant: i64 = <s:Int> => s.parse().unwrap();
 StringConstant: String = <s:StrLiteral> => s[1..(s.len()-1)].to_string();
+
+FuncCallArgList: Vec<Expr> = {
+    <d: Expr> "," <mut adl: FuncCallArgList> => {adl.insert(0, d); return adl;},
+    <d: Expr> => vec![d],
+    () => Vec::new(),
+}
 
 TypeDecl: TypeDecl = <tl:@L>  <t: Type> <tr:@R> => TypeDecl{ty: t, loc: Loc::new(tl, tr)};
 
