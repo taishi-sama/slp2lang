@@ -5,7 +5,15 @@ pub enum SLPType {
 
 }
 pub enum SLPPrimitiveType {
-    
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    Uint8,
+    Uint16,
+    Uint32,
+    Uint64,
+    String
 }
 pub struct StructType {
     pub name: String,

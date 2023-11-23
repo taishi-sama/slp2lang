@@ -3,10 +3,13 @@ use std::{path::Path, env::args, fs};
 use ast::{ProgramFile, Expr, Constant};
 use inkwell::{context::Context, AddressSpace, values::BasicMetadataValueEnum, targets::{Target, InitializationConfig, RelocMode, CodeModel, TargetTriple, FileType}, OptimizationLevel};
 use lalrpop_util::lalrpop_mod;
+
+use crate::ast_visualisator::get_program_tree;
 pub mod ast;
 pub mod typechecker;
 pub mod semtree;
 pub mod codegen;
+pub mod ast_visualisator;
 
 lalrpop_mod!(pub grammar);
 fn main() {
@@ -15,6 +18,7 @@ fn main() {
     let text = fs::read_to_string(&file).unwrap();
     let t = grammar::ProgramBlockParser::new().parse(&text).unwrap();
     println!("{:?}", t);
+    println!("{}", get_program_tree(&t));
     try_compile_program(t, &file);
 }
 
@@ -48,7 +52,8 @@ pub fn try_compile_program(input: ProgramFile, output_filename: &str) {
                         ast::Statement::While(_, _, _) => todo!(),
                         ast::Statement::RepeatUntil(_, _, _) => todo!(),
                         ast::Statement::VarDecl(_, _) => todo!(),
-                        ast::Statement::Empty() => todo!()
+                        ast::Statement::Empty() => todo!(),
+                        ast::Statement::FunctionCall(_, _) => todo!(),
                     }
                 }
                 builder.build_return(None);

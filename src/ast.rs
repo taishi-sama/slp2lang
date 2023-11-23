@@ -8,8 +8,15 @@ impl Loc {
 }
 #[derive(Debug, Clone)]
 pub struct ProgramFile {
+    pub uses: Vec<Usings>,
     pub declarations: Vec<Declaration>
 }
+#[derive(Debug, Clone)]
+pub enum Usings {
+    Name(Loc, String),
+    Path(Loc, String),
+}
+
 #[derive(Debug, Clone)]
 pub enum Declaration {
     Function(FunctionBody),
@@ -65,7 +72,7 @@ pub enum Expr {
     
     //OpUnTypecast(Loc, TypeDecl, Box<Expr>),
     //Distinguish from typecast at next stages
-    OpFunctionCall(Loc, Box<Expr>, Vec<Expr>),
+    OpFunctionCall(Loc, FunctionCall),
     OpUnAs(Loc, Box<Expr>, TypeDecl),
     //Can be just namespace specification or proper method call 
     OpDot(Loc, Box<Expr>, String),
@@ -83,6 +90,7 @@ pub type StatementBlock = Vec<Statement>;
 pub enum Statement {
     CodeBlock(Loc, Vec<Statement>),
     Print(Loc, Box<Expr>),
+    FunctionCall(Loc, FunctionCall),
     //RHS, LHS
     Assignment(Loc, Box<Expr>, Box<Expr>),
     If(Loc, Box<Expr>, Box<Statement>, Option<Box<Statement>>),
@@ -96,6 +104,11 @@ pub enum VarDecl{
     Multiple(Vec<String>, TypeDecl),
     ExplicitType(String, TypeDecl, Box<Expr>),
     ImplicitType(String, Box<Expr>),
+}
+#[derive(Debug, Clone)]
+pub struct FunctionCall {
+    pub func: Box<Expr>, 
+    pub args: Vec<Expr>,
 }
 #[derive(Debug, Clone)]
 pub struct ArgDecl {

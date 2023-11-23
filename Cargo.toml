@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 inkwell = { version = "0.2.0", features = ["llvm16-0"] }
 lalrpop-util = { version = "0.20.0", features = ["lexer", "unicode"] }
+text_trees = "0.1.2"
 
 
 [build-dependencies]

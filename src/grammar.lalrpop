@@ -19,7 +19,7 @@ match {
     r"(?i)else" => Else, 
     r"(?i)not" => Not, 
     r"(?i)new" => New, 
-
+    r"(?i)uses" => Uses,
     "(",
     ")",
     "[",
@@ -28,6 +28,11 @@ match {
     "..",
     ".",
     ":=",
+    "<>",
+    "<=",
+    ">=",
+    ">",
+    "<",
     "=",
     ":",
     ",",
@@ -54,7 +59,18 @@ Identificator:String = <s:ID> => s.to_string();
 //    () => Program{declarations: Vec::new()},
 //}
 pub ProgramBlock: ProgramFile = {
-    <decs: Declarations*> => ProgramFile{declarations: decs}
+    
+    <uf: UsingSection?> <decs: Declarations*> => ProgramFile{declarations: decs, uses: uf.unwrap_or(vec![])}
+}
+pub UsingSection: Vec<Usings> = {
+    <tl:@L> Uses <uf: UsingFrag> ";" <tr:@R> => uf
+}
+pub UsingFrag: Vec<Usings> = {
+    <tl:@L> <id: ID> <tr:@R> "," <mut uf: UsingFrag> => {uf.insert(0, Usings::Name(Loc::new(tl, tr), id.to_string())); return uf;},
+    <tl:@L> <id: StrLiteral> <tr:@R> "," <mut uf: UsingFrag> => {uf.insert(0, Usings::Path(Loc::new(tl, tr), id[1..id.len()-1].to_string())); return uf;}, 
+    <tl:@L> <id: ID> <tr:@R> => vec![Usings::Name(Loc::new(tl, tr), id.to_string())],
+    <tl:@L> <id: StrLiteral> <tr:@R> => vec![Usings::Path(Loc::new(tl, tr), id[1..id.len()-1].to_string())], 
+
 }
 Declarations: Declaration = {
     <pd: ProcedureDecl>  => Declaration::Function(pd),
@@ -105,6 +121,7 @@ ClosedStatement: Statement = {
     <lvd: LocalVariableDecl> => lvd,
     <asmt: AssigmentStatement> => asmt,
     <ifsmt: ClosedIfStatement> => ifsmt,
+    <fc: FuncCallStmt> => fc,
     () => Statement::Empty(),
 
 }
@@ -119,7 +136,9 @@ LocalVariableDecl: Statement = {
     <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> "=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ExplicitType(il[0].clone(), ty, Box::new(e))),
     <tl:@L> Var <il: IndList> ":=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ImplicitType(il[0].clone(), Box::new(e)))
 }
-
+FuncCallStmt: Statement = {
+    <tl:@L> <fc:FuncCall> <tr:@R> => Statement::FunctionCall(Loc::new(tl, tr), fc),
+}
 OpenIfStatement: Statement = {
     <tl:@L> If <cond:Expr> Then <trueStmt: Statement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), None),
     <tl:@L> If <cond:Expr> Then <trueStmt: ClosedStatement> Else <falseStmt: OpenStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), Some(Box::new(falseStmt))),
@@ -135,6 +154,31 @@ AssigmentStatement : Statement = {
 Print: Statement = <tl:@L> "print" "(" <e: Expr> ")" <tr:@R> => Statement::Print(Loc::new(tl, tr), Box::new(e));
 
 Expr: Expr = {
+    Tier5
+};
+
+
+Tier5: Expr = {
+    <tl:@L> <e1:Tier5> "<" <e2:Tier4> <tr:@R> => Expr::OpBinLesser(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> ">" <e2:Tier4> <tr:@R> => Expr::OpBinGreater(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> "<=" <e2:Tier4> <tr:@R> => Expr::OpBinLesserEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> ">=" <e2:Tier4> <tr:@R> => Expr::OpBinGreaterEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> "=" <e2:Tier4> <tr:@R> => Expr::OpBinEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> "<>" <e2:Tier4> <tr:@R> => Expr::OpBinNotEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+
+    Tier4
+};
+
+
+Tier4: Expr = {
+    <tl:@L> <e1:Tier4> "+" <e2:Tier3> <tr:@R> => Expr::OpBinPlus(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier4> "-" <e2:Tier3> <tr:@R> => Expr::OpBinMinus(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    Tier3
+};
+
+Tier3: Expr = {
+    <tl:@L> <e1:Tier3> "*" <e2:Tier2> <tr:@R> => Expr::OpBinAsterisk(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> "/" <e2:Tier2> <tr:@R> => Expr::OpBinSlash(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
     Tier2
 };
 
@@ -144,21 +188,23 @@ Tier2: Expr = {
     <tl:@L> "^" <e:Tier2> <tr:@R>  => Expr::OpUnDeref(Loc::new(tl, tr), Box::new(e)),
     <tl:@L> "+" <e:Tier2> <tr:@R>  => Expr::OpUnPlus(Loc::new(tl, tr), Box::new(e)),
     <tl:@L> "-" <e:Tier2> <tr:@R>  => Expr::OpUnMinus(Loc::new(tl, tr), Box::new(e)),
-
     Tier1
-}
+};
 
 Tier1: Expr = {
     "(" <e:Expr> ")" => e,
     <tl:@L> <e:Tier1> "." <id:Identificator> <tr:@R> => Expr::OpDot(Loc::new(tl, tr), Box::new(e), id),
     <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, f),
 
-    <tl:@L> <e:Tier1> "(" <f:FuncCallArgList> ")" <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), Box::new(e), f),
+    <tl:@L> <fc: FuncCall> <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), fc),
     <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c),
     <tl:@L> <id: Identificator> <tr:@R> => Expr::Ident(Loc::new(tl, tr), id),
     
 };
 
+FuncCall: FunctionCall = {
+    <e:Tier1> "(" <f:FuncCallArgList> ")" <tr:@R> => FunctionCall{func: Box::new(e), args: f}
+}
 
 Constant: Constant = { 
     <s: StringConstant> => Constant::String(s),
