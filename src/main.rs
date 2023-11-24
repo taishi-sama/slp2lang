@@ -59,6 +59,7 @@ pub fn try_compile_program(input: ProgramFile, output_filename: &str) {
                 builder.build_return(None);
             },
             ast::Declaration::ExternFunction(_) => todo!(),
+            ast::Declaration::TypeDeclSection(_) => todo!(),
         }
     }
     let res = module.verify();

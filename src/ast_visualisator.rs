@@ -17,6 +17,7 @@ pub fn declaration(decl: &Declaration)-> StringTreeNode {
             )
         },
         Declaration::ExternFunction(_) => todo!(),
+        Declaration::TypeDeclSection(_) => todo!(),
     }   
 }
 pub fn arg_decl(a: &ArgDecl) -> StringTreeNode {

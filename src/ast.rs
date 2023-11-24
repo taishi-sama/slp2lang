@@ -20,8 +20,15 @@ pub enum Usings {
 #[derive(Debug, Clone)]
 pub enum Declaration {
     Function(FunctionBody),
-    ExternFunction(ExternFunctionBody)
+    ExternFunction(ExternFunctionBody),
+    TypeDeclSection(TypeDeclSectionBody),
 }
+
+#[derive(Debug, Clone)]
+pub struct TypeDeclSectionBody {
+    //TODO!
+}
+
 #[derive(Debug, Clone)]
 pub struct FunctionBody {
     pub function_name:String,
