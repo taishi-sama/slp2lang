@@ -41,7 +41,7 @@ pub struct FunctionBody {
 pub struct ExternFunctionBody {
     pub function_name:String,
     pub function_args:ArgDeclList,
-    pub return_arg: Type,
+    pub return_arg: TypeDecl,
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
@@ -76,7 +76,7 @@ pub enum Expr {
     
     OpUnDeref(Loc, Box<Expr>),
     OpUnGetRef(Loc, Box<Expr>),
-    
+    OpBinIndex(Loc, Box<Expr>, Box<Expr>),    
     //OpUnTypecast(Loc, TypeDecl, Box<Expr>),
     //Distinguish from typecast at next stages
     OpFunctionCall(Loc, FunctionCall),
@@ -95,7 +95,7 @@ pub enum Constant {
 pub type StatementBlock = Vec<Statement>; 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    CodeBlock(Loc, Vec<Statement>),
+    CodeBlock(Loc, StatementBlock),
     Print(Loc, Box<Expr>),
     FunctionCall(Loc, FunctionCall),
     //RHS, LHS

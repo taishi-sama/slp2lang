@@ -20,6 +20,7 @@ match {
     r"(?i)not" => Not, 
     r"(?i)new" => New, 
     r"(?i)uses" => Uses,
+    r"(?i)external" => External,
     "(",
     ")",
     "[",
@@ -59,7 +60,6 @@ Identificator:String = <s:ID> => s.to_string();
 //    () => Program{declarations: Vec::new()},
 //}
 pub ProgramBlock: ProgramFile = {
-    
     <uf: UsingSection?> <decs: Declarations*> => ProgramFile{declarations: decs, uses: uf.unwrap_or(vec![])}
 }
 pub UsingSection: Vec<Usings> = {
@@ -76,13 +76,16 @@ Declarations: Declaration = {
     <pd: ProcedureDecl>  => Declaration::Function(pd),
     <md: MainDecl> => Declaration::Function(md),
     <fd: FunctionDecl> => Declaration::Function(fd),
+    <efd: ExternalFunctionDecl> => Declaration::ExternFunction(efd),
 }
 ProcedureDecl: FunctionBody = {
     <tl:@L> Procedure <f:Identificator> "(" <fa:ArgsList> ")" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
 };
-
 FunctionDecl: FunctionBody = {
     <tl:@L> Function <f:Identificator> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: ret}
+}
+ExternalFunctionDecl: ExternFunctionBody = {
+    <tl:@L> External Function <f:Identificator> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";"<tr:@R> => ExternFunctionBody{loc:Loc::new(tl, tr), function_name: f, function_args: fa, return_arg: ret}
 }
 MainDecl: FunctionBody = {
     <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::Primitive("int32".to_string())}}
@@ -195,7 +198,7 @@ Tier1: Expr = {
     "(" <e:Expr> ")" => e,
     <tl:@L> <e:Tier1> "." <id:Identificator> <tr:@R> => Expr::OpDot(Loc::new(tl, tr), Box::new(e), id),
     <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, f),
-
+    <tl:@L> <e:Tier1> "[" <i:Expr> "]" <tr:@R> => Expr::OpBinIndex(Loc::new(tl, tr), Box::new(e), Box::new(i)),
     <tl:@L> <fc: FuncCall> <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), fc),
     <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c),
     <tl:@L> <id: Identificator> <tr:@R> => Expr::Ident(Loc::new(tl, tr), id),

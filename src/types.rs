@@ -1,5 +1,5 @@
 use crate::ast::Type;
-
+#[derive(Debug, Clone)]
 pub enum SLPType {
     PrimitiveType(SLPPrimitiveType),
     Pointer(Box<SLPType>),
@@ -12,6 +12,7 @@ pub enum SLPType {
     Struct(StructType),
 
 }
+#[derive(Debug, Clone)]
 pub enum SLPPrimitiveType {
     Int8,
     Int16,
@@ -23,8 +24,10 @@ pub enum SLPPrimitiveType {
     Uint64,
     ISize,
     USize,
-    String
+    String,
+    Void
 }
+#[derive(Debug, Clone)]
 pub struct StructType {
     pub name: String,
     pub fields: Vec<(String, SLPType)>,
@@ -45,7 +48,7 @@ impl SLPType {
                 "uint64" => SLPPrimitiveType::Uint64,
                 "usize" => SLPPrimitiveType::USize,
                 "string" => SLPPrimitiveType::String,
-                
+                "void" => SLPPrimitiveType::Void,
                 _ => panic!("Unknown type!") // TODO: Type alias resolving, structure name resolving
             }),
             Type::Pointer(t) => Self::Pointer(Box::new(Self::from_ast_type(&t))),

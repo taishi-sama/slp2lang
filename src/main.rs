@@ -4,12 +4,14 @@ use ast::{ProgramFile, Expr, Constant};
 use inkwell::{context::Context, AddressSpace, values::BasicMetadataValueEnum, targets::{Target, InitializationConfig, RelocMode, CodeModel, TargetTriple, FileType}, OptimizationLevel};
 use lalrpop_util::lalrpop_mod;
 
-use crate::ast_visualisator::get_program_tree;
+use crate::{ast_visualisator::get_program_tree, symbols::RawSymbols};
 pub mod ast;
-pub mod typechecker;
-pub mod semtree;
+pub mod types;
+pub mod symbols;
 pub mod codegen;
 pub mod ast_visualisator;
+pub mod semtree;
+pub mod errors;
 
 lalrpop_mod!(pub grammar);
 fn main() {
@@ -19,6 +21,9 @@ fn main() {
     let t = grammar::ProgramBlockParser::new().parse(&text).unwrap();
     println!("{:?}", t);
     println!("{}", get_program_tree(&t));
+    let q = RawSymbols::new(&Path::new(&file).file_name().unwrap().to_string_lossy(), &t);
+    println!("{:?}", q);
+    
     try_compile_program(t, &file);
 }
 
@@ -112,7 +117,7 @@ mod tests {
             let external_if = f.body.first().unwrap();
             if let Statement::If(_, _, d, c) = external_if {
                 assert!(c.is_none());
-                if let Statement::If(_, _, d, c) = &(**d) {
+                if let Statement::If(_, _, _d, c) = &(**d) {
                     assert!(c.is_some())
                 }
             }

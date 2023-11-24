@@ -1,4 +1,4 @@
-use std::{iter, fmt::format};
+use std::iter;
 
 use text_trees::StringTreeNode;
 
@@ -90,5 +90,6 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
         Expr::OpUnAs(_, _, _) => todo!(),
         Expr::OpDot(_, x, y) => StringTreeNode::with_child_nodes("BinDot".to_string(), vec![expressions(x), StringTreeNode::new(format!("{}", y))].into_iter()),
         Expr::OpNew(_, _, _) => todo!(),
+        Expr::OpBinIndex(_, x, y) => StringTreeNode::with_child_nodes("BinIndex".to_string(), vec![expressions(x), expressions(y)].into_iter()),
     }
 }
