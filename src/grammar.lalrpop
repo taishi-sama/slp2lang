@@ -26,6 +26,7 @@ match {
     "[",
     "]",
     ";",
+    "::",
     "..",
     ".",
     ":=",
@@ -51,7 +52,7 @@ match {
     r#""[^\"]*""# => StrLiteral,
 }
 
-Identificator:String = <s:ID> => s.to_string();
+SoloId:String = <s:ID> => s.to_string();
 
 //pub ProgramBlock: Program = {
 //    <pd: ProcedureDecl> <mut p: ProgramBlock> => {p.declarations.insert(0, Declaration::Function(pd)); return p;},
@@ -79,13 +80,13 @@ Declarations: Declaration = {
     <efd: ExternalFunctionDecl> => Declaration::ExternFunction(efd),
 }
 ProcedureDecl: FunctionBody = {
-    <tl:@L> Procedure <f:Identificator> "(" <fa:ArgsList> ")" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
+    <tl:@L> Procedure <f:SoloId> "(" <fa:ArgsList> ")" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
 };
 FunctionDecl: FunctionBody = {
-    <tl:@L> Function <f:Identificator> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: ret}
+    <tl:@L> Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: ret}
 }
 ExternalFunctionDecl: ExternFunctionBody = {
-    <tl:@L> External Function <f:Identificator> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";"<tr:@R> => ExternFunctionBody{loc:Loc::new(tl, tr), function_name: f, function_args: fa, return_arg: ret}
+    <tl:@L> External Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";"<tr:@R> => ExternFunctionBody{loc:Loc::new(tl, tr), function_name: f, function_args: fa, return_arg: ret}
 }
 MainDecl: FunctionBody = {
     <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::Primitive("int32".to_string())}}
@@ -100,8 +101,8 @@ ArgsDecl: ArgDecl = {
     <tl:@L> <il:IndList> ":" <t:TypeDecl> <tr:@R> => ArgDecl{names: il, ty: t, loc: Loc::new(tl, tr)}
 }
 IndList: Vec<String> = {
-    <id:Identificator> "," <mut il: IndList> => {il.insert(0, id.clone()); return il;},
-    <id:Identificator> => vec![id.clone()]
+    <id:SoloId> "," <mut il: IndList> => {il.insert(0, id.clone()); return il;},
+    <id:SoloId> => vec![id.clone()]
 }
 
 StatementsBlock: StatementBlock = {
@@ -194,16 +195,22 @@ Tier2: Expr = {
     Tier1
 };
 
+
 Tier1: Expr = {
     "(" <e:Expr> ")" => e,
-    <tl:@L> <e:Tier1> "." <id:Identificator> <tr:@R> => Expr::OpDot(Loc::new(tl, tr), Box::new(e), id),
+    <tl:@L> <e:Tier1> "." <id:SoloId> <tr:@R> => Expr::OpMethodCall(Loc::new(tl, tr), Box::new(e), id),
     <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, f),
     <tl:@L> <e:Tier1> "[" <i:Expr> "]" <tr:@R> => Expr::OpBinIndex(Loc::new(tl, tr), Box::new(e), Box::new(i)),
     <tl:@L> <fc: FuncCall> <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), fc),
     <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c),
-    <tl:@L> <id: Identificator> <tr:@R> => Expr::Ident(Loc::new(tl, tr), id),
+    <tl:@L> <id: IdPath> <tr:@R> => Expr::Ident(Loc::new(tl, tr), id),
     
 };
+
+IdPath: Identificator = {
+    <id: SoloId> => Identificator{name: id, path: vec![]},
+    <path: SoloId> "::" <mut id:IdPath> => {id.path.insert(0, path.clone()); return id;}
+}
 
 FuncCall: FunctionCall = {
     <e:Tier1> "(" <f:FuncCallArgList> ")" <tr:@R> => FunctionCall{func: Box::new(e), args: f}
@@ -229,5 +236,5 @@ Type: Type = {
     "^"<t: Type> => Type::Pointer(Box::new(t)),
     Array Of <t: Type>  => Type::DynArray(Box::new(t)),
     Array "[" <b: IntegerConstant> ".." <e: IntegerConstant> "]" Of <t: Type>  => Type::FixedArray(b, e, Box::new(t)),
-    <id: Identificator> => Type::Primitive(id.clone())
+    <id: SoloId> => Type::Primitive(id.clone())
 };

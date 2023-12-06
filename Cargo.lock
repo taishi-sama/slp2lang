@@ -488,6 +488,7 @@ dependencies = [
  "lalrpop",
  "lalrpop-util",
  "text_trees",
+ "thiserror",
 ]
 
 [[package]]

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Loc{
     pub begin: usize,
@@ -5,6 +7,11 @@ pub struct Loc{
 }
 impl Loc {
     pub fn new(begin: usize, end: usize) -> Self {Self{begin, end}}
+}
+impl Display for Loc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Loc[{}..{}]", self.begin, self.end)
+    }
 }
 #[derive(Debug, Clone)]
 pub struct ProgramFile {
@@ -45,9 +52,14 @@ pub struct ExternFunctionBody {
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
+pub struct Identificator{
+    pub name: String,
+    pub path: Vec<String>,
+}
+#[derive(Debug, Clone)]
 pub enum Expr {
     Constant(Loc, Constant),
-    Ident(Loc, String),
+    Ident(Loc, Identificator),
     OpBinPlus(Loc, Box<Expr>, Box<Expr>),
     OpBinMinus(Loc, Box<Expr>, Box<Expr>),
     //Multiplication
@@ -81,10 +93,11 @@ pub enum Expr {
     //Distinguish from typecast at next stages
     OpFunctionCall(Loc, FunctionCall),
     OpUnAs(Loc, Box<Expr>, TypeDecl),
-    //Can be just namespace specification or proper method call 
-    OpDot(Loc, Box<Expr>, String),
+    
+    OpMethodCall(Loc, Box<Expr>, String),
     OpNew(Loc, Type, Vec<Expr>)
 }
+
 #[derive(Debug, Clone)]
 pub enum Constant {
     String(String),

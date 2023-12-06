@@ -2,7 +2,7 @@ use std::iter;
 
 use text_trees::StringTreeNode;
 
-use crate::ast::{ProgramFile, Declaration, Type, ArgDecl, Statement, Expr, Constant, VarDecl};
+use crate::ast::{ProgramFile, Declaration, Type, ArgDecl, Statement, Expr, Constant, VarDecl, Identificator};
 
 pub fn get_program_tree(pf: &ProgramFile ) -> StringTreeNode {
     StringTreeNode::with_child_nodes("FileRoot".to_string(), pf.declarations.iter().map(declaration))
@@ -60,10 +60,13 @@ pub fn constant(c: &Constant) -> StringTreeNode {
         Constant::Bool(x) => format!("Bool {x}"),
     }))
 }
+pub fn ident(id: &Identificator) -> StringTreeNode {
+    StringTreeNode::with_child_nodes(format!("Id:{}", id.name), id.path.iter().map(|t|StringTreeNode::new(format!("Path: {}", t))))
+}
 pub fn expressions(ex: &Expr) -> StringTreeNode {
     match ex {
         Expr::Constant(_, x) => constant(x),
-        Expr::Ident(_, x) => StringTreeNode::new(format!("Id:{}", x)),
+        Expr::Ident(_, x) => ident(x),
         Expr::OpBinPlus(_, x, y) => StringTreeNode::with_child_nodes("BinPlus".to_string(), vec![expressions(x), expressions(y)].into_iter()),
         Expr::OpBinMinus(_, _, _) => todo!(),
         Expr::OpBinAsterisk(_, x, y) => StringTreeNode::with_child_nodes("BinAsterisk".to_string(), vec![expressions(x), expressions(y)].into_iter()),
@@ -88,7 +91,7 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
         Expr::OpUnGetRef(_, _) => todo!(),
         Expr::OpFunctionCall(_, _) => todo!(),
         Expr::OpUnAs(_, _, _) => todo!(),
-        Expr::OpDot(_, x, y) => StringTreeNode::with_child_nodes("BinDot".to_string(), vec![expressions(x), StringTreeNode::new(format!("{}", y))].into_iter()),
+        Expr::OpMethodCall(_, x, y) => StringTreeNode::with_child_nodes("BinDot".to_string(), vec![expressions(x), StringTreeNode::new(format!("{}", y))].into_iter()),
         Expr::OpNew(_, _, _) => todo!(),
         Expr::OpBinIndex(_, x, y) => StringTreeNode::with_child_nodes("BinIndex".to_string(), vec![expressions(x), expressions(y)].into_iter()),
     }
