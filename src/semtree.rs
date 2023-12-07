@@ -1,4 +1,4 @@
-use std::collections::{HashMap};
+use std::{collections::{HashMap}, sync::Arc};
 
 use crate::{symbols::{Id, RawSymbols}, types::SLPType, ast::{Loc, ProgramFile, FunctionBody, ExternFunctionBody}, errors::SemTreeBuildErrors};
 #[derive(Debug, Clone)]
@@ -46,8 +46,47 @@ impl SemanticTree {
     }
 }
 
-struct Scope {
-    
+#[derive(Debug, Clone)]
+struct Scope<'a> {
+    outer_scope: Option<&'a Scope<'a>>,
+    local_variables: HashMap<Id, Vec<LocalVariable>>,
+    order: Vec<LocalVariable>,
+}
+impl<'a> Scope<'a> {
+    pub fn new() -> Self {
+        Scope { outer_scope: None, local_variables: Default::default(), order: Default::default() }
+    }
+    pub fn new_with_outer<'b: 'a>(outer: &'b Scope<'b>) -> Self {
+        Scope { outer_scope: Some(outer), local_variables: Default::default(), order: Default::default() }
+    }
+    fn rec_occupied(&self, lv: &LocalVariable) -> bool {
+        self.order.contains(lv) || self.outer_scope.map(|x|x.rec_occupied(lv)).unwrap_or(false)
+    }
+    //Перекрывающиеся области видимости
+    pub fn add_variable(&mut self, tree_id: &Id) -> LocalVariable {
+        let candidate_name = LocalVariable(tree_id.0.clone());
+        let mut testing_name = candidate_name.clone();
+        let mut counter = 0;
+        while self.rec_occupied(&testing_name) {
+            testing_name = LocalVariable(format!("{}_{}", candidate_name.0, counter));
+            counter+=1;
+        }
+        self.order.push(testing_name.clone());
+        if let Some(m) = self.local_variables.get_mut(tree_id) {
+            m.push(testing_name.clone())
+        }
+        else {
+            self.local_variables.insert(tree_id.clone(), vec![testing_name.clone()]).unwrap();
+        }
+        testing_name
+    }
+    fn rec_get(&self, tree_id: &Id) -> Option<LocalVariable> {
+        self.local_variables.get(tree_id).map(|x|x.last().unwrap().clone())
+            .or(self.outer_scope.map_or(None, |x|x.rec_get(tree_id)))
+    }
+    pub fn get_variable(&self, tree_id: &Id) -> Option<LocalVariable> {
+        self.rec_get(tree_id)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -105,7 +144,8 @@ pub struct Expr {
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-    LocalVariable(String),
+    LocalVariable(LocalVariable),
 
 }
-
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LocalVariable(String);

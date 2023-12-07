@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{ast::{ProgramFile, Loc, ArgDecl}, types::SLPType, errors::SemTreeBuildErrors};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(String);
+pub struct Id(pub String);
 
 
 //TODO: Get all type alliases 
