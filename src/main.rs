@@ -4,7 +4,7 @@ use ast::{ProgramFile, Expr, Constant};
 use inkwell::{context::Context, AddressSpace, values::BasicMetadataValueEnum, targets::{Target, InitializationConfig, RelocMode, CodeModel, TargetTriple, FileType}, OptimizationLevel};
 use lalrpop_util::lalrpop_mod;
 
-use crate::{ast_visualisator::get_program_tree, symbols::RawSymbols};
+use crate::{ast_visualisator::get_program_tree, symbols::RawSymbols, semtree::SemanticTree, semtree_visualisator::get_program_root};
 pub mod ast;
 pub mod types;
 pub mod symbols;
@@ -12,6 +12,7 @@ pub mod codegen;
 pub mod ast_visualisator;
 pub mod semtree;
 pub mod errors;
+pub mod semtree_visualisator;
 
 lalrpop_mod!(pub grammar);
 fn main() {
@@ -20,10 +21,11 @@ fn main() {
     let text = fs::read_to_string(&file).unwrap();
     let t = grammar::ProgramBlockParser::new().parse(&text).unwrap();
     println!("{:?}", t);
-    println!("{}", get_program_tree(&t));
+    //println!("{}", get_program_tree(&t));
     let q = RawSymbols::new(&Path::new(&file).file_name().unwrap().to_string_lossy(), &t);
     println!("{:?}", q);
-    
+    let st = SemanticTree::new(&t, &q.unwrap());
+    println!("{}", get_program_root(&st.unwrap().root));
     try_compile_program(t, &file);
 }
 

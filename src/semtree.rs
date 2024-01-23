@@ -5,7 +5,7 @@ use crate::{symbols::{Id, RawSymbols}, types::SLPType, ast::{Loc, ProgramFile, F
 pub struct SemanticTree{ 
     //Replace when supporting compilation of many files
     symbols: RawSymbols,
-    root: ProgramRoot,
+    pub root: ProgramRoot,
     //Переменные пересекающихся областей определения переименовываются.
     names: HashMap<Id, String>
 }
@@ -27,7 +27,7 @@ impl SemanticTree {
                     Err(e) => errors.push(e),
                 },
                 crate::ast::Declaration::ExternFunction(x) => match self.visit_extern_function_decl(x) {
-                    Ok(f) => functions.push(f),
+                    Ok(f) => extern_functions.push(f),
                     Err(e) => errors.push(e),
                 },
                 crate::ast::Declaration::TypeDeclSection(x) => todo!(),
@@ -39,9 +39,32 @@ impl SemanticTree {
         } else {Err(errors)}
     }
     fn visit_function_decl(&mut self, func: &FunctionBody) -> Result<Function, SemTreeBuildErrors> {
-        todo!()
+        let mut scope = Scope::new();
+        let function_args: Vec<_> = 
+            func.function_args.iter()
+            .flat_map(|x|x.names.iter().map(|y|(Id(y.to_string()), SLPType::from_ast_type(&x.ty.ty)))).collect();
+        let errs: Vec<_> = function_args.iter().filter_map(|x|x.1.as_ref().err()).collect();
+        if !errs.is_empty() {
+            return Err(errs.first().unwrap().clone().clone());
+        }
+        let return_arg = SLPType::from_ast_type(&func.return_arg.ty)?;
+        
+        let function_args: Vec<(Id, SLPType)> = function_args.into_iter().map(|(id, ty)|(id, ty.unwrap())).collect();
+        for (id, ty) in &function_args {
+            scope.add_variable(id, ty.clone());
+        }
+        scope.add_variable(&Id("Result".to_owned()), return_arg.clone());
+        Ok(
+            Function{ 
+                function_name: Id(func.function_name.clone()), 
+                function_args, 
+                return_arg, 
+                body: vec![], 
+                loc: func.loc
+            }
+        )
     }
-    fn visit_extern_function_decl(&mut self, func: &ExternFunctionBody) -> Result<Function, SemTreeBuildErrors> {
+    fn visit_extern_function_decl(&mut self, func: &ExternFunctionBody) -> Result<ExternFunction, SemTreeBuildErrors> {
         todo!()
     }
 }
@@ -49,7 +72,7 @@ impl SemanticTree {
 #[derive(Debug, Clone)]
 struct Scope<'a> {
     outer_scope: Option<&'a Scope<'a>>,
-    local_variables: HashMap<Id, Vec<LocalVariable>>,
+    local_variables: HashMap<Id, Vec<(LocalVariable, SLPType)>>,
     order: Vec<LocalVariable>,
 }
 impl<'a> Scope<'a> {
@@ -63,7 +86,7 @@ impl<'a> Scope<'a> {
         self.order.contains(lv) || self.outer_scope.map(|x|x.rec_occupied(lv)).unwrap_or(false)
     }
     //Перекрывающиеся области видимости
-    pub fn add_variable(&mut self, tree_id: &Id) -> LocalVariable {
+    pub fn add_variable(&mut self, tree_id: &Id, ty: SLPType) -> LocalVariable {
         let candidate_name = LocalVariable(tree_id.0.clone());
         let mut testing_name = candidate_name.clone();
         let mut counter = 0;
@@ -73,18 +96,18 @@ impl<'a> Scope<'a> {
         }
         self.order.push(testing_name.clone());
         if let Some(m) = self.local_variables.get_mut(tree_id) {
-            m.push(testing_name.clone())
+            m.push((testing_name.clone(), ty))
         }
         else {
-            self.local_variables.insert(tree_id.clone(), vec![testing_name.clone()]).unwrap();
+            self.local_variables.insert(tree_id.clone(), vec![(testing_name.clone(), ty)]).unwrap();
         }
         testing_name
     }
-    fn rec_get(&self, tree_id: &Id) -> Option<LocalVariable> {
+    fn rec_get(&self, tree_id: &Id) -> Option<(LocalVariable, SLPType)> {
         self.local_variables.get(tree_id).map(|x|x.last().unwrap().clone())
             .or(self.outer_scope.map_or(None, |x|x.rec_get(tree_id)))
     }
-    pub fn get_variable(&self, tree_id: &Id) -> Option<LocalVariable> {
+    pub fn get_variable(&self, tree_id: &Id) -> Option<(LocalVariable, SLPType)> {
         self.rec_get(tree_id)
     }
 }
@@ -107,7 +130,6 @@ pub struct ExternFunction {
     pub function_name:Id,
     pub function_args:Vec<(Id, SLPType)>,
     pub return_arg: SLPType,
-    //pub body: Vec<Statement>,
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
