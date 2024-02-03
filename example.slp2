@@ -1,11 +1,13 @@
 function test(q, t, e: int32):void
 begin
-    print("Hello!");
-    var t := i[1];
+    print(-123);
+    //print("Hello!");
+    //var t := i[1];
 end; 
 
 begin
+    print(-123);
     //print("Hello world!");
-    print("HIIIII");
+    //print("HIIIII");
     //test.q.l(1 + 2 + 3 + 4);
 end.

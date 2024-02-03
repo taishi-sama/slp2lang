@@ -1,6 +1,6 @@
 use std::{collections::{HashMap}, sync::Arc};
 
-use crate::{symbols::{Id, RawSymbols}, types::SLPType, ast::{Loc, ProgramFile, FunctionBody, ExternFunctionBody}, errors::SemTreeBuildErrors};
+use crate::{symbols::{Id, RawSymbols}, types::SLPType, ast::{Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement}, errors::SemTreeBuildErrors};
 #[derive(Debug, Clone)]
 pub struct SemanticTree{ 
     //Replace when supporting compilation of many files
@@ -59,7 +59,7 @@ impl SemanticTree {
                 function_name: Id(func.function_name.clone()), 
                 function_args, 
                 return_arg, 
-                body: vec![], 
+                body: self.visit_codeblock(&func.body, &scope)?, 
                 loc: func.loc
             }
         )
@@ -67,6 +67,76 @@ impl SemanticTree {
     fn visit_extern_function_decl(&mut self, func: &ExternFunctionBody) -> Result<ExternFunction, SemTreeBuildErrors> {
         todo!()
     }
+    fn visit_codeblock(&mut self, block: &[Statement], outer: &Scope) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+        let mut scope = Scope::new_with_outer(outer);
+        let mut stmts: Vec<STStatement> = vec![];
+        for st in block {
+            stmts.push(self.visit_statement(st, &mut scope)?);
+        }
+        Ok(stmts)
+    }
+    fn visit_statement(&mut self, statement: &Statement, outer: &mut Scope) -> Result<STStatement, SemTreeBuildErrors> {
+        match &statement {
+            Statement::CodeBlock(l, b) => Ok(STStatement::CodeBlock(l.clone(), self.visit_codeblock(&b, &outer)?)),
+            Statement::Print(l, e) => Ok(STStatement::Print(l.clone(), Box::new(self.visit_expression(&e, &outer)?))),
+            Statement::FunctionCall(_, _) => todo!(),
+            Statement::Assignment(_, _, _) => todo!(),
+            Statement::If(_, _, _, _) => todo!(),
+            Statement::While(_, _, _) => todo!(),
+            Statement::RepeatUntil(_, _, _) => todo!(),
+            Statement::VarDecl(_, _) => todo!(),
+            Statement::Empty() => Ok(STStatement::Empty()),
+        }
+    }
+    fn visit_expression(&mut self, expr: &Expr, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
+        Ok(match expr {
+            Expr::Constant(l, c) => {
+                match c {
+                    crate::ast::Constant::String(_) => todo!(),
+                    crate::ast::Constant::Int64(lit) => 
+                        STExpr{ 
+                            ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Int64), 
+                            loc: l.clone(), 
+                            kind: ExprKind::NumberLiteral(NumberLiteral::I64(*lit)) 
+                        },
+                    crate::ast::Constant::Float64(_) => todo!(),
+                    crate::ast::Constant::Bool(_) => todo!(),
+                }
+            },
+            Expr::Ident(_, _) => {
+                todo!()
+            },
+            Expr::OpBinPlus(_, _, _) => todo!(),
+            Expr::OpBinMinus(_, _, _) => todo!(),
+            Expr::OpBinAsterisk(_, _, _) => todo!(),
+            Expr::OpBinSlash(_, _, _) => todo!(),
+            Expr::OpBinDiv(_, _, _) => todo!(),
+            Expr::OpBinMod(_, _, _) => todo!(),
+            Expr::OpUnPlus(_, _) => todo!(),
+            Expr::OpUnMinus(_, _) => todo!(),
+            Expr::OpBinAnd(_, _, _) => todo!(),
+            Expr::OpBinOr(_, _, _) => todo!(),
+            Expr::OpBinXor(_, _, _) => todo!(),
+            Expr::OpUnNot(_, _) => todo!(),
+            Expr::OpBinShl(_, _, _) => todo!(),
+            Expr::OpBinShr(_, _, _) => todo!(),
+            Expr::OpBinLesser(_, _, _) => todo!(),
+            Expr::OpBinGreater(_, _, _) => todo!(),
+            Expr::OpBinLesserEq(_, _, _) => todo!(),
+            Expr::OpBinGreaterEq(_, _, _) => todo!(),
+            Expr::OpBinEq(_, _, _) => todo!(),
+            Expr::OpBinNotEq(_, _, _) => todo!(),
+            Expr::OpUnDeref(_, _) => todo!(),
+            Expr::OpUnGetRef(_, _) => todo!(),
+            Expr::OpBinIndex(_, _, _) => todo!(),
+            Expr::OpFunctionCall(_, _) => todo!(),
+            Expr::OpUnAs(_, _, _) => todo!(),
+            Expr::OpMethodCall(_, _, _) => todo!(),
+            Expr::OpNew(_, _, _) => todo!(),
+        }
+    )
+    }
+
 }
 
 #[derive(Debug, Clone)]
@@ -99,7 +169,7 @@ impl<'a> Scope<'a> {
             m.push((testing_name.clone(), ty))
         }
         else {
-            self.local_variables.insert(tree_id.clone(), vec![(testing_name.clone(), ty)]).unwrap();
+            self.local_variables.insert(tree_id.clone(), vec![(testing_name.clone(), ty)]);
         }
         testing_name
     }
@@ -122,7 +192,7 @@ pub struct Function {
     pub function_name:Id,
     pub function_args:Vec<(Id, SLPType)>,
     pub return_arg: SLPType,
-    pub body: Vec<Statement>,
+    pub body: Vec<STStatement>,
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
@@ -133,15 +203,15 @@ pub struct ExternFunction {
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
-pub enum Statement{
-    CodeBlock(Loc, Vec<Statement>),
-    Print(Loc, Box<Expr>),
+pub enum STStatement{
+    CodeBlock(Loc, Vec<STStatement>),
+    Print(Loc, Box<STExpr>),
     FunctionCall(Loc, FunctionCall),
     //RHS, LHS
-    Assignment(Loc, Box<Expr>, Box<Expr>),
-    If(Loc, Box<Expr>, Box<Statement>, Option<Box<Statement>>),
-    While(Loc, Box<Expr>, Box<Statement>),
-    RepeatUntil(Loc, Box<Expr>, Box<Statement>),
+    Assignment(Loc, Box<STExpr>, Box<STExpr>),
+    If(Loc, Box<STExpr>, Box<STStatement>, Option<Box<STStatement>>),
+    While(Loc, Box<STExpr>, Box<STStatement>),
+    RepeatUntil(Loc, Box<STExpr>, Box<STStatement>),
     //Expand single declaration in multiple varDecl
     VarDecl(Loc, VarDecl),
     Empty()
@@ -150,16 +220,16 @@ pub enum Statement{
 pub struct VarDecl{
     pub id: Id,
     pub ty: SLPType,
-    pub init_expr: Option<Expr>,
+    pub init_expr: Option<STExpr>,
 }
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
-    pub func: Box<Expr>, 
-    pub args: Vec<Expr>,
+    pub func: Box<STExpr>, 
+    pub args: Vec<STExpr>,
     pub ret_type: SLPType,
 }
 #[derive(Debug, Clone)]
-pub struct Expr {
+pub struct STExpr {
     pub ret_type: SLPType, 
     pub loc: Loc,
     pub kind: ExprKind
@@ -167,7 +237,15 @@ pub struct Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     LocalVariable(LocalVariable),
-
+    TypeCast(Box<STExpr>),
+    NumberLiteral(NumberLiteral)
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LocalVariable(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NumberLiteral {
+    U32(u32),
+    I32(i32),
+    U64(u64),
+    I64(i64)
+}
