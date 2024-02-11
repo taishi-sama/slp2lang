@@ -1,12 +1,14 @@
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Loc{
+pub struct Loc {
     pub begin: usize,
     pub end: usize,
 }
 impl Loc {
-    pub fn new(begin: usize, end: usize) -> Self {Self{begin, end}}
+    pub fn new(begin: usize, end: usize) -> Self {
+        Self { begin, end }
+    }
 }
 impl Display for Loc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -16,7 +18,7 @@ impl Display for Loc {
 #[derive(Debug, Clone)]
 pub struct ProgramFile {
     pub uses: Vec<Usings>,
-    pub declarations: Vec<Declaration>
+    pub declarations: Vec<Declaration>,
 }
 #[derive(Debug, Clone)]
 pub enum Usings {
@@ -38,21 +40,21 @@ pub struct TypeDeclSectionBody {
 
 #[derive(Debug, Clone)]
 pub struct FunctionBody {
-    pub function_name:String,
-    pub function_args:Vec<ArgDecl>,
+    pub function_name: String,
+    pub function_args: Vec<ArgDecl>,
     pub return_arg: TypeDecl,
     pub body: StatementBlock,
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
 pub struct ExternFunctionBody {
-    pub function_name:String,
-    pub function_args:ArgDeclList,
+    pub function_name: String,
+    pub function_args: ArgDeclList,
     pub return_arg: TypeDecl,
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
-pub struct Identificator{
+pub struct Identificator {
     pub name: String,
     pub path: Vec<String>,
 }
@@ -85,17 +87,17 @@ pub enum Expr {
     OpBinGreaterEq(Loc, Box<Expr>, Box<Expr>),
     OpBinEq(Loc, Box<Expr>, Box<Expr>),
     OpBinNotEq(Loc, Box<Expr>, Box<Expr>),
-    
+
     OpUnDeref(Loc, Box<Expr>),
     OpUnGetRef(Loc, Box<Expr>),
-    OpBinIndex(Loc, Box<Expr>, Box<Expr>),    
+    OpBinIndex(Loc, Box<Expr>, Box<Expr>),
     //OpUnTypecast(Loc, TypeDecl, Box<Expr>),
     //Distinguish from typecast at next stages
     OpFunctionCall(Loc, FunctionCall),
     OpUnAs(Loc, Box<Expr>, TypeDecl),
-    
+
     OpMethodCall(Loc, Box<Expr>, String),
-    OpNew(Loc, Type, Vec<Expr>)
+    OpNew(Loc, Type, Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]
@@ -103,9 +105,9 @@ pub enum Constant {
     String(String),
     Int64(i64),
     Float64(f64),
-    Bool(bool)
+    Bool(bool),
 }
-pub type StatementBlock = Vec<Statement>; 
+pub type StatementBlock = Vec<Statement>;
 #[derive(Debug, Clone)]
 pub enum Statement {
     CodeBlock(Loc, StatementBlock),
@@ -117,17 +119,17 @@ pub enum Statement {
     While(Loc, Box<Expr>, Box<Statement>),
     RepeatUntil(Loc, Box<Expr>, Box<Statement>),
     VarDecl(Loc, VarDecl),
-    Empty()
+    Empty(),
 }
 #[derive(Debug, Clone)]
-pub enum VarDecl{
+pub enum VarDecl {
     Multiple(Vec<String>, TypeDecl),
     ExplicitType(String, TypeDecl, Box<Expr>),
     ImplicitType(String, Box<Expr>),
 }
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
-    pub func: Box<Expr>, 
+    pub func: Box<Expr>,
     pub args: Vec<Expr>,
 }
 #[derive(Debug, Clone)]
@@ -151,8 +153,10 @@ pub enum Type {
     //MultiDim arrays aren't supported yet
     DynArray(Box<Type>),
     //Only integer indexes are supported yet
-    FixedArray(i64, i64, Box<Type>)
+    FixedArray(i64, i64, Box<Type>),
 }
 impl Type {
-    pub fn void() -> Self {Type::Primitive("void".to_string())}
+    pub fn void() -> Self {
+        Type::Primitive("void".to_string())
+    }
 }

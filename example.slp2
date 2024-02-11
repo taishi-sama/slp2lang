@@ -1,3 +1,4 @@
+external function t(i: int32):void;
 function test(q, t, e: int32):void
 begin
     print(-123);

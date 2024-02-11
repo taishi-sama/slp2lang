@@ -4,13 +4,12 @@ pub enum SLPType {
     PrimitiveType(SLPPrimitiveType),
     Pointer(Box<SLPType>),
     DynArray(Box<SLPType>),
-    FixedArray{
+    FixedArray {
         begin: i64,
         end: i64,
         ty: Box<SLPType>,
     },
     Struct(StructType),
-
 }
 #[derive(Debug, Clone)]
 pub enum SLPPrimitiveType {
@@ -26,7 +25,7 @@ pub enum SLPPrimitiveType {
     USize,
     String,
     Bool,
-    Void
+    Void,
 }
 #[derive(Debug, Clone)]
 pub struct StructType {
@@ -51,11 +50,15 @@ impl SLPType {
                 "string" => SLPPrimitiveType::String,
                 "bool" => SLPPrimitiveType::Bool,
                 "void" => SLPPrimitiveType::Void,
-                _ => panic!("Unknown type!") // TODO: Type alias resolving, structure name resolving
+                _ => panic!("Unknown type!"), // TODO: Type alias resolving, structure name resolving
             })),
             Type::Pointer(t) => Ok(Self::Pointer(Box::new(Self::from_ast_type(&t)?))),
             Type::DynArray(t) => Ok(Self::DynArray(Box::new(Self::from_ast_type(&t)?))),
-            Type::FixedArray(b, e, t) => Ok(Self::FixedArray { begin: *b, end: *e, ty: Box::new(Self::from_ast_type(&t)?) }),
+            Type::FixedArray(b, e, t) => Ok(Self::FixedArray {
+                begin: *b,
+                end: *e,
+                ty: Box::new(Self::from_ast_type(&t)?),
+            }),
         }
     }
 }
