@@ -1,6 +1,7 @@
 external function t(i: int32):void;
 function test(q, t, e: int32):void
 begin
+    var i : int32;
     print(-123);
     //print("Hello!");
     //var t := i[1];

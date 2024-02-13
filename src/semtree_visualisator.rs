@@ -2,7 +2,7 @@ use std::iter;
 
 use text_trees::StringTreeNode;
 
-use crate::semtree::{ExternFunction, Function, ProgramRoot, STExpr, STStatement};
+use crate::semtree::{ExternFunction, Function, ProgramRoot, STExpr, STStatement, VarDecl};
 
 pub fn get_program_root(root: &ProgramRoot) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
@@ -58,9 +58,12 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::If(_, _, _, _) => todo!(),
         STStatement::While(_, _, _) => todo!(),
         STStatement::RepeatUntil(_, _, _) => todo!(),
-        STStatement::VarDecl(_, _) => todo!(),
+        STStatement::VarDecl(_, l) => vardecl(l),
         STStatement::Empty() => todo!(),
     }
+}
+fn vardecl(vd: &VarDecl) -> StringTreeNode {
+    StringTreeNode::with_child_nodes(format!("var {}: {:?}", vd.id.0, vd.ty), vd.init_expr.as_ref().map(expr).into_iter())
 }
 pub fn expr(expr: &STExpr) -> StringTreeNode {
     match &expr.kind {

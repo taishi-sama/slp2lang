@@ -63,10 +63,14 @@ pub fn compile(file: &str, output_filename: &str) {
 
     let text = fs::read_to_string(file).unwrap();
     let t = grammar::ProgramBlockParser::new().parse(&text).unwrap();
+    println!("{}", get_program_tree(&t));
+    
     let q = RawSymbols::new(&Path::new(&file).file_name().unwrap().to_string_lossy(), &t);
     let st = SemanticTree::new(&t, &q.unwrap());
     let cdgn: Codegen = Codegen::new(&cctx, output_filename, target_machine);
     let semtree = st.unwrap();
+    println!("{}", get_program_root(&semtree.root));
+    
     cdgn.compile_semtree(&semtree);
     let module = &cdgn.module;
     println!("{}", module.print_to_string().to_str().unwrap());

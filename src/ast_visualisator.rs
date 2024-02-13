@@ -24,8 +24,18 @@ pub fn declaration(decl: &Declaration) -> StringTreeNode {
                     .chain(vec![types(ret)])
                     .chain(f.body.iter().map(statements)),
             )
+        },
+        Declaration::ExternFunction(f) => {
+            let ret = &f.return_arg.ty;
+            StringTreeNode::with_child_nodes(
+                format!("external fn {}", f.function_name),
+                f.function_args
+                    .iter()
+                    .map(arg_decl)
+                    .chain(vec![types(ret)])
+                    
+            )
         }
-        Declaration::ExternFunction(_) => todo!(),
         Declaration::TypeDeclSection(_) => todo!(),
     }
 }

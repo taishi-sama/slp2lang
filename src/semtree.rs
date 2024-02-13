@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    ast::{Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
+    ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
     errors::SemTreeBuildErrors,
     symbols::{Id, RawSymbols},
     types::SLPType,
@@ -135,7 +135,7 @@ impl SemanticTree {
         let mut scope = Scope::new_with_outer(outer);
         let mut stmts: Vec<STStatement> = vec![];
         for st in block {
-            stmts.push(self.visit_statement(st, &mut scope)?);
+            stmts.append(&mut self.visit_statement(st, &mut scope)?);
         }
         Ok(stmts)
     }
@@ -143,23 +143,35 @@ impl SemanticTree {
         &mut self,
         statement: &Statement,
         outer: &mut Scope,
-    ) -> Result<STStatement, SemTreeBuildErrors> {
+    ) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
         match &statement {
-            Statement::CodeBlock(l, b) => Ok(STStatement::CodeBlock(
+            Statement::CodeBlock(l, b) => Ok(vec![STStatement::CodeBlock(
                 l.clone(),
                 self.visit_codeblock(&b, &outer)?,
-            )),
-            Statement::Print(l, e) => Ok(STStatement::Print(
+            )]),
+            Statement::Print(l, e) => Ok(vec![STStatement::Print(
                 l.clone(),
                 Box::new(self.visit_expression(&e, &outer)?),
-            )),
+            )]),
             Statement::FunctionCall(_, _) => todo!(),
             Statement::Assignment(_, _, _) => todo!(),
             Statement::If(_, _, _, _) => todo!(),
             Statement::While(_, _, _) => todo!(),
             Statement::RepeatUntil(_, _, _) => todo!(),
-            Statement::VarDecl(_, _) => todo!(),
-            Statement::Empty() => Ok(STStatement::Empty()),
+            Statement::VarDecl(l, t) => {
+                self.visit_vardelc(t, l)
+            },
+            Statement::Empty() => Ok(vec![STStatement::Empty()]),
+        }
+    }
+    fn visit_vardelc(&mut self, vd: &ast::VarDecl, l: &Loc) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+        match vd {
+            ast::VarDecl::Multiple(s, ty) => {
+                let ty = SLPType::from_ast_type(&ty.ty)?;
+                Ok(s.iter().map(|x|STStatement::VarDecl(*l, VarDecl { id: Id(x.clone()), ty: ty.clone(), init_expr: None })).collect())
+            },
+            ast::VarDecl::ExplicitType(_, _, _) => todo!(),
+            ast::VarDecl::ImplicitType(_, _) => todo!(),
         }
     }
     fn visit_expression(
