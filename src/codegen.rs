@@ -6,11 +6,11 @@ use inkwell::{
     types::{
         AnyType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, PointerType,
         StructType,
-    },
+    }, values::BasicValue,
 };
 
 use crate::{
-    semtree::{ExternFunction, SemanticTree},
+    semtree::{ExternFunction, Function, SemanticTree},
     types::{SLPPrimitiveType, SLPType},
 };
 
@@ -45,6 +45,9 @@ impl<'a> Codegen<'a> {
         for ef in &semtree.root.extern_funcs {
             self.compile_extern_function(ef);
         }
+        for f in &semtree.root.funcs {
+            self.compile_function(&f);
+        }
     }
     pub fn compile_extern_function(&self, ef: &ExternFunction) {
         let f = self.slp_func_to_llvm_func(&ef.function_args, &ef.return_arg);
@@ -53,6 +56,23 @@ impl<'a> Codegen<'a> {
             f,
             Some(inkwell::module::Linkage::External),
         );
+    }
+    pub fn compile_function(&self, f: &Function) {
+        let f_t =  self.slp_func_to_llvm_func(&f.function_args, &f.return_arg);
+        let func = self.module.add_function(
+            &f.function_name.0,
+            f_t,
+            Some(inkwell::module::Linkage::External),
+        );
+        let t = self.ctx.context.append_basic_block(func, "entry");
+        self.builder.position_at_end(t);
+
+        let ret = if !f.return_arg.is_void() {
+            let ret_ty = self.slp_type_to_llvm(&f.return_arg);
+            Some(self.builder.build_alloca( ret_ty, "Result"))
+        } else {None};
+        let ret_load = ret.map(|x|self.builder.build_load(self.slp_type_to_llvm(&f.return_arg), x, ""));
+        self.builder.build_return(ret_load.as_ref().map(|x|x as &dyn BasicValue));
     }
     pub fn slp_type_to_llvm(&self, ty: &SLPType) -> BasicTypeEnum<'a> {
         match ty {

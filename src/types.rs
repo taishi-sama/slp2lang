@@ -34,6 +34,14 @@ pub struct StructType {
 }
 
 impl SLPType {
+    pub fn is_void(&self) -> bool {
+        if let &SLPType::PrimitiveType(SLPPrimitiveType::Void) = self {
+            true
+        }
+        else { 
+            false
+        }
+    }
     pub fn from_ast_type(ty: &Type) -> Result<Self, SemTreeBuildErrors> {
         match ty {
             Type::Primitive(t) => Ok(Self::PrimitiveType(match &t[..] {

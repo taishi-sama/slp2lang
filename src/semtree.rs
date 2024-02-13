@@ -111,7 +111,7 @@ impl SemanticTree {
             .filter_map(|x| x.1.as_ref().err())
             .collect();
         if !errs.is_empty() {
-            return Err(errs.first().unwrap().clone().clone());
+            return Err((*errs.first().unwrap()).clone());
         }
         let return_arg = SLPType::from_ast_type(&func.return_arg.ty)?;
 
