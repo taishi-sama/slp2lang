@@ -104,6 +104,9 @@ pub enum Expr {
 pub enum Constant {
     String(String),
     Int64(i64),
+    Int32(i32),
+    Int16(i16),
+    Int8(i8),
     Float64(f64),
     Bool(bool),
 }

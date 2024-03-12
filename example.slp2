@@ -1,15 +1,10 @@
-external function t(i: int32):void;
+external function putchar(c: int8):int8;
 function test(q, t, e: int32):void
 begin
-    var i : int32;
-    print(-123);
-    //print("Hello!");
-    //var t := i[1];
+    
 end; 
 
 begin
-    print(-123);
-    //print("Hello world!");
-    //print("HIIIII");
-    //test.q.l(1 + 2 + 3 + 4);
+    var i : int8 = 0;
+    putchar(i);
 end.

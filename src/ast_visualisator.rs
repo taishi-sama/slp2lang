@@ -100,10 +100,13 @@ pub fn constant(c: &Constant) -> StringTreeNode {
     StringTreeNode::new(format!(
         "Constant {}",
         match c {
-            Constant::String(x) => format!("String {x}"),
-            Constant::Int64(x) => format!("Int64 {x}"),
-            Constant::Float64(x) => format!("Float64 {x}"),
-            Constant::Bool(x) => format!("Bool {x}"),
+            Constant::String(x)=>format!("String {x}"),
+            Constant::Int64(x)=>format!("Int64 {x}"),
+            Constant::Int32(x) =>format!("Int32 {x}"),
+            Constant::Int16(x) =>format!("Int16 {x}"),
+            Constant::Int8(x) =>format!("Int8 {x}"), 
+            Constant::Float64(x)=>format!("Float64 {x}"),
+            Constant::Bool(x)=>format!("Bool {x}"),
         }
     ))
 }

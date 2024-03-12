@@ -69,6 +69,7 @@ pub fn compile(file: &str, output_filename: &str) {
     let st = SemanticTree::new(&t, &q.unwrap());
     let cdgn: Codegen = Codegen::new(&cctx, output_filename, target_machine);
     let semtree = st.unwrap();
+
     println!("{}", get_program_root(&semtree.root));
     
     cdgn.compile_semtree(&semtree);

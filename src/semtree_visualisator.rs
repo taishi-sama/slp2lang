@@ -76,6 +76,8 @@ pub fn expr(expr: &STExpr) -> StringTreeNode {
                     crate::semtree::NumberLiteral::I32(_) => todo!(),
                     crate::semtree::NumberLiteral::U64(_) => todo!(),
                     crate::semtree::NumberLiteral::I64(i) => i.to_string(),
+                    crate::semtree::NumberLiteral::I16(_) => todo!(),
+                    crate::semtree::NumberLiteral::I8(i) => i.to_string(),
                 },
         ),
     }

@@ -159,18 +159,21 @@ impl SemanticTree {
             Statement::While(_, _, _) => todo!(),
             Statement::RepeatUntil(_, _, _) => todo!(),
             Statement::VarDecl(l, t) => {
-                self.visit_vardelc(t, l)
+                self.visit_vardelc(t, l, &outer)
             },
             Statement::Empty() => Ok(vec![STStatement::Empty()]),
         }
     }
-    fn visit_vardelc(&mut self, vd: &ast::VarDecl, l: &Loc) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+    fn visit_vardelc(&mut self, vd: &ast::VarDecl, l: &Loc, scope: &Scope) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
         match vd {
             ast::VarDecl::Multiple(s, ty) => {
                 let ty = SLPType::from_ast_type(&ty.ty)?;
                 Ok(s.iter().map(|x|STStatement::VarDecl(*l, VarDecl { id: Id(x.clone()), ty: ty.clone(), init_expr: None })).collect())
             },
-            ast::VarDecl::ExplicitType(_, _, _) => todo!(),
+            ast::VarDecl::ExplicitType(s, ty, e) => {
+                let ty = SLPType::from_ast_type(&ty.ty)?;
+                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: Id(s.clone()), ty, init_expr: Some(self.visit_expression(e, scope)?) })])
+            },
             ast::VarDecl::ImplicitType(_, _) => todo!(),
         }
     }
@@ -181,14 +184,32 @@ impl SemanticTree {
     ) -> Result<STExpr, SemTreeBuildErrors> {
         Ok(match expr {
             Expr::Constant(l, c) => match c {
-                crate::ast::Constant::String(_) => todo!(),
-                crate::ast::Constant::Int64(lit) => STExpr {
+
+                
+                ast::Constant::String(_) => todo!(),
+                ast::Constant::Int64(lit) => STExpr {
                     ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Int64),
                     loc: l.clone(),
                     kind: ExprKind::NumberLiteral(NumberLiteral::I64(*lit)),
                 },
-                crate::ast::Constant::Float64(_) => todo!(),
-                crate::ast::Constant::Bool(_) => todo!(),
+                ast::Constant::Int32(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Int32),
+                    loc: l.clone(),
+                    kind: ExprKind::NumberLiteral(NumberLiteral::I32(*lit)),
+                },
+                ast::Constant::Int16(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Int16),
+                    loc: l.clone(),
+                    kind: ExprKind::NumberLiteral(NumberLiteral::I16(*lit)),
+                },
+                ast::Constant::Int8(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Int8),
+                    loc: l.clone(),
+                    kind: ExprKind::NumberLiteral(NumberLiteral::I8(*lit)),
+                },
+                ast::Constant::Float64(_) => todo!(),
+                ast::Constant::Bool(_) => todo!(),
+                
             },
             Expr::Ident(_, _) => {
                 todo!()
@@ -343,8 +364,12 @@ pub enum ExprKind {
 pub struct LocalVariable(String);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NumberLiteral {
-    U32(u32),
-    I32(i32),
-    U64(u64),
     I64(i64),
+    I32(i32),
+    I16(i16),
+    I8(i8),
+
+    U32(u32),
+    U64(u64),
+    
 }
