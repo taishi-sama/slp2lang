@@ -235,10 +235,10 @@ Constant: Constant = {
 
 };
 IntConstant: i64 = <s:Int> => s.parse().unwrap();
-Int64Constant: i64 = <s:Int64> => s.parse().unwrap();
-Int32Constant: i32 = <s:Int32> => s.parse().unwrap();
-Int16Constant: i16 = <s:Int16> => s.parse().unwrap();
-Int8Constant: i8 = <s:Int8> => s.parse().unwrap();
+Int64Constant: i64 = <s:Int64> => s[0..(s.len() - 3)].parse().unwrap();
+Int32Constant: i32 = <s:Int32> => s[0..(s.len() - 3)].parse().unwrap();
+Int16Constant: i16 = <s:Int16> => s[0..(s.len() - 3)].parse().unwrap();
+Int8Constant: i8 = <s:Int8> => s[0..(s.len() - 2)].parse().unwrap();
 
 StringConstant: String = <s:StrLiteral> => s[1..(s.len()-1)].to_string();
 

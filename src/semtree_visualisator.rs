@@ -53,8 +53,9 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::Print(_, e) => {
             StringTreeNode::with_child_nodes("print".to_owned(), iter::once(expr(&e)))
         }
-        STStatement::FunctionCall(_, _) => todo!(),
-        STStatement::Assignment(_, _, _) => todo!(),
+        STStatement::FunctionCall(l, fc) => 
+            StringTreeNode::with_child_nodes(fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type), fc.args.iter().map(expr)),
+        STStatement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![expr(x), expr(y)].into_iter()),
         STStatement::If(_, _, _, _) => todo!(),
         STStatement::While(_, _, _) => todo!(),
         STStatement::RepeatUntil(_, _, _) => todo!(),
@@ -67,18 +68,19 @@ fn vardecl(vd: &VarDecl) -> StringTreeNode {
 }
 pub fn expr(expr: &STExpr) -> StringTreeNode {
     match &expr.kind {
-        crate::semtree::ExprKind::LocalVariable(_) => todo!(),
+        crate::semtree::ExprKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
         crate::semtree::ExprKind::TypeCast(_) => todo!(),
         crate::semtree::ExprKind::NumberLiteral(l) => StringTreeNode::new(
             "NumberLiteral = ".to_string()
                 + &match &l {
                     crate::semtree::NumberLiteral::U32(_) => todo!(),
-                    crate::semtree::NumberLiteral::I32(_) => todo!(),
+                    crate::semtree::NumberLiteral::I32(i) => i.to_string(),
                     crate::semtree::NumberLiteral::U64(_) => todo!(),
                     crate::semtree::NumberLiteral::I64(i) => i.to_string(),
                     crate::semtree::NumberLiteral::I16(_) => todo!(),
                     crate::semtree::NumberLiteral::I8(i) => i.to_string(),
                 },
         ),
+        crate::semtree::ExprKind::FunctionCall(_) => todo!(),
     }
 }

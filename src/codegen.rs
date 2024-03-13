@@ -6,13 +6,13 @@ use inkwell::{
     module::Module,
     targets::TargetMachine,
     types::{
-        AnyType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, PointerType,
-        StructType,
-    }, values::{BasicValue, FunctionValue, PointerValue},
+         BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, 
+        
+    }, values::{AnyValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use crate::{
-    ast::Loc, semtree::{ExternFunction, Function, STStatement, SemanticTree, VarDecl}, symbols::Id, types::{SLPPrimitiveType, SLPType}
+    ast::Loc, semtree::{ExprKind, ExternFunction, Function, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::Id, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -47,10 +47,10 @@ impl<'a> Codegen<'a> {
         
         for f in &semtree.root.funcs {
             let t = syms.get(&f.function_name).unwrap();
-            self.compile_function(&f, t);
+            self.compile_function(&f, t, &syms);
         }
     }
-    pub fn declare_symbols<'b>(&self, semtree: &'b SemanticTree) -> HashMap<Id, FunctionValue> {
+    pub fn declare_symbols<'b>(&self, semtree: &'b SemanticTree) -> HashMap<Id, FunctionValue<'a>> {
         let mut syms = HashMap::new();
         for ef in &semtree.root.extern_funcs {
             let sym = self.declare_extern_function(ef);
@@ -62,7 +62,7 @@ impl<'a> Codegen<'a> {
         }
         syms
     }
-    pub fn declare_extern_function(&self, ef: &ExternFunction) -> FunctionValue<'_> {
+    pub fn declare_extern_function(&self, ef: &ExternFunction) -> FunctionValue<'a> {
         let f = self.slp_func_to_llvm_func(&ef.function_args, &ef.return_arg);
         let func = self.module.add_function(
             &ef.function_name.0,
@@ -71,7 +71,7 @@ impl<'a> Codegen<'a> {
         );
         func
     }
-    pub fn declare_impl_function(&self, ef: &Function) -> FunctionValue<'_> {
+    pub fn declare_impl_function(&self, ef: &Function) -> FunctionValue<'a> {
         let f = self.slp_func_to_llvm_func(&ef.function_args, &ef.return_arg);
         let func = self.module.add_function(
             &ef.function_name.0,
@@ -80,29 +80,33 @@ impl<'a> Codegen<'a> {
         );
         func
     }
-    pub fn compile_function<'b>(&self, f: &'b Function, func: &FunctionValue) {
+    pub fn compile_function<'b>(&self, f: &'b Function, func: &FunctionValue, syms: &HashMap<Id, FunctionValue<'a>>) {
         //let f_t =  self.slp_func_to_llvm_func(&f.function_args, &f.return_arg);
         //let func = self.module.add_function(
         //    &f.function_name.0,
         //    f_t,
         //    Some(inkwell::module::Linkage::External),
         //);
+        let t = self.ctx.context.append_basic_block(*func, "entry");
+        self.builder.position_at_end(t);
         let mut prelude = self.generate_variable_prelude(&func, f);
-
-
         let ret = if !f.return_arg.is_void() {
             let ret_ty = self.slp_type_to_llvm(&f.return_arg);
             let res = self.builder.build_alloca( ret_ty, "Result");
-            prelude.insert(Id("Result".to_string()), res);
+            prelude.insert(LocalVariable("Result".to_string()), res);
             Some(res)
         } else {None};
+
+        let body = self.ctx.context.append_basic_block(*func, "body");
+        self.builder.build_unconditional_branch(body);        
+        self.builder.position_at_end(body);
+        self.generate_main_body_of_function(func, f, &prelude, syms);
         let ret_load = ret.map(|x|self.builder.build_load(self.slp_type_to_llvm(&f.return_arg), x, ""));
         self.builder.build_return(ret_load.as_ref().map(|x|x as &dyn BasicValue));
     }
     //Generate local mutable variables;
-    fn generate_variable_prelude<'b>(&self, func: &FunctionValue, f: &'b Function) -> HashMap<Id, PointerValue> {
-        let t = self.ctx.context.append_basic_block(*func, "entry");
-        self.builder.position_at_end(t);
+    fn generate_variable_prelude<'b>(&self, func: &FunctionValue, f: &'b Function) -> HashMap<LocalVariable, PointerValue<'a>> {
+        
         let variables = f.body.iter().map(|x|self.get_variables_list(x).into_iter()).flatten();
         let mut hm = HashMap::new();
         for v in variables {
@@ -161,6 +165,72 @@ impl<'a> Codegen<'a> {
             SLPPrimitiveType::String => todo!(),
             SLPPrimitiveType::Bool => self.ctx.context.bool_type().into(),
             SLPPrimitiveType::Void => panic!("Void type encountered outside function return value"),
+        }
+    }
+    fn generate_main_body_of_function<'b>(&self, func: &FunctionValue, f: &'b Function, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) {
+        for i in &f.body {
+            self.visit_statement(i, localvar_stackalloc, syms)
+        }
+    }
+    fn visit_statement<'b>(&self, stmt: &'b STStatement, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) {
+        match stmt {
+            STStatement::CodeBlock(_, _) => todo!(),
+            STStatement::Print(_, _) => todo!(),
+            STStatement::FunctionCall(_, fc) => {
+                let mut vls = vec![];
+                for arg in &fc.args {
+                    vls.push(self.visit_expression(arg, localvar_stackalloc))
+                }
+                let fnct = syms[&fc.func];
+                let vls2: Vec<_> = 
+                    vls.into_iter().map(|x|->BasicMetadataValueEnum<'a>{
+                        x.into()
+                    }).collect();
+                self.builder.build_call(fnct, &vls2, "");
+            },
+            STStatement::Assignment(l, target, to) => {
+                let expr = self.visit_expression(&to, localvar_stackalloc);
+                if let ExprKind::LocalVariable(lv) = &target.kind {
+                    let var = localvar_stackalloc[lv];
+                    self.builder.build_store(var, expr);
+                }
+                else {
+                    todo!("Expression not supported! Loc: {}", l);
+                }
+            },
+            STStatement::If(_, _, _, _) => todo!(),
+            STStatement::While(_, _, _) => todo!(),
+            STStatement::RepeatUntil(_, _, _) => todo!(),
+            STStatement::VarDecl(l, vd) => {
+                if let Some(init_expr) = &vd.init_expr {
+                    let expr = self.visit_expression(init_expr, localvar_stackalloc);
+                    self.builder.build_store(localvar_stackalloc[&vd.id], expr);
+                }     
+                
+            },
+            STStatement::Empty() => todo!(),
+        }
+    }
+    fn visit_expression<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>) -> BasicValueEnum<'a> {
+        let ty = self.slp_type_to_llvm(&expr.ret_type);
+        match &expr.kind {
+            crate::semtree::ExprKind::LocalVariable(lv) => {
+                let ptr = localvar_stackalloc[lv].clone();
+                let load = self.builder.build_load(ty, ptr, "");
+                load
+            },
+            crate::semtree::ExprKind::TypeCast(_) => todo!(),
+            crate::semtree::ExprKind::NumberLiteral(l) => {
+                match l {
+                    crate::semtree::NumberLiteral::I64(_) => todo!(),
+                    crate::semtree::NumberLiteral::I32(i) => BasicValueEnum::IntValue(self.ctx.context.i32_type().const_int(*i as u32 as u64, true)),
+                    crate::semtree::NumberLiteral::I16(_) => todo!(),
+                    crate::semtree::NumberLiteral::I8(i) => BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as u8 as u64, true)),
+                    crate::semtree::NumberLiteral::U32(_) => todo!(),
+                    crate::semtree::NumberLiteral::U64(_) => todo!(),
+                }
+            },
+            crate::semtree::ExprKind::FunctionCall(_) => todo!(),
         }
     }
     pub fn slp_func_to_llvm_func(

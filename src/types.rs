@@ -1,5 +1,5 @@
 use crate::{ast::Type, errors::SemTreeBuildErrors};
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SLPType {
     PrimitiveType(SLPPrimitiveType),
     Pointer(Box<SLPType>),
@@ -11,7 +11,7 @@ pub enum SLPType {
     },
     Struct(StructType),
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SLPPrimitiveType {
     Int8,
     Int16,
@@ -27,7 +27,7 @@ pub enum SLPPrimitiveType {
     Bool,
     Void,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructType {
     pub name: String,
     pub fields: Vec<(String, SLPType)>,

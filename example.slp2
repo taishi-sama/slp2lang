@@ -1,10 +1,38 @@
 external function putchar(c: int8):int8;
+
 function test(q, t, e: int32):void
 begin
     
 end; 
-
+//72 101 108 108 111 32 119 111 114 108 100 33 10 
 begin
-    var i : int8 = 0;
-    putchar(i);
+    var i1 : int8 = 72i8;
+    var i2 : int8 = 101i8;
+    var i3 : int8 = 108i8;
+    var i4 : int8 = 108i8;
+    var i5 : int8 = 111i8;
+    var i6 : int8 = 32i8;
+    var i7 : int8 = 119i8;
+    var i8 : int8 = 111i8;
+    var i9 : int8 = 114i8;
+    var i10 : int8 = 108i8;
+    var i11 : int8 = 100i8;
+    var i12 : int8 = 33i8;
+    var i13 : int8 = 10i8;
+
+    putchar(i1);
+    putchar(i2);
+    putchar(i3);
+    putchar(i4);
+    putchar(i5);
+    putchar(i6);
+    putchar(i7);
+    putchar(i8);
+    putchar(i9);
+    putchar(i10);
+    putchar(i11);
+    putchar(i12);
+    putchar(i13);
+    Result := 0i32;
+
 end.

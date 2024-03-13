@@ -68,7 +68,7 @@ pub fn statements(st: &Statement) -> StringTreeNode {
         Statement::Print(_, x) => {
             StringTreeNode::with_child_nodes("Print".to_string(), vec![expressions(x)].into_iter())
         }
-        Statement::Assignment(_, x, y) => todo!(),
+        Statement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![expressions(x), expressions(y)].into_iter()),
         Statement::If(_, x, y, z) => todo!(),
         Statement::While(_, x, y) => todo!(),
         Statement::RepeatUntil(_, x, y) => todo!(),

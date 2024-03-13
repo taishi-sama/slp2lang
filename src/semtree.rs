@@ -139,6 +139,60 @@ impl SemanticTree {
         }
         Ok(stmts)
     }
+    fn check_implicit_convertion(from: &SLPType, to: &SLPType) -> Result<TypeConversionKind, SemTreeBuildErrors> {
+        if from == to {Ok(TypeConversionKind::Identity)}
+        else {todo!("Implement implicit conversion hierarcy")}
+    }
+    fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
+        match Self::check_implicit_convertion(&expr.ret_type, to)? {
+            TypeConversionKind::Identity => return Ok(expr),
+            TypeConversionKind::Int64ToInt32 => todo!(),
+            TypeConversionKind::Int64ToInt16 => todo!(),
+            TypeConversionKind::Int64ToInt8 => todo!(),
+            TypeConversionKind::Int32ToInt64 => todo!(),
+            TypeConversionKind::Int32ToInt16 => todo!(),
+            TypeConversionKind::Int32ToInt8 => todo!(),
+            TypeConversionKind::Int16ToInt64 => todo!(),
+            TypeConversionKind::Int16ToInt32 => todo!(),
+            TypeConversionKind::Int16ToInt8 => todo!(),
+            TypeConversionKind::Int8ToInt64 => todo!(),
+            TypeConversionKind::Int8ToInt32 => todo!(),
+            TypeConversionKind::Int8ToInt16 => todo!(),
+        }
+    }
+    fn check_kind_of_function(&mut self, loc: Loc, fc: &ast::FunctionCall, scope: &Scope) -> Result<FunctionCallResolveResult, SemTreeBuildErrors> {
+        let mut args = vec![];
+        for a in &fc.args {
+            let expr = self.visit_expression(a, scope)?;
+            args.push(expr);
+        }
+        if let ast::Expr::Ident(l, id) = fc.func.as_ref() {
+            let id =  Id(id.name.clone()); //TODO full path resolve
+            let t = self.symbols.decls.get(&id);
+            match t {
+                Some(func) => {
+                    match func {
+                        crate::symbols::RawSymbol::FunctionDecl { loc, input, output } => {
+                            let mut reconst_exprs = vec![];
+                            for (inp_type, expr) in input.iter().zip(args.into_iter()) {
+                                let res = Self::insert_impl_conversion(expr, inp_type)?;
+                                reconst_exprs.push(res);
+                            }
+                            return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall { func: id, args: reconst_exprs, ret_type: output.clone() }));
+
+                        },
+                    }
+                },
+                None => {
+                    todo!("Type cast parse")
+                },
+            }
+        }
+        else {
+            todo!("Only direct function calls supported, loc: {}", loc)
+        }
+        todo!()
+    }
     fn visit_statement(
         &mut self,
         statement: &Statement,
@@ -153,26 +207,44 @@ impl SemanticTree {
                 l.clone(),
                 Box::new(self.visit_expression(&e, &outer)?),
             )]),
-            Statement::FunctionCall(_, _) => todo!(),
-            Statement::Assignment(_, _, _) => todo!(),
+            Statement::FunctionCall(l, func) => {
+                match self.check_kind_of_function(*l, func, outer)? {
+                    FunctionCallResolveResult::FunctionCall(f) => 
+                    Ok(vec![STStatement::FunctionCall(l.clone(), f)]),
+                    FunctionCallResolveResult::TypeCast { from, ret_type } => todo!(),
+                } 
+            },
+            Statement::Assignment(l, target, from) => {
+                let target = self.visit_expression(&target, &outer)?;
+                let from = self.visit_expression(&from, &outer)?;
+                let from = Self::insert_impl_conversion(from, &target.ret_type)?;
+                Ok(vec![STStatement::Assignment(*l, Box::new(target), Box::new(from))])
+            },
             Statement::If(_, _, _, _) => todo!(),
             Statement::While(_, _, _) => todo!(),
             Statement::RepeatUntil(_, _, _) => todo!(),
             Statement::VarDecl(l, t) => {
-                self.visit_vardelc(t, l, &outer)
+                self.visit_vardelc(t, l, outer)
             },
             Statement::Empty() => Ok(vec![STStatement::Empty()]),
         }
     }
-    fn visit_vardelc(&mut self, vd: &ast::VarDecl, l: &Loc, scope: &Scope) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+    fn visit_vardelc(&mut self, vd: &ast::VarDecl, l: &Loc,  scope: &mut Scope) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
         match vd {
             ast::VarDecl::Multiple(s, ty) => {
                 let ty = SLPType::from_ast_type(&ty.ty)?;
-                Ok(s.iter().map(|x|STStatement::VarDecl(*l, VarDecl { id: Id(x.clone()), ty: ty.clone(), init_expr: None })).collect())
+                let mut lvs = vec![];
+                for i in s {
+                    let lv = scope.add_variable(&Id(i.clone()), ty.clone());
+                    let t = STStatement::VarDecl(*l, VarDecl { id: lv, ty: ty.clone(), init_expr: None });
+                    lvs.push(t)
+                }
+                Ok(lvs)
             },
             ast::VarDecl::ExplicitType(s, ty, e) => {
                 let ty = SLPType::from_ast_type(&ty.ty)?;
-                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: Id(s.clone()), ty, init_expr: Some(self.visit_expression(e, scope)?) })])
+                let lv = scope.add_variable(&Id(s.clone()), ty.clone());
+                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: lv, ty, init_expr: Some(self.visit_expression(e, scope)?) })])
             },
             ast::VarDecl::ImplicitType(_, _) => todo!(),
         }
@@ -211,8 +283,15 @@ impl SemanticTree {
                 ast::Constant::Bool(_) => todo!(),
                 
             },
-            Expr::Ident(_, _) => {
-                todo!()
+            Expr::Ident(l, i) => {
+                let id = Id(i.name.clone());
+                if let Some((lv, ty)) = scope.get_variable(&id) {
+                    STExpr{ ret_type: ty, loc: *l, kind: ExprKind::LocalVariable(lv) }
+                }
+                else {
+                    todo!()
+                }
+                
             }
             Expr::OpBinPlus(_, _, _) => todo!(),
             Expr::OpBinMinus(_, _, _) => todo!(),
@@ -338,16 +417,24 @@ pub enum STStatement {
 }
 #[derive(Debug, Clone)]
 pub struct VarDecl {
-    pub id: Id,
+    pub id: LocalVariable,
     pub ty: SLPType,
     pub init_expr: Option<STExpr>,
 }
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
-    pub func: Box<STExpr>,
+    pub func: Id,
     pub args: Vec<STExpr>,
     pub ret_type: SLPType,
 }
+#[derive(Debug, Clone)]
+pub enum FunctionCallResolveResult {
+    FunctionCall(FunctionCall),
+    TypeCast{
+        from: Box<STExpr>,
+        ret_type: SLPType,
+    }
+} 
 #[derive(Debug, Clone)]
 pub struct STExpr {
     pub ret_type: SLPType,
@@ -359,9 +446,10 @@ pub enum ExprKind {
     LocalVariable(LocalVariable),
     TypeCast(Box<STExpr>),
     NumberLiteral(NumberLiteral),
+    FunctionCall(FunctionCall),
 }
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct LocalVariable(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LocalVariable(pub String);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NumberLiteral {
     I64(i64),
@@ -372,4 +460,19 @@ pub enum NumberLiteral {
     U32(u32),
     U64(u64),
     
+}
+pub enum TypeConversionKind {
+    Identity,
+    Int64ToInt32,
+    Int64ToInt16,
+    Int64ToInt8,
+    Int32ToInt64,
+    Int32ToInt16,
+    Int32ToInt8,
+    Int16ToInt64,
+    Int16ToInt32,
+    Int16ToInt8,
+    Int8ToInt64,
+    Int8ToInt32,
+    Int8ToInt16,
 }

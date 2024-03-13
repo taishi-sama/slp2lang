@@ -3,10 +3,7 @@ use std::{env::args, fs, path::Path};
 use ast::{Constant, Expr, ProgramFile};
 use codegen::{Codegen, CodegenContext};
 use inkwell::{
-    context::Context,
-    targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple},
-    values::BasicMetadataValueEnum,
-    AddressSpace, OptimizationLevel,
+    context::Context, module::Module, passes::{PassBuilderOptions, PassManager}, targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple}, values::BasicMetadataValueEnum, AddressSpace, OptimizationLevel
 };
 use lalrpop_util::lalrpop_mod;
 
@@ -71,12 +68,46 @@ pub fn compile(file: &str, output_filename: &str) {
     let semtree = st.unwrap();
 
     println!("{}", get_program_root(&semtree.root));
-    
     cdgn.compile_semtree(&semtree);
     let module = &cdgn.module;
     println!("{}", module.print_to_string().to_str().unwrap());
     match module.verify() {
-        Ok(_) => println!("Code is valid!"),
+        Ok(_) => {
+            println!("Code is valid!");
+            Target::initialize_x86(&InitializationConfig::default());
+    
+            let opt = OptimizationLevel::Default;
+            let reloc = RelocMode::Default;
+            let model = CodeModel::Default;
+            let target = Target::from_name("x86-64").unwrap();
+
+    let target_machine = target
+        .create_target_machine(
+            &TargetTriple::create("x86_64-pc-linux-gnu"),
+            "x86-64",
+            "+avx2",
+            opt,
+            reloc,
+            model,
+        )
+        .unwrap();
+    target_machine.get_target_data();
+    cdgn.module.run_passes("mem2reg", &target_machine, PassBuilderOptions::create()).unwrap();
+    println!("{}", module.print_to_string().to_str().unwrap());
+
+    let path = String::from(output_filename) + ".o";
+    let path = Path::new(&path);
+    let path_asm = String::from(output_filename) + ".asm";
+    let path_asm = Path::new(&path_asm);
+    target_machine
+        .write_to_file(&module, FileType::Object, &path)
+        .unwrap();
+    println!("Emit object file to {}", path.to_string_lossy());
+    target_machine
+        .write_to_file(&module, FileType::Assembly, &path_asm)
+        .unwrap();
+    println!("Emit asm file to {}", path_asm.to_string_lossy());
+        },
         Err(x) => {
             println!("Code not valid! {}", x.to_str().unwrap());
             panic!()

@@ -14,9 +14,9 @@ pub struct Id(pub String);
 //Declarations before any typechecking or name resolving, to make typechecks or name resolvings possible
 #[derive(Debug, Clone)]
 pub struct RawSymbols {
-    filename: String,
-    decls_order: Vec<Id>,
-    decls: HashMap<Id, RawSymbol>,
+    pub filename: String,
+    pub decls_order: Vec<Id>,
+    pub decls: HashMap<Id, RawSymbol>,
 }
 impl RawSymbols {
     fn convert_typedecls(v: &[ArgDecl]) -> Result<Vec<SLPType>, SemTreeBuildErrors> {
