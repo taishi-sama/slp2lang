@@ -3,15 +3,21 @@ use std::iter;
 use text_trees::StringTreeNode;
 
 use crate::ast::{
-    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, Statement, Type, VarDecl,
+    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, Statement, Type, Usings, VarDecl
 };
 
 pub fn get_program_tree(pf: &ProgramFile) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
         "FileRoot".to_string(),
-        pf.declarations.iter().map(declaration),
+        pf.uses.iter().map(usings).chain(pf.declarations.iter().map(declaration)),
     )
 }
+pub fn usings(decl: &Usings) -> StringTreeNode {
+    match decl {
+        Usings::Name(_, s) => StringTreeNode::new(format!("Uses: {}", s)),
+        Usings::Path(_, s) => StringTreeNode::new(format!("Uses path: \"{}\"", s)),
+    } 
+} 
 pub fn declaration(decl: &Declaration) -> StringTreeNode {
     match decl {
         Declaration::Function(f) => {

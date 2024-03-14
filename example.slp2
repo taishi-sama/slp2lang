@@ -1,3 +1,4 @@
+uses std;
 external function putchar(c: int8):int8;
 
 function test(q, t, e: int32):void

@@ -19,6 +19,7 @@ pub mod semtree;
 pub mod semtree_visualisator;
 pub mod symbols;
 pub mod types;
+pub mod compiler;
 
 lalrpop_mod!(pub grammar);
 fn main() {
@@ -66,7 +67,7 @@ pub fn compile(file: &str, output_filename: &str) {
     let st = SemanticTree::new(&t, &q.unwrap());
     let cdgn: Codegen = Codegen::new(&cctx, output_filename, target_machine);
     let semtree = st.unwrap();
-
+    
     println!("{}", get_program_root(&semtree.root));
     cdgn.compile_semtree(&semtree);
     let module = &cdgn.module;

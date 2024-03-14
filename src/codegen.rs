@@ -106,13 +106,25 @@ impl<'a> Codegen<'a> {
     }
     //Generate local mutable variables;
     fn generate_variable_prelude<'b>(&self, func: &FunctionValue, f: &'b Function) -> HashMap<LocalVariable, PointerValue<'a>> {
-        
-        let variables = f.body.iter().map(|x|self.get_variables_list(x).into_iter()).flatten();
         let mut hm = HashMap::new();
+
+        let input: Vec<_> = func.get_params().into_iter().zip(f.function_args.iter()).collect();
+        //Allocate stack space for input variables
+        for (val, (id, ty)) in &input {
+            let ty = self.slp_type_to_llvm(&ty);
+            let stackalloc = self.builder.build_alloca(ty, &id.0);
+            hm.insert(LocalVariable(id.0.clone()), stackalloc);
+        }
+        //Allocate stack space for variables in the program
+        let variables = f.body.iter().map(|x|self.get_variables_list(x).into_iter()).flatten();
         for v in variables {
             let ty = self.slp_type_to_llvm(&v.ty);
             let stackalloc = self.builder.build_alloca(ty, &v.id.0);
-            hm.insert(v.id.clone(), stackalloc);
+            hm.insert(LocalVariable(v.id.0.clone()), stackalloc);
+        }
+        //Generate store code for input variables
+        for (val, (id, ty)) in &input {
+            self.builder.build_store(hm[&LocalVariable(id.0.clone())], val.clone());
         }
         hm
     }
