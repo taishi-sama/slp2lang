@@ -1,9 +1,9 @@
-uses std;
+//uses std;
 external function putchar(c: int8):int8;
 
-function test(q, t, e: int32):void
+function writechar(c: int8):int8
 begin
-    
+    Result:= putchar(c);
 end; 
 //72 101 108 108 111 32 119 111 114 108 100 33 10 
 begin
@@ -21,19 +21,18 @@ begin
     var i12 : int8 = 33i8;
     var i13 : int8 = 10i8;
 
-    putchar(i1);
-    putchar(i2);
-    putchar(i3);
-    putchar(i4);
-    putchar(i5);
-    putchar(i6);
-    putchar(i7);
-    putchar(i8);
-    putchar(i9);
-    putchar(i10);
-    putchar(i11);
-    putchar(i12);
-    putchar(i13);
+    writechar(i1);
+    writechar(i2);
+    writechar(i3);
+    writechar(i4);
+    writechar(i5);
+    writechar(i6);
+    writechar(i7);
+    writechar(i8);
+    writechar(i9);
+    writechar(i10);
+    writechar(i11);
+    writechar(i12);
+    writechar(i13);
     Result := 0i32;
-
 end.

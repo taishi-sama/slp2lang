@@ -1,3 +1,4 @@
+uses std_io;
 
 external function putchar(c: int8):int8;
 

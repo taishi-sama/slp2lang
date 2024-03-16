@@ -3,26 +3,24 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
     errors::SemTreeBuildErrors,
-    symbols::{Id, RawSymbols},
+    symbols::{ContextSymbolResolver, Id, RawSymbols},
     types::SLPType,
 };
 #[derive(Debug, Clone)]
 pub struct SemanticTree {
     //Replace when supporting compilation of many files
-    symbols: RawSymbols,
+    pub symbols: ContextSymbolResolver,
     pub root: ProgramRoot,
     //Переменные пересекающихся областей определения переименовываются.
-    names: HashMap<Id, String>,
+    pub names: HashMap<Id, String>,
 }
 impl SemanticTree {
-    pub fn new(pf: &ProgramFile, sy: &RawSymbols) -> Result<Self, Vec<SemTreeBuildErrors>> {
+    pub fn new(pf: &ProgramFile, ctxsy: ContextSymbolResolver) -> Result<Self, Vec<SemTreeBuildErrors>> {
         let mut st = SemanticTree {
-            root: ProgramRoot {
-                funcs: vec![],
-                extern_funcs: vec![],
-            },
+
             names: HashMap::new(),
-            symbols: sy.clone(),
+            symbols: ctxsy,
+            root: ProgramRoot { funcs: vec![], extern_funcs: vec![] }
         };
         st.visit_program_file(pf)?;
 
@@ -167,10 +165,10 @@ impl SemanticTree {
             args.push(expr);
         }
         if let ast::Expr::Ident(l, id) = fc.func.as_ref() {
-            let id =  Id(id.name.clone()); //TODO full path resolve
-            let t = self.symbols.decls.get(&id);
+             //TODO full path resolve
+            let t = self.symbols.resolve(id)?;
             match t {
-                Some(func) => {
+                Some((id, func)) => {
                     match func {
                         crate::symbols::RawSymbol::FunctionDecl { loc, input, output } => {
                             let mut reconst_exprs = vec![];
@@ -179,7 +177,14 @@ impl SemanticTree {
                                 reconst_exprs.push(res);
                             }
                             return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall { func: id, args: reconst_exprs, ret_type: output.clone() }));
-
+                        },
+                        crate::symbols::RawSymbol::ExternFunctionDecl { loc, input, output } => {
+                            let mut reconst_exprs = vec![];
+                            for (inp_type, expr) in input.iter().zip(args.into_iter()) {
+                                let res = Self::insert_impl_conversion(expr, inp_type)?;
+                                reconst_exprs.push(res);
+                            }
+                            return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall { func: id, args: reconst_exprs, ret_type: output.clone() }));
                         },
                     }
                 },
@@ -316,7 +321,11 @@ impl SemanticTree {
             Expr::OpUnDeref(_, _) => todo!(),
             Expr::OpUnGetRef(_, _) => todo!(),
             Expr::OpBinIndex(_, _, _) => todo!(),
-            Expr::OpFunctionCall(_, _) => todo!(),
+            Expr::OpFunctionCall(l, func) => match self.check_kind_of_function(*l, func, scope)? {
+                FunctionCallResolveResult::FunctionCall(f) => 
+                STExpr{ret_type: f.ret_type.clone(), loc: l.clone(), kind: ExprKind::FunctionCall(f) },
+                FunctionCallResolveResult::TypeCast { from, ret_type } => todo!(),
+            } ,
             Expr::OpUnAs(_, _, _) => todo!(),
             Expr::OpMethodCall(_, _, _) => todo!(),
             Expr::OpNew(_, _, _) => todo!(),

@@ -1,7 +1,8 @@
-use std::{env::args, fs, path::Path};
+use std::{env::args, fs, path::{Path, PathBuf}, sync::Arc};
 
 use ast::{Constant, Expr, ProgramFile};
 use codegen::{Codegen, CodegenContext};
+use compiler::Compiler;
 use inkwell::{
     context::Context, module::Module, passes::{PassBuilderOptions, PassManager}, targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple}, values::BasicMetadataValueEnum, AddressSpace, OptimizationLevel
 };
@@ -9,7 +10,7 @@ use lalrpop_util::lalrpop_mod;
 
 use crate::{
     ast_visualisator::get_program_tree, semtree::SemanticTree,
-    semtree_visualisator::get_program_root, symbols::RawSymbols,
+    semtree_visualisator::get_program_root, symbols::{ContextSymbolResolver, RawSymbols},
 };
 pub mod ast;
 pub mod ast_visualisator;
@@ -36,7 +37,9 @@ fn main() {
     //let st = SemanticTree::new(&t, &q.unwrap());
     //println!("{}", get_program_root(&st.unwrap().root));
     //try_compile_program(t, &file);
-    let path = String::from(&file) + ".o";
+    let path = String::from(&file);
+    let mut comp = Compiler::new(vec!["./".to_owned().into()]);
+    comp.start_compilation(path.clone().into()).unwrap();
     compile(&file, &path)
 }
 
@@ -63,8 +66,9 @@ pub fn compile(file: &str, output_filename: &str) {
     let t = grammar::ProgramBlockParser::new().parse(&text).unwrap();
     println!("{}", get_program_tree(&t));
     
-    let q = RawSymbols::new(&Path::new(&file).file_name().unwrap().to_string_lossy(), &t);
-    let st = SemanticTree::new(&t, &q.unwrap());
+    let q = RawSymbols::new(&Path::new(&file).file_stem().unwrap().to_string_lossy(), &t);
+    let ctx = ContextSymbolResolver::new(Arc::new(q.unwrap()), vec![]);
+    let st = SemanticTree::new(&t, ctx);
     let cdgn: Codegen = Codegen::new(&cctx, output_filename, target_machine);
     let semtree = st.unwrap();
     

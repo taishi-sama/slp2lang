@@ -66,8 +66,8 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
 fn vardecl(vd: &VarDecl) -> StringTreeNode {
     StringTreeNode::with_child_nodes(format!("var {}: {:?}", vd.id.0, vd.ty), vd.init_expr.as_ref().map(expr).into_iter())
 }
-pub fn expr(expr: &STExpr) -> StringTreeNode {
-    match &expr.kind {
+pub fn expr(expression: &STExpr) -> StringTreeNode {
+    match &expression.kind {
         crate::semtree::ExprKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
         crate::semtree::ExprKind::TypeCast(_) => todo!(),
         crate::semtree::ExprKind::NumberLiteral(l) => StringTreeNode::new(
@@ -81,6 +81,8 @@ pub fn expr(expr: &STExpr) -> StringTreeNode {
                     crate::semtree::NumberLiteral::I8(i) => i.to_string(),
                 },
         ),
-        crate::semtree::ExprKind::FunctionCall(_) => todo!(),
+        crate::semtree::ExprKind::FunctionCall(fc) => 
+        StringTreeNode::with_child_nodes(fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type), fc.args.iter().map(expr)),
+        
     }
 }

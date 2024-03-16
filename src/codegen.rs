@@ -12,7 +12,7 @@ use inkwell::{
 };
 
 use crate::{
-    ast::Loc, semtree::{ExprKind, ExternFunction, Function, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::Id, types::{SLPPrimitiveType, SLPType}
+    ast::Loc, semtree::{ExprKind, ExternFunction, Function, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{ContextSymbolResolver, Id, RawSymbol, RawSymbols}, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -43,24 +43,60 @@ impl<'a> Codegen<'a> {
         }
     }
     pub fn compile_semtree<'b>(&self, semtree: &'b SemanticTree) {
-        let syms = self.declare_symbols(semtree);
+        let syms = self.declare_symbols(&semtree.symbols);
         
         for f in &semtree.root.funcs {
-            let t = syms.get(&f.function_name).unwrap();
+            println!("{:?}", f);
+            let id = semtree.symbols.main_file_symbols.canonical(&f.function_name, &semtree.symbols.main_file_symbols.decls[&f.function_name]);
+            let t = syms.get(&id).unwrap();
             self.compile_function(&f, t, &syms);
         }
     }
-    pub fn declare_symbols<'b>(&self, semtree: &'b SemanticTree) -> HashMap<Id, FunctionValue<'a>> {
-        let mut syms = HashMap::new();
-        for ef in &semtree.root.extern_funcs {
-            let sym = self.declare_extern_function(ef);
-            syms.insert(ef.function_name.clone(), sym);
+    //pub fn declare_symbols<'b>(&self, semtree: &'b SemanticTree) -> HashMap<Id, FunctionValue<'a>> {
+    //    let mut syms = HashMap::new();
+    //    for ef in &semtree.root.extern_funcs {
+    //        let sym = self.declare_extern_function(ef);
+    //        syms.insert(ef.function_name.clone(), sym);
+    //    }
+    //    for f in &semtree.root.main_file_symbols.decl {
+    //        let sym = self.declare_impl_function(f);
+    //        syms.insert(f.function_name.clone(), sym);
+    //    }
+    //    syms
+    //}
+    pub fn declare_symbols<'b>(&self, ctx: &'b ContextSymbolResolver) -> HashMap<Id, FunctionValue<'a>> {
+        let t = self.declare_symbol(&ctx.main_file_symbols);
+        let q: Vec<_> = ctx.deps_symbols.iter().map(|x|self.declare_symbol(&x)).flatten().collect();
+        t.into_iter().chain(q).collect()
+    }
+    pub fn declare_symbol<'b>(&self, sym: &'b RawSymbols) -> Vec<(Id, FunctionValue<'a>)> {
+        let mut v = vec![];
+        for (id, s) in &sym.decls {
+            match s {
+                RawSymbol::FunctionDecl { loc, input, output } => {
+                    let ty = self.slp_sem_to_llvm_func(&input, output);
+                    let name = sym.canonical(id, s);
+                    let func = self.module.add_function(
+                        &name.0,
+                        ty,
+                        Some(inkwell::module::Linkage::External),
+                    );
+                    v.push((name, func));
+                },
+                RawSymbol::ExternFunctionDecl { loc, input, output } => {
+                    let ty = self.slp_sem_to_llvm_func(&input, output);
+                    let name = sym.canonical(id, s);
+                    let func = self.module.add_function(
+                        &name.0,
+                        ty,
+                        Some(inkwell::module::Linkage::External),
+                    );
+                    v.push((name, func));
+
+                },
+            }
         }
-        for f in &semtree.root.funcs {
-            let sym = self.declare_impl_function(f);
-            syms.insert(f.function_name.clone(), sym);
-        }
-        syms
+        v
     }
     pub fn declare_extern_function(&self, ef: &ExternFunction) -> FunctionValue<'a> {
         let f = self.slp_func_to_llvm_func(&ef.function_args, &ef.return_arg);
@@ -191,7 +227,7 @@ impl<'a> Codegen<'a> {
             STStatement::FunctionCall(_, fc) => {
                 let mut vls = vec![];
                 for arg in &fc.args {
-                    vls.push(self.visit_expression(arg, localvar_stackalloc))
+                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms))
                 }
                 let fnct = syms[&fc.func];
                 let vls2: Vec<_> = 
@@ -201,7 +237,7 @@ impl<'a> Codegen<'a> {
                 self.builder.build_call(fnct, &vls2, "");
             },
             STStatement::Assignment(l, target, to) => {
-                let expr = self.visit_expression(&to, localvar_stackalloc);
+                let expr = self.visit_expression(&to, localvar_stackalloc, syms);
                 if let ExprKind::LocalVariable(lv) = &target.kind {
                     let var = localvar_stackalloc[lv];
                     self.builder.build_store(var, expr);
@@ -215,7 +251,7 @@ impl<'a> Codegen<'a> {
             STStatement::RepeatUntil(_, _, _) => todo!(),
             STStatement::VarDecl(l, vd) => {
                 if let Some(init_expr) = &vd.init_expr {
-                    let expr = self.visit_expression(init_expr, localvar_stackalloc);
+                    let expr = self.visit_expression(init_expr, localvar_stackalloc, syms);
                     self.builder.build_store(localvar_stackalloc[&vd.id], expr);
                 }     
                 
@@ -223,7 +259,7 @@ impl<'a> Codegen<'a> {
             STStatement::Empty() => todo!(),
         }
     }
-    fn visit_expression<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>) -> BasicValueEnum<'a> {
+    fn visit_expression<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) -> BasicValueEnum<'a> {
         let ty = self.slp_type_to_llvm(&expr.ret_type);
         match &expr.kind {
             crate::semtree::ExprKind::LocalVariable(lv) => {
@@ -242,7 +278,19 @@ impl<'a> Codegen<'a> {
                     crate::semtree::NumberLiteral::U64(_) => todo!(),
                 }
             },
-            crate::semtree::ExprKind::FunctionCall(_) => todo!(),
+            crate::semtree::ExprKind::FunctionCall(fc) => {
+                let mut vls = vec![];
+                for arg in &fc.args {
+                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms))
+                }
+                let fnct = syms[&fc.func];
+                let vls2: Vec<_> = 
+                    vls.into_iter().map(|x|->BasicMetadataValueEnum<'a>{
+                        x.into()
+                    }).collect();
+                let csr = self.builder.build_call(fnct, &vls2, "");
+                csr.try_as_basic_value().left().unwrap()
+            },
         }
     }
     pub fn slp_func_to_llvm_func(
@@ -253,6 +301,22 @@ impl<'a> Codegen<'a> {
         let args_list: Vec<BasicMetadataTypeEnum<'a>> = args
             .iter()
             .map(|x| self.slp_type_to_llvm(&x.1).into())
+            .collect();
+        match ret {
+            SLPType::PrimitiveType(SLPPrimitiveType::Void) => {
+                self.ctx.context.void_type().fn_type(&args_list, false)
+            }
+            y => self.slp_type_to_llvm(y).fn_type(&args_list, false),
+        }
+    }
+    pub fn slp_sem_to_llvm_func(
+        &self,
+        args: &[SLPType],
+        ret: &SLPType,
+    ) -> FunctionType<'a> {
+        let args_list: Vec<BasicMetadataTypeEnum<'a>> = args
+            .iter()
+            .map(|x| self.slp_type_to_llvm(&x).into())
             .collect();
         match ret {
             SLPType::PrimitiveType(SLPPrimitiveType::Void) => {

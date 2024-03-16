@@ -156,7 +156,10 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
         Expr::OpBinNotEq(_, _, _) => todo!(),
         Expr::OpUnDeref(_, _) => todo!(),
         Expr::OpUnGetRef(_, _) => todo!(),
-        Expr::OpFunctionCall(_, _) => todo!(),
+        Expr::OpFunctionCall(_, x) => StringTreeNode::with_child_nodes(
+            "FunctionCall".to_string(),
+            iter::once(expressions(&x.func)).chain(x.args.iter().map(expressions)),
+        ),
         Expr::OpUnAs(_, _, _) => todo!(),
         Expr::OpMethodCall(_, x, y) => StringTreeNode::with_child_nodes(
             "BinDot".to_string(),
