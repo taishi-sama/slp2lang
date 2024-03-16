@@ -1,4 +1,4 @@
-//uses std;
+uses std;
 external function putchar(c: int8):int8;
 
 function writechar(c: int8):int8

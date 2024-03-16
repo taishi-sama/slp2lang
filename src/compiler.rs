@@ -11,7 +11,7 @@ use std::{collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, sync::Arc
 
 use anyhow::Ok;
 
-use crate::ast::{self, ProgramFile};
+use crate::{ast::{self, ProgramFile}, semtree::SemanticTree, symbols::{ContextSymbolResolver, RawSymbols}};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileId(pub u32);
@@ -19,6 +19,7 @@ pub struct FileId(pub u32);
 pub struct Compiler{
     includes: Vec<PathBuf>,
     filename_to_id: HashMap<String, FileId>,
+    id_to_filepath: HashMap<FileId, PathBuf>,
     asts: HashMap<FileId, Arc<ProgramFile>>,
     deps: HashMap<FileId, Vec<FileId>>,
     queue_on_check: VecDeque<FileId>
@@ -26,7 +27,7 @@ pub struct Compiler{
 
 impl Compiler {
     pub fn new(includes: Vec<PathBuf>) -> Self {
-        Self{filename_to_id: Default::default(), asts: Default::default(), deps: Default::default(), queue_on_check: Default::default(), includes}
+        Self{filename_to_id: Default::default(), asts: Default::default(), deps: Default::default(), queue_on_check: Default::default(), includes, id_to_filepath: Default::default() }
     }
     pub fn start_compilation(&mut self, initial_file: PathBuf) -> anyhow::Result<()> {
         let text = fs::read_to_string(&initial_file)?;
@@ -35,9 +36,29 @@ impl Compiler {
         let fid = self.path_to_fileid(&initial_file);
         let pf = Arc::new(ast);
         self.asts.insert(fid.0, pf.clone());
-        self.check_childs(&pf)?;
+        self.check_childs(&fid.0, &pf )?;
         self.check_queue()?;
         Ok(())
+    }
+    pub fn continue_compilation(&mut self) -> anyhow::Result<Vec<SemanticTree>> {
+        let mut syms: HashMap<FileId, Arc<RawSymbols>> = HashMap::new();
+        
+        for (ids, deps) in &self.deps {
+            let p = Self::path_into_string(&self.id_to_filepath[ids]);
+            let rs = RawSymbols::new(&p, &self.asts[ids])?;
+            let ars = Arc::new(rs);
+            syms.insert(*ids, ars);
+        }
+        let mut semtrees = vec![];
+        for (ids, deps) in &self.deps {
+            println!("Compiling {}", self.id_to_filepath[ids].to_string_lossy());
+            let ctx = ContextSymbolResolver::new(syms[ids].clone(), 
+                deps.iter().map(|x|syms[ids].clone()).collect());
+            let semtree = SemanticTree::new(&self.asts[ids], ctx);
+            let semtree_unwrap = semtree.unwrap();
+            semtrees.push(semtree_unwrap);
+        }
+        Ok(semtrees)
     }
     fn find_first_applicable_child(&self, filename: &str) -> Option<PathBuf> {
         for i in &self.includes {
@@ -48,13 +69,16 @@ impl Compiler {
         }
         None
     }
-    fn check_childs(&mut self, f: &ProgramFile) -> anyhow::Result<()> {
+    fn check_childs(&mut self, source_file: &FileId, f: &ProgramFile) -> anyhow::Result<()> {
+        println!("Checking {}", self.id_to_filepath[&source_file].to_string_lossy());
+        let mut deps = vec![];
         for u in &f.uses {
             match u {
                 ast::Usings::Name(_, n) => {
                     println!("Checking dep: {n}");
                     let f = self.find_first_applicable_child(n).unwrap();
                     let (fid, cond) = self.path_to_fileid(&f);
+                    deps.push(fid);
                     if cond {
                         println!("File loaded: {}", f.to_string_lossy());
                         let text = fs::read_to_string(&f)?;
@@ -71,25 +95,29 @@ impl Compiler {
                 ast::Usings::Path(_, _) => todo!(),
             }
         };
+        self.deps.insert(*source_file, deps);
         Ok(())
     }
     fn check_queue(&mut self) -> anyhow::Result<()> {
         while let Some(entry) = self.queue_on_check.pop_front() {
             let t = self.asts[&entry].clone();
-            self.check_childs(&t)?;
+            self.check_childs(&entry ,&t)?;
         }
         Ok(())
     }
-
+    fn path_into_string(path: &Path) -> String {
+        path.file_stem().unwrap().to_string_lossy().into_owned()
+    } 
     fn path_to_fileid(&mut self, path: &Path) -> (FileId, bool) {
         //Properly do hierarchy
-        let p = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let p = Self::path_into_string(path);
         if let Some(f) = self.filename_to_id.get(&p) {
             (f.clone(), false)
         }
         else {
             let counter = self.filename_to_id.len() as u32;
             self.filename_to_id.insert(p, FileId(counter));
+            self.id_to_filepath.insert(FileId(counter), path.to_path_buf());
             (FileId(counter), true)
         }
     }

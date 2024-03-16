@@ -40,6 +40,7 @@ fn main() {
     let path = String::from(&file);
     let mut comp = Compiler::new(vec!["./".to_owned().into()]);
     comp.start_compilation(path.clone().into()).unwrap();
+    comp.continue_compilation().unwrap();
     compile(&file, &path)
 }
 
