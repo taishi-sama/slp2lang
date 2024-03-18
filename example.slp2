@@ -1,9 +1,9 @@
 uses std;
-external function putchar(c: int8):int8;
+//external function putchar(c: int8):int8;
 
 function writechar(c: int8):int8
 begin
-    Result:= putchar(c);
+    Result:= std::putchar(c);
 end; 
 //72 101 108 108 111 32 119 111 114 108 100 33 10 
 begin

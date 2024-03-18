@@ -10,7 +10,7 @@ use lalrpop_util::lalrpop_mod;
 
 use crate::{
     ast_visualisator::get_program_tree, semtree::SemanticTree,
-    semtree_visualisator::get_program_root, symbols::{ContextSymbolResolver, RawSymbols},
+    semtree_visualisator::get_program_root, symbols::{ContextSymbolResolver, Id, RawSymbols},
 };
 pub mod ast;
 pub mod ast_visualisator;
@@ -38,12 +38,71 @@ fn main() {
     //println!("{}", get_program_root(&st.unwrap().root));
     //try_compile_program(t, &file);
     let path = String::from(&file);
-    let mut comp = Compiler::new(vec!["./".to_owned().into()]);
-    comp.start_compilation(path.clone().into()).unwrap();
-    comp.continue_compilation().unwrap();
-    compile(&file, &path)
+    new_compile(&file, &path);
+    //compile(&file, &path)
 }
+pub fn new_compile(file: &str, output_filename: &str) {
+    Target::initialize_x86(&InitializationConfig::default());
+    let opt = OptimizationLevel::Default;
+    let reloc = RelocMode::Default;
+    let model = CodeModel::Default;
+    let target = Target::from_name("x86-64").unwrap();
 
+    let target_machine = target
+        .create_target_machine(
+            &TargetTriple::create("x86_64-pc-linux-gnu"),
+            "x86-64",
+            "+avx2",
+            opt,
+            reloc,
+            model,
+        )
+        .unwrap();
+    let target_machine = Arc::new(target_machine);
+    let cctx = CodegenContext::new();
+    let mut comp = Compiler::new(vec!["./".to_owned().into()]);
+    comp.start_compilation(file.into()).unwrap();
+    let res = comp.continue_compilation().unwrap();
+    let mut modules = vec![];
+    for i in &res {
+        let cdgn: Codegen = Codegen::new(&cctx, &i.semtree_name.0, target_machine.clone());
+        cdgn.compile_semtree(i);
+        match cdgn.module.verify() {
+            Ok(_) => {
+                println!("Module {}:--------------------------------------- \n{}", i.semtree_name.0, cdgn.module.print_to_string().to_string_lossy())
+            },
+            Err(e) => {
+                println!("Error in module {}: {}", i.semtree_name.0, e.to_string_lossy());
+                break;
+            },
+        }
+        modules.push(cdgn);
+
+    }
+    modules.reverse();
+    let main_module = modules.pop().unwrap();
+    modules.reverse();
+    for m in modules {
+        main_module.module.link_in_module(m.module).unwrap();
+    }
+    target_machine.get_target_data();
+    main_module.module.run_passes("mem2reg", &target_machine, PassBuilderOptions::create()).unwrap();
+    println!("{}", main_module.module.print_to_string().to_string_lossy());
+
+    let path = String::from(output_filename) + ".o";
+    let path = Path::new(&path);
+    let path_asm = String::from(output_filename) + ".asm";
+    let path_asm = Path::new(&path_asm);
+    target_machine
+        .write_to_file(&main_module.module, FileType::Object, &path)
+        .unwrap();
+    println!("Emit object file to {}", path.to_string_lossy());
+    target_machine
+        .write_to_file(&main_module.module, FileType::Assembly, &path_asm)
+        .unwrap();
+    println!("Emit asm file to {}", path_asm.to_string_lossy());
+
+}
 pub fn compile(file: &str, output_filename: &str) {
     Target::initialize_x86(&InitializationConfig::default());
     let opt = OptimizationLevel::Default;
@@ -69,8 +128,8 @@ pub fn compile(file: &str, output_filename: &str) {
     
     let q = RawSymbols::new(&Path::new(&file).file_stem().unwrap().to_string_lossy(), &t);
     let ctx = ContextSymbolResolver::new(Arc::new(q.unwrap()), vec![]);
-    let st = SemanticTree::new(&t, ctx);
-    let cdgn: Codegen = Codegen::new(&cctx, output_filename, target_machine);
+    let st = SemanticTree::new(&t, ctx, Id(Path::new(&text).file_stem().unwrap().to_string_lossy().to_string()));
+    let cdgn: Codegen = Codegen::new(&cctx, output_filename, target_machine.into());
     let semtree = st.unwrap();
     
     println!("{}", get_program_root(&semtree.root));

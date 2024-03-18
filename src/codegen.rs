@@ -1,9 +1,9 @@
-use std::{collections::HashMap, iter};
+use std::{collections::HashMap, iter, sync::Arc};
 
 use inkwell::{
     builder::Builder,
     context::Context,
-    module::Module,
+    module::{Linkage, Module},
     targets::TargetMachine,
     types::{
          BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, 
@@ -29,10 +29,10 @@ pub struct Codegen<'a> {
     pub ctx: &'a CodegenContext,
     pub module: Module<'a>,
     pub builder: Builder<'a>,
-    pub target_machine: TargetMachine,
+    pub target_machine: Arc<TargetMachine>,
 }
 impl<'a> Codegen<'a> {
-    pub fn new<'b: 'a>(ctx: &'b CodegenContext, module_name: &str, target: TargetMachine) -> Codegen<'a> {
+    pub fn new<'b: 'a>(ctx: &'b CodegenContext, module_name: &str, target: Arc<TargetMachine>) -> Codegen<'a> {
         let module: Module<'a> = ctx.context.create_module(module_name);
         let builder: Builder<'a> = ctx.context.create_builder();
         Codegen {
@@ -65,11 +65,11 @@ impl<'a> Codegen<'a> {
     //    syms
     //}
     pub fn declare_symbols<'b>(&self, ctx: &'b ContextSymbolResolver) -> HashMap<Id, FunctionValue<'a>> {
-        let t = self.declare_symbol(&ctx.main_file_symbols);
-        let q: Vec<_> = ctx.deps_symbols.iter().map(|x|self.declare_symbol(&x)).flatten().collect();
+        let t = self.declare_symbol(&ctx.main_file_symbols, false);
+        let q: Vec<_> = ctx.deps_symbols.iter().map(|x|self.declare_symbol(&x, true)).flatten().collect();
         t.into_iter().chain(q).collect()
     }
-    pub fn declare_symbol<'b>(&self, sym: &'b RawSymbols) -> Vec<(Id, FunctionValue<'a>)> {
+    pub fn declare_symbol<'b>(&self, sym: &'b RawSymbols, are_external: bool) -> Vec<(Id, FunctionValue<'a>)> {
         let mut v = vec![];
         for (id, s) in &sym.decls {
             match s {
@@ -79,7 +79,7 @@ impl<'a> Codegen<'a> {
                     let func = self.module.add_function(
                         &name.0,
                         ty,
-                        Some(inkwell::module::Linkage::External),
+                        Some(if are_external {Linkage::External} else {Linkage::External}),
                     );
                     v.push((name, func));
                 },
@@ -98,24 +98,7 @@ impl<'a> Codegen<'a> {
         }
         v
     }
-    pub fn declare_extern_function(&self, ef: &ExternFunction) -> FunctionValue<'a> {
-        let f = self.slp_func_to_llvm_func(&ef.function_args, &ef.return_arg);
-        let func = self.module.add_function(
-            &ef.function_name.0,
-            f,
-            Some(inkwell::module::Linkage::External),
-        );
-        func
-    }
-    pub fn declare_impl_function(&self, ef: &Function) -> FunctionValue<'a> {
-        let f = self.slp_func_to_llvm_func(&ef.function_args, &ef.return_arg);
-        let func = self.module.add_function(
-            &ef.function_name.0,
-            f,
-            Some(inkwell::module::Linkage::External),
-        );
-        func
-    }
+
     pub fn compile_function<'b>(&self, f: &'b Function, func: &FunctionValue, syms: &HashMap<Id, FunctionValue<'a>>) {
         //let f_t =  self.slp_func_to_llvm_func(&f.function_args, &f.return_arg);
         //let func = self.module.add_function(

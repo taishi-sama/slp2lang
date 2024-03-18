@@ -11,7 +11,7 @@ use std::{collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, sync::Arc
 
 use anyhow::Ok;
 
-use crate::{ast::{self, ProgramFile}, semtree::SemanticTree, symbols::{ContextSymbolResolver, RawSymbols}};
+use crate::{ast::{self, ProgramFile}, semtree::SemanticTree, symbols::{ContextSymbolResolver, Id, RawSymbols}};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileId(pub u32);
@@ -51,10 +51,12 @@ impl Compiler {
         }
         let mut semtrees = vec![];
         for (ids, deps) in &self.deps {
+            let p = Self::path_into_string(&self.id_to_filepath[ids]);
+
             println!("Compiling {}", self.id_to_filepath[ids].to_string_lossy());
             let ctx = ContextSymbolResolver::new(syms[ids].clone(), 
-                deps.iter().map(|x|syms[ids].clone()).collect());
-            let semtree = SemanticTree::new(&self.asts[ids], ctx);
+                deps.iter().map(|x|syms[x].clone()).collect());
+            let semtree = SemanticTree::new(&self.asts[ids], ctx, Id(p));
             let semtree_unwrap = semtree.unwrap();
             semtrees.push(semtree_unwrap);
         }

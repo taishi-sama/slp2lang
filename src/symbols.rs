@@ -28,8 +28,22 @@ impl ContextSymbolResolver {
             if let Some(sym) = self.main_file_symbols.decls.get(&id) {
                 return Ok(Some((self.main_file_symbols.canonical(&id, sym), sym.clone())));
             }
+            todo!()
         }
-        todo!("{:?} failed", id)
+        else if id.path.len() == 1 {
+            let i = Id(id.name.clone());
+            println!("{:?}", self.deps_symbols);
+            let res = self.deps_symbols.iter().find(|x|x.filename == id.path[0]);
+            if let Some(syms) = res {
+                if let Some(sym) = syms.decls.get(&i) {
+                    return Ok(Some((syms.canonical(&i, sym), sym.clone())));
+                }
+                else {todo!()}
+            }
+            else {todo!("Can't find symbol {:?}", id)}
+        }
+        else {todo!()}
+
     }
     fn canonical_name_of_id(id: &Identificator) -> String {
         let mut t = id.path.iter().fold(String::new(), |x, y| x + "$" + y);

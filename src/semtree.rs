@@ -3,11 +3,12 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
     errors::SemTreeBuildErrors,
-    symbols::{ContextSymbolResolver, Id, RawSymbols},
+    symbols::{self, ContextSymbolResolver, Id, RawSymbols},
     types::SLPType,
 };
 #[derive(Debug, Clone)]
 pub struct SemanticTree {
+    pub semtree_name: Id,
     //Replace when supporting compilation of many files
     pub symbols: ContextSymbolResolver,
     pub root: ProgramRoot,
@@ -15,12 +16,13 @@ pub struct SemanticTree {
     pub names: HashMap<Id, String>,
 }
 impl SemanticTree {
-    pub fn new(pf: &ProgramFile, ctxsy: ContextSymbolResolver) -> Result<Self, Vec<SemTreeBuildErrors>> {
+    pub fn new(pf: &ProgramFile, ctxsy: ContextSymbolResolver, name: Id) -> Result<Self, Vec<SemTreeBuildErrors>> {
         let mut st = SemanticTree {
 
             names: HashMap::new(),
             symbols: ctxsy,
-            root: ProgramRoot { funcs: vec![], extern_funcs: vec![] }
+            root: ProgramRoot { funcs: vec![], extern_funcs: vec![] },
+            semtree_name: name,
         };
         st.visit_program_file(pf)?;
 
