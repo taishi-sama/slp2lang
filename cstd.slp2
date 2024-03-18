@@ -1,0 +1,2 @@
+external function putchar(c: int8):int8;
+external function getchar():int32;

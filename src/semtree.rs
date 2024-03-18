@@ -287,7 +287,11 @@ impl SemanticTree {
                     kind: ExprKind::NumberLiteral(NumberLiteral::I8(*lit)),
                 },
                 ast::Constant::Float64(_) => todo!(),
-                ast::Constant::Bool(_) => todo!(),
+                ast::Constant::Bool(b) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Bool),
+                    loc: l.clone(),
+                    kind: ExprKind::BoolLiteral(*b)
+                },
                 
             },
             Expr::Ident(l, i) => {
@@ -457,7 +461,9 @@ pub enum ExprKind {
     LocalVariable(LocalVariable),
     TypeCast(Box<STExpr>),
     NumberLiteral(NumberLiteral),
+    BoolLiteral(bool),
     FunctionCall(FunctionCall),
+    
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);
@@ -467,11 +473,12 @@ pub enum NumberLiteral {
     I32(i32),
     I16(i16),
     I8(i8),
-
+    U64(u64),    
     U32(u32),
-    U64(u64),
-    
+    U16(u16),
+    U8(u8),
 }
+
 pub enum TypeConversionKind {
     Identity,
     Int64ToInt32,

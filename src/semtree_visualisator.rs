@@ -77,12 +77,17 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
                     crate::semtree::NumberLiteral::I32(i) => i.to_string(),
                     crate::semtree::NumberLiteral::U64(_) => todo!(),
                     crate::semtree::NumberLiteral::I64(i) => i.to_string(),
+                    crate::semtree::NumberLiteral::U16(_) => todo!(),
                     crate::semtree::NumberLiteral::I16(_) => todo!(),
+                    crate::semtree::NumberLiteral::U8(i) => i.to_string(),
+
                     crate::semtree::NumberLiteral::I8(i) => i.to_string(),
                 },
         ),
         crate::semtree::ExprKind::FunctionCall(fc) => 
         StringTreeNode::with_child_nodes(fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type), fc.args.iter().map(expr)),
+        crate::semtree::ExprKind::BoolLiteral(b) =>  StringTreeNode::new(
+            "BoolLiteral = ".to_string() + &b.to_string() ),
         
     }
 }

@@ -1,7 +1,3 @@
-uses std_io;
-
-external function putchar(c: int8):int8;
-
 function identity(c: int32): int32
 begin
     Result := c;

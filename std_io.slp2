@@ -1,1 +1,10 @@
-uses std;
+uses cstd;
+
+function writechar(c: int8):int8
+begin
+    Result:= cstd::putchar(c);
+end; 
+function getchar():int32 
+begin
+    Result := cstd::getchar();
+end;

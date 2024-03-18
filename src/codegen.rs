@@ -46,7 +46,7 @@ impl<'a> Codegen<'a> {
         let syms = self.declare_symbols(&semtree.symbols);
         
         for f in &semtree.root.funcs {
-            println!("{:?}", f);
+            //println!("{:?}", f);
             let id = semtree.symbols.main_file_symbols.canonical(&f.function_name, &semtree.symbols.main_file_symbols.decls[&f.function_name]);
             let t = syms.get(&id).unwrap();
             self.compile_function(&f, t, &syms);
@@ -245,13 +245,13 @@ impl<'a> Codegen<'a> {
     fn visit_expression<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) -> BasicValueEnum<'a> {
         let ty = self.slp_type_to_llvm(&expr.ret_type);
         match &expr.kind {
-            crate::semtree::ExprKind::LocalVariable(lv) => {
+            ExprKind::LocalVariable(lv) => {
                 let ptr = localvar_stackalloc[lv].clone();
                 let load = self.builder.build_load(ty, ptr, "");
                 load
             },
-            crate::semtree::ExprKind::TypeCast(_) => todo!(),
-            crate::semtree::ExprKind::NumberLiteral(l) => {
+            ExprKind::TypeCast(_) => todo!(),
+            ExprKind::NumberLiteral(l) => {
                 match l {
                     crate::semtree::NumberLiteral::I64(_) => todo!(),
                     crate::semtree::NumberLiteral::I32(i) => BasicValueEnum::IntValue(self.ctx.context.i32_type().const_int(*i as u32 as u64, true)),
@@ -259,9 +259,11 @@ impl<'a> Codegen<'a> {
                     crate::semtree::NumberLiteral::I8(i) => BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as u8 as u64, true)),
                     crate::semtree::NumberLiteral::U32(_) => todo!(),
                     crate::semtree::NumberLiteral::U64(_) => todo!(),
+                    crate::semtree::NumberLiteral::U16(_) => todo!(),
+                    crate::semtree::NumberLiteral::U8(_) => todo!(),
                 }
             },
-            crate::semtree::ExprKind::FunctionCall(fc) => {
+            ExprKind::FunctionCall(fc) => {
                 let mut vls = vec![];
                 for arg in &fc.args {
                     vls.push(self.visit_expression(arg, localvar_stackalloc, syms))
@@ -274,6 +276,7 @@ impl<'a> Codegen<'a> {
                 let csr = self.builder.build_call(fnct, &vls2, "");
                 csr.try_as_basic_value().left().unwrap()
             },
+            ExprKind::BoolLiteral(b) => inkwell::values::BasicValueEnum::IntValue(self.ctx.context.bool_type().const_int(if *b {1} else {0}, false)),
         }
     }
     pub fn slp_func_to_llvm_func(

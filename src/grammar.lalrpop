@@ -21,6 +21,8 @@ match {
     r"(?i)new" => New, 
     r"(?i)uses" => Uses,
     r"(?i)external" => External,
+    r"(?i)true" => True,
+    r"(?i)false" => False, 
     "(",
     ")",
     "[",
@@ -232,6 +234,8 @@ Constant: Constant = {
     <i: Int32Constant> => Constant::Int32(i),
     <i: Int16Constant> => Constant::Int16(i),
     <i: Int8Constant> => Constant::Int8(i),
+    True => Constant::Bool(true),
+    False => Constant::Bool(false),
 
 };
 IntConstant: i64 = <s:Int> => s.parse().unwrap();

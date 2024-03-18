@@ -1,10 +1,6 @@
-uses std;
-//external function putchar(c: int8):int8;
+uses std, std_io;
 
-function writechar(c: int8):int8
-begin
-    Result:= std::putchar(c);
-end; 
+
 //72 101 108 108 111 32 119 111 114 108 100 33 10 
 begin
     var i1 : int8 = 72i8;
@@ -20,19 +16,25 @@ begin
     var i11 : int8 = 100i8;
     var i12 : int8 = 33i8;
     var i13 : int8 = 10i8;
-
-    writechar(i1);
-    writechar(i2);
-    writechar(i3);
-    writechar(i4);
-    writechar(i5);
-    writechar(i6);
-    writechar(i7);
-    writechar(i8);
-    writechar(i9);
-    writechar(i10);
-    writechar(i11);
-    writechar(i12);
-    writechar(i13);
-    Result := 0i32;
+    
+    std_io::writechar(i1);
+    std_io::writechar(i2);
+    std_io::writechar(i3);
+    std_io::writechar(i4);
+    std_io::writechar(i5);
+    std_io::writechar(i6);
+    std_io::writechar(i7);
+    std_io::writechar(i8);
+    std_io::writechar(i9);
+    std_io::writechar(i10);
+    std_io::writechar(i11);
+    std_io::writechar(i12);
+    std_io::writechar(i13);
+    var i : int32 := std_io::getchar();
+    Result := i;
+    var test : bool = true;
+    if test then 
+        std_io::writechar(i13)
+    else 
+        std_io::writechar(i12); 
 end.

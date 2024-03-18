@@ -32,7 +32,7 @@ impl ContextSymbolResolver {
         }
         else if id.path.len() == 1 {
             let i = Id(id.name.clone());
-            println!("{:?}", self.deps_symbols);
+            //println!("{:?}", self.deps_symbols);
             let res = self.deps_symbols.iter().find(|x|x.filename == id.path[0]);
             if let Some(syms) = res {
                 if let Some(sym) = syms.decls.get(&i) {
