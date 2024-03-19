@@ -1,0 +1,4 @@
+function identity(c: int32): int32
+begin
+    Result := c;
+end;
