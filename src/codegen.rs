@@ -143,7 +143,7 @@ impl<'a> Codegen<'a> {
             STStatement::FunctionCall(_, _) => vec![],
             STStatement::Assignment(_, _, _) => vec![],
             STStatement::If(_, _, s1, s2) => 
-                self.get_variables_list(&s1).into_iter().chain(s2.iter().map(|x|self.get_variables_list(stmt).into_iter()).flatten()).collect(),
+                self.get_variables_list(&s1).into_iter().chain(s2.iter().map(|x|self.get_variables_list(x).into_iter()).flatten()).collect(),
             STStatement::While(_, _, s) => self.get_variables_list(s),
             STStatement::RepeatUntil(_, _, s) => self.get_variables_list(s),
             STStatement::VarDecl(l, d) => vec![d],

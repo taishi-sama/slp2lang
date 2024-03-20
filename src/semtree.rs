@@ -227,7 +227,23 @@ impl SemanticTree {
                 let from = Self::insert_impl_conversion(from, &target.ret_type)?;
                 Ok(vec![STStatement::Assignment(*l, Box::new(target), Box::new(from))])
             },
-            Statement::If(_, _, _, _) => todo!(),
+            Statement::If(l, cond, mb, ab) => {
+                let cond = self.visit_expression(cond, outer)?;
+                let mbstmt = {
+                    let mut first_scope = Scope::new_with_outer(outer);
+                    Box::new(STStatement::CodeBlock(*l, self.visit_statement(&mb, &mut first_scope)?))
+                };
+                let abstmt = {
+                    if let Some(stmt) = ab {
+                        let mut first_scope = Scope::new_with_outer(outer);
+                        Some(Box::new(STStatement::CodeBlock(*l, self.visit_statement(&stmt, &mut first_scope)?)))
+                    }
+                    else {
+                        None
+                    }
+                };
+                Ok(vec![STStatement::If(*l, Box::new(cond), mbstmt,  abstmt)])
+            },
             Statement::While(_, _, _) => todo!(),
             Statement::RepeatUntil(_, _, _) => todo!(),
             Statement::VarDecl(l, t) => {
@@ -470,6 +486,7 @@ impl<'a> Scope<'a> {
     }
     //Перекрывающиеся области видимости
     pub fn add_variable(&mut self, tree_id: &Id, ty: SLPType) -> LocalVariable {
+        //Rename all variables in scope of function
         let candidate_name = LocalVariable(tree_id.0.clone());
         let mut testing_name = candidate_name.clone();
         let mut counter = 0;

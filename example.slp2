@@ -33,9 +33,8 @@ begin
     var i : int32 := std_io::getchar();
     var t : bool = i13 > i12;
     Result := i;
-    var test : bool = true;
-    //if test then 
-    //    std_io::writechar(i13)
-    //else 
-    //    std_io::writechar(i12); 
+    if t then 
+        std_io::writechar(i13)
+    else 
+        std_io::writechar(i12); 
 end.
