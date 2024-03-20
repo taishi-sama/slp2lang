@@ -8,11 +8,11 @@ use inkwell::{
     types::{
          BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, 
         
-    }, values::{AnyValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    }, values::{AnyValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntMathValue, IntValue, PointerValue}, IntPredicate,
 };
 
 use crate::{
-    ast::Loc, semtree::{ExprKind, ExternFunction, Function, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{ContextSymbolResolver, Id, RawSymbol, RawSymbols}, types::{SLPPrimitiveType, SLPType}
+    ast::Loc, semtree::{BoolBinOp, ComparationKind, ExprKind, ExternFunction, Function, IntBinOp, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{ContextSymbolResolver, Id, RawSymbol, RawSymbols}, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -52,18 +52,7 @@ impl<'a> Codegen<'a> {
             self.compile_function(&f, t, &syms);
         }
     }
-    //pub fn declare_symbols<'b>(&self, semtree: &'b SemanticTree) -> HashMap<Id, FunctionValue<'a>> {
-    //    let mut syms = HashMap::new();
-    //    for ef in &semtree.root.extern_funcs {
-    //        let sym = self.declare_extern_function(ef);
-    //        syms.insert(ef.function_name.clone(), sym);
-    //    }
-    //    for f in &semtree.root.main_file_symbols.decl {
-    //        let sym = self.declare_impl_function(f);
-    //        syms.insert(f.function_name.clone(), sym);
-    //    }
-    //    syms
-    //}
+
     pub fn declare_symbols<'b>(&self, ctx: &'b ContextSymbolResolver) -> HashMap<Id, FunctionValue<'a>> {
         let t = self.declare_symbol(&ctx.main_file_symbols, false);
         let q: Vec<_> = ctx.deps_symbols.iter().map(|x|self.declare_symbol(&x, true)).flatten().collect();
@@ -244,6 +233,7 @@ impl<'a> Codegen<'a> {
     }
     fn visit_expression<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) -> BasicValueEnum<'a> {
         let ty = self.slp_type_to_llvm(&expr.ret_type);
+        
         match &expr.kind {
             ExprKind::LocalVariable(lv) => {
                 let ptr = localvar_stackalloc[lv].clone();
@@ -277,7 +267,83 @@ impl<'a> Codegen<'a> {
                 csr.try_as_basic_value().left().unwrap()
             },
             ExprKind::BoolLiteral(b) => inkwell::values::BasicValueEnum::IntValue(self.ctx.context.bool_type().const_int(if *b {1} else {0}, false)),
+            ExprKind::PrimitiveIntBinOp(l, r, k) => {
+                let lhs = self.visit_expression(l, localvar_stackalloc, syms);
+                let rhs = self.visit_expression(r, localvar_stackalloc, syms);
+                if !lhs.is_int_value() && !rhs.is_int_value() {
+                    panic!("Wrong type!!!");
+                }
+                let lhs = lhs.into_int_value();
+                let rhs = rhs.into_int_value();
+                match k {
+                    IntBinOp::Add => self.builder.build_int_add(lhs, rhs, "").into(),
+                    IntBinOp::Substract => self.builder.build_int_sub(lhs, rhs, "").into(),
+                    IntBinOp::Multiplication => self.builder.build_int_mul(lhs, rhs, "").into(),
+                    IntBinOp::Division => if expr.ret_type.is_unsigned_int() {
+                        self.builder.build_int_unsigned_div(lhs, rhs, "").into()
+                    }
+                    else {
+                        self.builder.build_int_signed_div(lhs, rhs, "").into()
+                    }
+                    IntBinOp::Modulo => if expr.ret_type.is_unsigned_int() {
+                        self.builder.build_int_unsigned_rem(lhs, rhs, "").into()
+                    }
+                    else {
+                        self.builder.build_int_signed_rem(lhs, rhs, "").into()
+                    }
+                    IntBinOp::Or => self.builder.build_or(lhs, rhs, "").into(),
+                    IntBinOp::And => self.builder.build_and(lhs, rhs, "").into(),
+                    IntBinOp::Xor => self.builder.build_xor(lhs, rhs, "").into(),
+                }
+            },
+            ExprKind::PrimitiveIntUnaryOp(_, _) => todo!(),
+            ExprKind::PrimitiveIntComparation(l, r, k) => {
+                let lhs = self.visit_expression(l, localvar_stackalloc, syms);
+                let rhs = self.visit_expression(r, localvar_stackalloc, syms);
+                if !lhs.is_int_value() && !rhs.is_int_value() {
+                    panic!("Wrong type!!!");
+                }
+                let lhs = lhs.into_int_value();
+                let rhs = rhs.into_int_value();
+                let unsigned = l.ret_type.is_unsigned_int();
+                let predicate = match k {
+                    ComparationKind::LesserThan => if unsigned {IntPredicate::ULT} else {IntPredicate::SLT}
+                    ComparationKind::LesserEqual => if unsigned {IntPredicate::ULE} else {IntPredicate::SLE},
+                    ComparationKind::GreaterThan => if unsigned {IntPredicate::UGT} else {IntPredicate::SGT},
+                    ComparationKind::GreaterEqual => if unsigned {IntPredicate::UGE} else {IntPredicate::SGE},
+                    ComparationKind::Equal => IntPredicate::EQ,
+                    ComparationKind::NotEqual => IntPredicate::NE,
+                };
+                self.builder.build_int_compare(predicate, lhs, rhs, "").into()
+            },
+            ExprKind::BoolBinOp(l, r, k) => {
+                let lhs = self.visit_expression(l, localvar_stackalloc, syms);
+                let rhs = self.visit_expression(r, localvar_stackalloc, syms);
+                if !lhs.is_int_value() && !rhs.is_int_value() {
+                    panic!("Wrong type!!!");
+                }
+                let lhs = lhs.into_int_value();
+                let rhs = rhs.into_int_value();
+                match k {
+                    BoolBinOp::And => self.builder.build_and(lhs, rhs, "").into(),
+                    BoolBinOp::Or => self.builder.build_or(lhs, rhs, "").into(),
+                    BoolBinOp::Xor => self.builder.build_xor(lhs, rhs, "").into(),
+                    BoolBinOp::Equal => self.builder.build_int_compare(IntPredicate::EQ, lhs, rhs, "").into(),
+                    BoolBinOp::NotEqual => self.builder.build_int_compare(IntPredicate::NE, lhs, rhs, "").into(),
+                }
+            }
+            ExprKind::BoolUnaryOp(l, k) => {
+                let inp = self.visit_expression(l, localvar_stackalloc, syms);
+                if !inp.is_int_value() {
+                    panic!("Wrong type!!!");
+                }
+                let inp = inp.into_int_value();
+                match k {
+                    crate::semtree::BoolUnaryOp::Not => self.builder.build_not(inp, "").into(),
+                }
+            },
         }
+                
     }
     pub fn slp_func_to_llvm_func(
         &self,

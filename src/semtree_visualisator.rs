@@ -2,7 +2,7 @@ use std::iter;
 
 use text_trees::StringTreeNode;
 
-use crate::semtree::{ExternFunction, Function, ProgramRoot, STExpr, STStatement, VarDecl};
+use crate::semtree::{ExprKind, ExternFunction, Function, NumberLiteral, ProgramRoot, STExpr, STStatement, VarDecl};
 
 pub fn get_program_root(root: &ProgramRoot) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
@@ -68,26 +68,31 @@ fn vardecl(vd: &VarDecl) -> StringTreeNode {
 }
 pub fn expr(expression: &STExpr) -> StringTreeNode {
     match &expression.kind {
-        crate::semtree::ExprKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
-        crate::semtree::ExprKind::TypeCast(_) => todo!(),
-        crate::semtree::ExprKind::NumberLiteral(l) => StringTreeNode::new(
+        ExprKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
+        ExprKind::TypeCast(_) => todo!(),
+        ExprKind::NumberLiteral(l) => StringTreeNode::new(
             "NumberLiteral = ".to_string()
                 + &match &l {
-                    crate::semtree::NumberLiteral::U32(_) => todo!(),
-                    crate::semtree::NumberLiteral::I32(i) => i.to_string(),
-                    crate::semtree::NumberLiteral::U64(_) => todo!(),
-                    crate::semtree::NumberLiteral::I64(i) => i.to_string(),
-                    crate::semtree::NumberLiteral::U16(_) => todo!(),
-                    crate::semtree::NumberLiteral::I16(_) => todo!(),
-                    crate::semtree::NumberLiteral::U8(i) => i.to_string(),
-
-                    crate::semtree::NumberLiteral::I8(i) => i.to_string(),
+                    NumberLiteral::U32(_) => todo!(),
+                    NumberLiteral::I32(i) => i.to_string(),
+                    NumberLiteral::U64(_) => todo!(),
+                    NumberLiteral::I64(i) => i.to_string(),
+                    NumberLiteral::U16(_) => todo!(),
+                    NumberLiteral::I16(_) => todo!(),
+                    NumberLiteral::U8(i) => i.to_string(),
+                    NumberLiteral::I8(i) => i.to_string(),
                 },
         ),
-        crate::semtree::ExprKind::FunctionCall(fc) => 
+        ExprKind::FunctionCall(fc) => 
         StringTreeNode::with_child_nodes(fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type), fc.args.iter().map(expr)),
-        crate::semtree::ExprKind::BoolLiteral(b) =>  StringTreeNode::new(
+        ExprKind::BoolLiteral(b) =>  StringTreeNode::new(
             "BoolLiteral = ".to_string() + &b.to_string() ),
+
+        ExprKind::PrimitiveIntComparation(_, _, _) => todo!(),
+        ExprKind::PrimitiveIntBinOp(_, _, _) => todo!(),
+        ExprKind::PrimitiveIntUnaryOp(_,  _) => todo!(),
+        ExprKind::BoolBinOp(_, _, _) => todo!(),
+        ExprKind::BoolUnaryOp(_, _) => todo!(),
         
     }
 }

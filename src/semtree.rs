@@ -4,7 +4,7 @@ use crate::{
     ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
     errors::SemTreeBuildErrors,
     symbols::{self, ContextSymbolResolver, Id, RawSymbols},
-    types::SLPType,
+    types::{SLPPrimitiveType, SLPType},
 };
 #[derive(Debug, Clone)]
 pub struct SemanticTree {
@@ -304,26 +304,54 @@ impl SemanticTree {
                 }
                 
             }
-            Expr::OpBinPlus(_, _, _) => todo!(),
-            Expr::OpBinMinus(_, _, _) => todo!(),
-            Expr::OpBinAsterisk(_, _, _) => todo!(),
-            Expr::OpBinSlash(_, _, _) => todo!(),
+            Expr::OpBinPlus(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Add)?
+            },
+            Expr::OpBinMinus(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Substract)?
+            },
+            Expr::OpBinAsterisk(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Multiplication)?
+            },
+            Expr::OpBinSlash(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Division)?
+            },
             Expr::OpBinDiv(_, _, _) => todo!(),
-            Expr::OpBinMod(_, _, _) => todo!(),
+            Expr::OpBinMod(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Modulo)?
+            },
             Expr::OpUnPlus(_, _) => todo!(),
             Expr::OpUnMinus(_, _) => todo!(),
-            Expr::OpBinAnd(_, _, _) => todo!(),
-            Expr::OpBinOr(_, _, _) => todo!(),
-            Expr::OpBinXor(_, _, _) => todo!(),
+            Expr::OpBinAnd(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::And)?
+            },
+            Expr::OpBinOr(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Or)?
+            },
+            Expr::OpBinXor(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Xor)?
+            },
             Expr::OpUnNot(_, _) => todo!(),
             Expr::OpBinShl(_, _, _) => todo!(),
             Expr::OpBinShr(_, _, _) => todo!(),
-            Expr::OpBinLesser(_, _, _) => todo!(),
-            Expr::OpBinGreater(_, _, _) => todo!(),
-            Expr::OpBinLesserEq(_, _, _) => todo!(),
-            Expr::OpBinGreaterEq(_, _, _) => todo!(),
-            Expr::OpBinEq(_, _, _) => todo!(),
-            Expr::OpBinNotEq(_, _, _) => todo!(),
+            Expr::OpBinLesser(l, x, y) => {
+                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::LesserThan)?
+            },
+            Expr::OpBinGreater(l, x, y) => {
+                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::GreaterThan)?
+            },
+            Expr::OpBinLesserEq(l, x, y) => {
+                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::LesserEqual)?
+            },
+            Expr::OpBinGreaterEq(l, x, y) => {
+                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::GreaterEqual)?
+            },
+            Expr::OpBinEq(l, x, y) => {
+                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::Equal)?
+            },
+            Expr::OpBinNotEq(l, x, y) => {
+                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::NotEqual)?
+            },
             Expr::OpUnDeref(_, _) => todo!(),
             Expr::OpUnGetRef(_, _) => todo!(),
             Expr::OpBinIndex(_, _, _) => todo!(),
@@ -337,6 +365,79 @@ impl SemanticTree {
             Expr::OpNew(_, _, _) => todo!(),
         })
     }
+    fn visit_int_bin_op(&mut self,
+        loc: Loc, l: &Expr, r: &Expr,
+        scope: &Scope, kind: IntBinOp) -> Result<STExpr, SemTreeBuildErrors> {
+        let le = Box::new(self.visit_expression(&l, scope)?);
+        let re = Box::new(self.visit_expression(&r, scope)?);
+        if le.ret_type == re.ret_type {
+            if le.ret_type.is_int() {
+                Ok(STExpr{ret_type: le.ret_type.clone(), loc, kind: ExprKind::PrimitiveIntBinOp(le, re, kind) })
+            }
+            else if le.ret_type.is_bool() {
+                let bool_op = match kind {
+
+                    IntBinOp::Or => BoolBinOp::Or,
+                    IntBinOp::And => BoolBinOp::And,
+                    IntBinOp::Xor => BoolBinOp::Xor,
+
+                    _ => todo!("Proper error handling")
+                };
+                Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::BoolBinOp(le, re, bool_op)})
+            }
+            else {
+                todo!("Type error!");
+            }
+        }
+        else {
+            todo!("Non-equal type conversion hierarchy")
+        }
+    }
+    fn visit_int_comparations(&mut self,
+        loc: Loc, l: &Expr, r: &Expr,
+        scope: &Scope, kind: ComparationKind) -> Result<STExpr, SemTreeBuildErrors> {
+            let le = Box::new(self.visit_expression(&l, scope)?);
+            let re = Box::new(self.visit_expression(&r, scope)?);
+            if le.ret_type == re.ret_type {
+                if le.ret_type.is_int() {
+                    Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::PrimitiveIntComparation(le, re, kind) })
+                }
+                else if le.ret_type.is_bool() {
+                    let bool_op = match kind {
+                        ComparationKind::Equal => BoolBinOp::Equal,
+                        ComparationKind::NotEqual => BoolBinOp::NotEqual,
+                        _ => todo!("Proper error handling")
+                    };
+                    Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::BoolBinOp(le, re, bool_op)})
+                }
+                else {
+                    todo!("Type error!");
+                }
+            }
+            else {
+                todo!("Non-equal type conversion hierarchy")
+            }
+    }
+    fn visit_int_unary_op(&mut self,
+        loc: Loc, i: &Expr,
+        scope: &Scope, kind: IntUnaryOp) -> Result<STExpr, SemTreeBuildErrors> {
+            let inp = Box::new(self.visit_expression(&i, scope)?);
+            if inp.ret_type.is_int() {
+                Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::PrimitiveIntUnaryOp(inp, kind) })
+            }
+            else if inp.ret_type.is_bool() {
+                let bool_op = match kind {
+
+                    IntUnaryOp::Inverse => BoolUnaryOp::Not,
+
+                    _ => todo!("Proper error handling")
+                };
+                Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::BoolUnaryOp(inp, bool_op)})
+            }
+            else {
+                todo!("Type error")
+            }
+        }
 }
 
 #[derive(Debug, Clone)]
@@ -463,7 +564,12 @@ pub enum ExprKind {
     NumberLiteral(NumberLiteral),
     BoolLiteral(bool),
     FunctionCall(FunctionCall),
-    
+    PrimitiveIntBinOp(Box<STExpr>, Box<STExpr>, IntBinOp),
+    PrimitiveIntUnaryOp(Box<STExpr>, IntUnaryOp),
+    PrimitiveIntComparation(Box<STExpr>, Box<STExpr>, ComparationKind),
+    BoolBinOp(Box<STExpr>, Box<STExpr>, BoolBinOp),
+    BoolUnaryOp(Box<STExpr>, BoolUnaryOp),
+
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);
@@ -478,7 +584,44 @@ pub enum NumberLiteral {
     U16(u16),
     U8(u8),
 }
-
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ComparationKind {
+    LesserThan,
+    LesserEqual,
+    GreaterThan,
+    GreaterEqual,
+    Equal,
+    NotEqual,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IntBinOp {
+    Add,
+    Substract, 
+    Multiplication,
+    Division,
+    Modulo,
+    Or,
+    And,
+    Xor,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IntUnaryOp {
+    Minus,
+    Inverse,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BoolBinOp {
+    And,
+    Or,
+    Xor,
+    Equal,
+    NotEqual
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BoolUnaryOp {
+    Not
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeConversionKind {
     Identity,
     Int64ToInt32,

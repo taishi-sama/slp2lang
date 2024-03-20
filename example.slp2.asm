@@ -11,6 +11,21 @@ std$identity:
 	.size	std$identity, .Lfunc_end0-std$identity
 	.cfi_endproc
 
+	.globl	std_io$getchar
+	.p2align	4, 0x90
+	.type	std_io$getchar,@function
+std_io$getchar:
+	.cfi_startproc
+	pushq	%rax
+	.cfi_def_cfa_offset 16
+	callq	getchar@PLT
+	popq	%rcx
+	.cfi_def_cfa_offset 8
+	retq
+.Lfunc_end1:
+	.size	std_io$getchar, .Lfunc_end1-std_io$getchar
+	.cfi_endproc
+
 	.globl	std_io$writechar
 	.p2align	4, 0x90
 	.type	std_io$writechar,@function
@@ -23,23 +38,8 @@ std_io$writechar:
 	popq	%rcx
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end1:
-	.size	std_io$writechar, .Lfunc_end1-std_io$writechar
-	.cfi_endproc
-
-	.globl	std_io$getchar
-	.p2align	4, 0x90
-	.type	std_io$getchar,@function
-std_io$getchar:
-	.cfi_startproc
-	pushq	%rax
-	.cfi_def_cfa_offset 16
-	callq	getchar@PLT
-	popq	%rcx
-	.cfi_def_cfa_offset 8
-	retq
 .Lfunc_end2:
-	.size	std_io$getchar, .Lfunc_end2-std_io$getchar
+	.size	std_io$writechar, .Lfunc_end2-std_io$writechar
 	.cfi_endproc
 
 	.globl	main
@@ -71,7 +71,7 @@ main:
 	callq	std_io$writechar@PLT
 	movl	$100, %edi
 	callq	std_io$writechar@PLT
-	movl	$33, %edi
+	movl	$100, %edi
 	callq	std_io$writechar@PLT
 	movl	$10, %edi
 	callq	std_io$writechar@PLT

@@ -16,7 +16,7 @@ begin
     var i11 : int8 = 100i8;
     var i12 : int8 = 33i8;
     var i13 : int8 = 10i8;
-    
+    var i_test : int8 = 67i8;
     std_io::writechar(i1);
     std_io::writechar(i2);
     std_io::writechar(i3);
@@ -28,9 +28,10 @@ begin
     std_io::writechar(i9);
     std_io::writechar(i10);
     std_io::writechar(i11);
-    std_io::writechar(i12);
+    std_io::writechar(i12 + i_test);
     std_io::writechar(i13);
     var i : int32 := std_io::getchar();
+    var t : bool = i13 > i12;
     Result := i;
     var test : bool = true;
     //if test then 
