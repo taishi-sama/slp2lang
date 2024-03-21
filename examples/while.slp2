@@ -1,0 +1,12 @@
+uses std_io;
+
+begin
+    var counter : int8 = 65i8; 
+    while counter < 120i8 do
+    begin
+        std_io::writechar(counter);
+        counter := counter + 1i8;
+    end;
+    std_io::writechar(10i8);
+    Result := 0i32;
+end.

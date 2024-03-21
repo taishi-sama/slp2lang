@@ -1,0 +1,7 @@
+uses std, std_io;
+begin
+    begin
+        Result := 10i32;
+    end;
+    Result := 0i32;
+end.

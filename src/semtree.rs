@@ -141,7 +141,7 @@ impl SemanticTree {
     }
     fn check_implicit_convertion(from: &SLPType, to: &SLPType) -> Result<TypeConversionKind, SemTreeBuildErrors> {
         if from == to {Ok(TypeConversionKind::Identity)}
-        else {todo!("Implement implicit conversion hierarcy")}
+        else {todo!("Implement implicit conversion hierarcy: {:?} to {:?}", from, to)}
     }
     fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
         match Self::check_implicit_convertion(&expr.ret_type, to)? {
@@ -229,6 +229,7 @@ impl SemanticTree {
             },
             Statement::If(l, cond, mb, ab) => {
                 let cond = self.visit_expression(cond, outer)?;
+                let cond = Self::insert_impl_conversion(cond, &SLPType::PrimitiveType(SLPPrimitiveType::Bool))?;
                 let mbstmt = {
                     let mut first_scope = Scope::new_with_outer(outer);
                     Box::new(STStatement::CodeBlock(*l, self.visit_statement(&mb, &mut first_scope)?))
@@ -244,7 +245,15 @@ impl SemanticTree {
                 };
                 Ok(vec![STStatement::If(*l, Box::new(cond), mbstmt,  abstmt)])
             },
-            Statement::While(_, _, _) => todo!(),
+            Statement::While(l, cond, stmt) => {
+                let cond = self.visit_expression(cond, outer)?;
+                let cond = Self::insert_impl_conversion(cond, &SLPType::PrimitiveType(SLPPrimitiveType::Bool))?;
+                let mbstmt = {
+                    let mut first_scope = Scope::new_with_outer(outer);
+                    Box::new(STStatement::CodeBlock(*l, self.visit_statement(&stmt, &mut first_scope)?))
+                };
+                Ok(vec![STStatement::While(*l, Box::new(cond), mbstmt)])
+            },
             Statement::RepeatUntil(_, _, _) => todo!(),
             Statement::VarDecl(l, t) => {
                 self.visit_vardelc(t, l, outer)
@@ -406,7 +415,7 @@ impl SemanticTree {
             }
         }
         else {
-            todo!("Non-equal type conversion hierarchy")
+            todo!("Non-equal type conversion hierarchy from {:?} to {:?}", le.ret_type, re.ret_type)
         }
     }
     fn visit_int_comparations(&mut self,

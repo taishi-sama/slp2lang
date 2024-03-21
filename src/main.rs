@@ -51,7 +51,7 @@ pub fn new_compile(file: &str, output_filename: &str) {
         .unwrap();
     let target_machine = Arc::new(target_machine);
     let cctx = CodegenContext::new();
-    let mut comp = Compiler::new(vec!["./".to_owned().into()]);
+    let mut comp = Compiler::new(vec!["./".to_owned().into(), "./std".to_owned().into()]);
     comp.start_compilation(file.into()).unwrap();
     let res = comp.continue_compilation().unwrap();
     let mut modules = vec![];
@@ -64,6 +64,8 @@ pub fn new_compile(file: &str, output_filename: &str) {
             },
             Err(e) => {
                 println!("Error in module {}: {}", i.semtree_name.0, e.to_string_lossy());
+                println!("Module {}:--------------------------------------- \n{}", i.semtree_name.0, cdgn.module.print_to_string().to_string_lossy());
+
                 break;
             },
         }

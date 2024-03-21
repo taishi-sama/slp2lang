@@ -11,7 +11,7 @@ use std::{collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, sync::Arc
 
 use anyhow::Ok;
 
-use crate::{ast::{self, ProgramFile}, semtree::SemanticTree, symbols::{ContextSymbolResolver, Id, RawSymbols}};
+use crate::{ast::{self, ProgramFile}, ast_visualisator, semtree::SemanticTree, semtree_visualisator, symbols::{ContextSymbolResolver, Id, RawSymbols}};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileId(pub u32);
@@ -35,6 +35,7 @@ impl Compiler {
         
         let fid = self.path_to_fileid(&initial_file);
         let pf = Arc::new(ast);
+        println!("{}", ast_visualisator::get_program_tree(&pf));
         self.asts.insert(fid.0, pf.clone());
         self.check_childs(&fid.0, &pf )?;
         self.check_queue()?;

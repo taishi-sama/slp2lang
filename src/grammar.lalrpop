@@ -23,6 +23,8 @@ match {
     r"(?i)external" => External,
     r"(?i)true" => True,
     r"(?i)false" => False, 
+    r"(?i)while" => While,
+    r"(?i)do" => Do,
     "(",
     ")",
     "[",
@@ -118,7 +120,8 @@ IndList: Vec<String> = {
 
 StatementsBlock: StatementBlock = {
     <s:Statement> ";" <mut sb: StatementsBlock> => {sb.insert(0, s); return sb;},
-    () => Vec::new(),
+    <s:Statement> => vec![s],
+    //() => Vec::new(),
 }
 
 Statement: Statement = {
@@ -129,6 +132,7 @@ Statement: Statement = {
 // https://github.com/lalrpop/lalrpop/blob/master/doc/pascal/lalrpop/src/pascal.lalrpop
 OpenStatement: Statement = {
     <ifsmt: OpenIfStatement> => ifsmt,
+    <whsmt: OpenWhileStatement> => whsmt,
 }
 ClosedStatement: Statement = {
     <p:Print> => p,
@@ -136,13 +140,15 @@ ClosedStatement: Statement = {
     <lvd: LocalVariableDecl> => lvd,
     <asmt: AssigmentStatement> => asmt,
     <ifsmt: ClosedIfStatement> => ifsmt,
+    <whsmt: ClosedWhileStatement> => whsmt,
+
     <fc: FuncCallStmt> => fc,
     () => Statement::Empty(),
 
 }
 
 CodeBlock : Statement = {
-    <tl:@L> Begin <sb:StatementsBlock> End ";" <tr:@R> => Statement::CodeBlock(Loc::new(tl, tr), sb)
+    <tl:@L> Begin <sb:StatementsBlock> End <tr:@R> => Statement::CodeBlock(Loc::new(tl, tr), sb)
 }
 
 LocalVariableDecl: Statement = {
@@ -160,6 +166,12 @@ OpenIfStatement: Statement = {
 }
 ClosedIfStatement: Statement = {
     <tl:@L> If <cond:Expr> Then <trueStmt: ClosedStatement> Else <falseStmt: ClosedStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), Some(Box::new(falseStmt))),
+}
+OpenWhileStatement: Statement = {
+    <tl:@L> While <cond:Expr> Do <bodyStmt: OpenStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(bodyStmt)),
+}
+ClosedWhileStatement: Statement = {
+    <tl:@L> While <cond:Expr> Do <bodyStmt: ClosedStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(bodyStmt)),
 }
 
 AssigmentStatement : Statement = {

@@ -189,12 +189,24 @@ impl<'a> Codegen<'a> {
     }
     fn generate_main_body_of_function<'b>(&self, func: &FunctionValue, f: &'b Function, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) {
         for i in &f.body {
-            self.visit_statement(i, localvar_stackalloc, syms)
+            self.visit_statement(i, func, localvar_stackalloc, syms)
         }
     }
-    fn visit_statement<'b>(&self, stmt: &'b STStatement, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) {
+    fn visit_statement<'b>(&self, stmt: &'b STStatement, func: &FunctionValue, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) {
         match stmt {
-            STStatement::CodeBlock(_, _) => todo!(),
+            STStatement::CodeBlock(l, stmts) => {
+                //let codeblock_begin = self.ctx.context.append_basic_block(*func, "codeblock_begin");
+                //self.builder.build_unconditional_branch(codeblock_begin);
+
+                //let codeblock_end = self.ctx.context.append_basic_block(*func, "codeblock_end");
+                //self.builder.position_at_end(codeblock_begin);
+                for i in stmts {
+                    self.visit_statement(i, func, localvar_stackalloc, syms)
+                }
+                //self.builder.build_unconditional_branch(codeblock_end);
+                //self.builder.position_at_end(codeblock_end);
+                
+            },
             STStatement::Print(_, _) => todo!(),
             STStatement::FunctionCall(_, fc) => {
                 let mut vls = vec![];
@@ -218,8 +230,63 @@ impl<'a> Codegen<'a> {
                     todo!("Expression not supported! Loc: {}", l);
                 }
             },
-            STStatement::If(_, _, _, _) => todo!(),
-            STStatement::While(_, _, _) => todo!(),
+            STStatement::If(loc, cond, mb, ab) => {
+                let e = self.visit_expression(&cond, localvar_stackalloc, syms);
+                let int = e.into_int_value();
+                
+                if let Some(alt_b) = ab {
+                    let branch_main = self.ctx.context.append_basic_block(*func, "branch_main");
+                    let branch_alt = self.ctx.context.append_basic_block(*func, "branch_alt");
+                    let branch_exit = self.ctx.context.append_basic_block(*func, "branch_exit");
+                    
+                    self.builder.build_conditional_branch(int, branch_main, branch_alt);
+                    self.builder.position_at_end(branch_main);
+                    self.visit_statement(&mb, func, localvar_stackalloc, syms);
+                    self.builder.build_unconditional_branch(branch_exit);
+                    self.builder.position_at_end(branch_alt);
+                    self.visit_statement(&alt_b, func, localvar_stackalloc, syms);
+                    self.builder.build_unconditional_branch(branch_exit);
+                    self.builder.position_at_end(branch_exit);
+                    let end = func.get_last_basic_block().unwrap();
+                    if end != branch_exit {
+                        branch_exit.move_after(end).unwrap()
+                    }
+                }
+                else {
+                    let branch_main = self.ctx.context.append_basic_block(*func, "branch_main");
+                    let branch_exit = self.ctx.context.append_basic_block(*func, "branch_exit");
+                    
+                    self.builder.build_conditional_branch(int, branch_main, branch_exit);
+                    self.builder.position_at_end(branch_main);
+                    self.visit_statement(&mb, func, localvar_stackalloc, syms);
+                    self.builder.build_unconditional_branch(branch_exit);
+                    self.builder.position_at_end(branch_exit);
+                    let end = func.get_last_basic_block().unwrap();
+                    if end != branch_exit {
+                        branch_exit.move_after(end).unwrap()
+                    }
+                }
+            },
+            STStatement::While(_, cond, body) => {
+                
+                let while_cond = self.ctx.context.append_basic_block(*func, "while_cond");
+                self.builder.build_unconditional_branch(while_cond);
+                self.builder.position_at_end(while_cond);
+                let e = self.visit_expression(&cond, localvar_stackalloc, syms);
+                let int = e.into_int_value();
+                let while_body = self.ctx.context.append_basic_block(*func, "while_body");
+                let while_exit = self.ctx.context.append_basic_block(*func, "while_exit");
+                self.builder.build_conditional_branch(int, while_body, while_exit);
+                self.builder.position_at_end(while_body);
+                self.visit_statement(&body, func, localvar_stackalloc, syms);
+                self.builder.build_unconditional_branch(while_cond);
+                self.builder.position_at_end(while_exit);
+                let end = func.get_last_basic_block().unwrap();
+                if end != while_exit {
+                    while_exit.move_after(end).unwrap()
+                }
+                
+            },
             STStatement::RepeatUntil(_, _, _) => todo!(),
             STStatement::VarDecl(l, vd) => {
                 if let Some(init_expr) = &vd.init_expr {
@@ -228,7 +295,7 @@ impl<'a> Codegen<'a> {
                 }     
                 
             },
-            STStatement::Empty() => todo!(),
+            STStatement::Empty() => (),
         }
     }
     fn visit_expression<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) -> BasicValueEnum<'a> {

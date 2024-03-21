@@ -1,0 +1,9 @@
+uses std_io;
+
+begin
+    var key_press : int32 := std_io::getchar();
+    if key_press > 10i32 then
+        Result := 0i32
+    else 
+        Result := 1i32;
+end.

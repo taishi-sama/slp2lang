@@ -75,11 +75,11 @@ pub fn statements(st: &Statement) -> StringTreeNode {
             StringTreeNode::with_child_nodes("Print".to_string(), vec![expressions(x)].into_iter())
         }
         Statement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![expressions(x), expressions(y)].into_iter()),
-        Statement::If(_, x, y, z) => todo!(),
-        Statement::While(_, x, y) => todo!(),
+        Statement::If(_, x, y, z) => StringTreeNode::with_child_nodes("If".to_string(), vec![expressions(x), statements(y)].into_iter().chain(z.as_deref().map(|t|statements(&t)))),
+        Statement::While(_, x, y) => StringTreeNode::with_child_nodes("While".to_string(), vec![expressions(x), statements(y)].into_iter()),
         Statement::RepeatUntil(_, x, y) => todo!(),
         Statement::VarDecl(_, x) => vardecl(x),
-        Statement::Empty() => todo!(),
+        Statement::Empty() => StringTreeNode::new("*empty*".into()),
         Statement::FunctionCall(_, x) => StringTreeNode::with_child_nodes(
             "FunctionCall".to_string(),
             iter::once(expressions(&x.func)).chain(x.args.iter().map(expressions)),
@@ -148,7 +148,10 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
         Expr::OpUnNot(_, _) => todo!(),
         Expr::OpBinShl(_, _, _) => todo!(),
         Expr::OpBinShr(_, _, _) => todo!(),
-        Expr::OpBinLesser(_, _, _) => todo!(),
+        Expr::OpBinLesser(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinLesser".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpBinGreater(_, _, _) => todo!(),
         Expr::OpBinLesserEq(_, _, _) => todo!(),
         Expr::OpBinGreaterEq(_, _, _) => todo!(),
