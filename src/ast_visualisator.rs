@@ -53,7 +53,7 @@ pub fn arg_decl(a: &ArgDecl) -> StringTreeNode {
 }
 pub fn types(ty: &Type) -> StringTreeNode {
     match ty {
-        Type::Primitive(x) => StringTreeNode::new(x.clone()),
+        Type::Primitive(x) => StringTreeNode::new(format!("{}", x)),
         Type::Pointer(x) => {
             StringTreeNode::with_child_nodes("Pointer of".to_string(), vec![types(&x)].into_iter())
         }
@@ -117,12 +117,8 @@ pub fn constant(c: &Constant) -> StringTreeNode {
     ))
 }
 pub fn ident(id: &Identificator) -> StringTreeNode {
-    StringTreeNode::with_child_nodes(
-        format!("Id:{}", id.name),
-        id.path
-            .iter()
-            .map(|t| StringTreeNode::new(format!("Path: {}", t))),
-    )
+    StringTreeNode::new(
+        format!("Id: {}", id))
 }
 pub fn expressions(ex: &Expr) -> StringTreeNode {
     match ex {

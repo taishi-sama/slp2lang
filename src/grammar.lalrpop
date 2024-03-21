@@ -102,7 +102,7 @@ ExternalFunctionDecl: ExternFunctionBody = {
     <tl:@L> External Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";"<tr:@R> => ExternFunctionBody{loc:Loc::new(tl, tr), function_name: f, function_args: fa, return_arg: ret}
 }
 MainDecl: FunctionBody = {
-    <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::Primitive("int32".to_string())}}
+    <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::Primitive(Identificator{name: "int32".to_string(), path: vec![]})}}
 }
 
 ArgsList: ArgDeclList = {
@@ -270,5 +270,5 @@ Type: Type = {
     "^"<t: Type> => Type::Pointer(Box::new(t)),
     Array Of <t: Type>  => Type::DynArray(Box::new(t)),
     Array "[" <b: IntConstant> ".." <e: IntConstant> "]" Of <t: Type>  => Type::FixedArray(b, e, Box::new(t)),
-    <id: SoloId> => Type::Primitive(id.clone())
+    <id: IdPath> => Type::Primitive(id)
 };

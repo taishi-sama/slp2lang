@@ -58,6 +58,14 @@ pub struct Identificator {
     pub name: String,
     pub path: Vec<String>,
 }
+impl Display for Identificator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for i in &self.path {
+            write!(f, "{i}::")?;
+        }
+        write!(f, "{}", self.name)
+    }
+}
 #[derive(Debug, Clone)]
 pub enum Expr {
     Constant(Loc, Constant),
@@ -151,7 +159,7 @@ pub struct TypeDecl {
 
 #[derive(Debug, Clone)]
 pub enum Type {
-    Primitive(String),
+    Primitive(Identificator),
     Pointer(Box<Type>),
     //MultiDim arrays aren't supported yet
     DynArray(Box<Type>),
@@ -160,6 +168,6 @@ pub enum Type {
 }
 impl Type {
     pub fn void() -> Self {
-        Type::Primitive("void".to_string())
+        Type::Primitive(Identificator { name: "void".to_string(), path: vec![] })
     }
 }

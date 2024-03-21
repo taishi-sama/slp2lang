@@ -113,7 +113,7 @@ impl SLPType {
     }
     pub fn from_ast_type(ty: &Type) -> Result<Self, SemTreeBuildErrors> {
         match ty {
-            Type::Primitive(t) => Ok(Self::PrimitiveType(match &t[..] {
+            Type::Primitive(t) => if t.path.is_empty() { Ok(Self::PrimitiveType(match &t.name[..] {
                 "int8" => SLPPrimitiveType::Int8,
                 "int16" => SLPPrimitiveType::Int16,
                 "int32" => SLPPrimitiveType::Int32,
@@ -128,7 +128,7 @@ impl SLPType {
                 "bool" => SLPPrimitiveType::Bool,
                 "void" => SLPPrimitiveType::Void,
                 _ => panic!("Unknown type!"), // TODO: Type alias resolving, structure name resolving
-            })),
+            })) } else {todo!()},
             Type::Pointer(t) => Ok(Self::Pointer(Box::new(Self::from_ast_type(&t)?))),
             Type::DynArray(t) => Ok(Self::DynArray(Box::new(Self::from_ast_type(&t)?))),
             Type::FixedArray(b, e, t) => Ok(Self::FixedArray {
