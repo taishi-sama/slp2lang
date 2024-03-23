@@ -25,6 +25,10 @@ match {
     r"(?i)false" => False, 
     r"(?i)while" => While,
     r"(?i)do" => Do,
+    r"(?i)type" => TypeKW,
+    r"(?i)class" => Class,
+    r"(?i)record" => Record,
+
     "(",
     ")",
     "[",
@@ -91,7 +95,16 @@ Declarations: Declaration = {
     <md: MainDecl> => Declaration::Function(md),
     <fd: FunctionDecl> => Declaration::Function(fd),
     <efd: ExternalFunctionDecl> => Declaration::ExternFunction(efd),
+    <tds: TypeDeclSection> => Declaration::TypeDeclSection(tds),
 }
+TypeDeclSection: TypeDeclSectionBody = {
+    <tl:@L> TypeKW <decls: TypeDeclElement+> <tr:@R> => TypeDeclSectionBody{decls}, 
+}
+
+TypeDeclElement: TypeDeclElement = {
+    <tl:@L> <id: SoloId> "=" <al: Type> ";" <tr:@R> => TypeDeclElement::TypeAlias(Loc::new(tl, tr), id, al),
+}
+
 ProcedureDecl: FunctionBody = {
     <tl:@L> Procedure <f:SoloId> "(" <fa:ArgsList> ")" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
 };

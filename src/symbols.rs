@@ -45,6 +45,7 @@ impl ContextSymbolResolver {
         else {todo!()}
 
     }
+    
     fn canonical_name_of_id(id: &Identificator) -> String {
         let mut t = id.path.iter().fold(String::new(), |x, y| x + "$" + y);
         if t.is_empty() {

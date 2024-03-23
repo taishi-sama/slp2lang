@@ -1,0 +1,7 @@
+type
+    c_int = int32;
+
+begin
+
+
+end.

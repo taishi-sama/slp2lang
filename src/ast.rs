@@ -35,7 +35,12 @@ pub enum Declaration {
 
 #[derive(Debug, Clone)]
 pub struct TypeDeclSectionBody {
-    //TODO!
+    pub decls: Vec<TypeDeclElement>
+}
+#[derive(Debug, Clone)]
+pub enum TypeDeclElement {
+    TypeAlias(Loc, String, Type),
+    RecordDeclare(Loc, )//TODO
 }
 
 #[derive(Debug, Clone)]

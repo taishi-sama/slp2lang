@@ -3,7 +3,7 @@ use std::iter;
 use text_trees::StringTreeNode;
 
 use crate::ast::{
-    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, Statement, Type, Usings, VarDecl
+    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, Statement, Type, TypeDeclElement, TypeDeclSectionBody, Usings, VarDecl
 };
 
 pub fn get_program_tree(pf: &ProgramFile) -> StringTreeNode {
@@ -42,9 +42,20 @@ pub fn declaration(decl: &Declaration) -> StringTreeNode {
                     
             )
         }
-        Declaration::TypeDeclSection(_) => todo!(),
+        Declaration::TypeDeclSection(d) => type_decl_section(d),
     }
 }
+
+pub fn type_decl_section(d: &TypeDeclSectionBody) -> StringTreeNode {
+    StringTreeNode::with_child_nodes("Types".into(), d.decls.iter().map(type_decl_element))
+}
+pub fn type_decl_element(e: &TypeDeclElement) -> StringTreeNode {
+    match e {
+        TypeDeclElement::TypeAlias(_, n, t) => StringTreeNode::with_child_nodes(format!("{} = ", n), iter::once(types(t))),
+        TypeDeclElement::RecordDeclare(_) => todo!(),
+    }
+}
+
 pub fn arg_decl(a: &ArgDecl) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
         format!("({})", a.names.join(", ")),
