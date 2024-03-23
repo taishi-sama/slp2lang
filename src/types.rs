@@ -139,3 +139,7 @@ impl SLPType {
         }
     }
 }
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeTable {
+
+}

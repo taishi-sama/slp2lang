@@ -1,0 +1,4 @@
+type
+    c_int = int32;
+    c_long = int64;
+    c_char = int8;

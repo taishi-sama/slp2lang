@@ -42,14 +42,16 @@ impl Compiler {
         Ok(())
     }
     pub fn continue_compilation(&mut self) -> anyhow::Result<Vec<SemanticTree>> {
-        let mut syms: HashMap<FileId, Arc<RawSymbols>> = HashMap::new();
+        let mut syms: HashMap<FileId, RawSymbols> = HashMap::new();
         
         for (ids, deps) in &self.deps {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);
             let rs = RawSymbols::new(&p, &self.asts[ids])?;
-            let ars = Arc::new(rs);
-            syms.insert(*ids, ars);
+            //let ars = Arc::new(rs);
+            syms.insert(*ids, rs);
         }
+        let syms: HashMap<_, _> = syms.into_iter().map(|(k, v)|(k, Arc::new(v))).collect();
+
         let mut semtrees = vec![];
         for (ids, deps) in &self.deps {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);

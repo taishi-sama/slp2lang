@@ -1,7 +1,12 @@
+uses ctypes;
 type
-    c_int = int32;
+    c_int_here = ctypes::c_int;
+
+function identity(i: int32) : c_int_here 
+begin
+    Result := i;
+end;
 
 begin
-
-
+    Result := identity(10i32);
 end.
