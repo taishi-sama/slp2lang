@@ -1,28 +1,29 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
-    errors::SemTreeBuildErrors,
-    symbols::{self, ContextSymbolResolver, Id, RawSymbols},
-    types::{SLPPrimitiveType, SLPType},
+    ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement}, compiler::FileId, errors::SemTreeBuildErrors, symbols::{self, ContextSymbolResolver, Id, Symbols, TypeResolver}, types::{SLPPrimitiveType, SLPType}
 };
 #[derive(Debug, Clone)]
 pub struct SemanticTree {
     pub semtree_name: Id,
+    pub fileid: FileId, 
     //Replace when supporting compilation of many files
     pub symbols: ContextSymbolResolver,
+    pub types_resolver: Arc<TypeResolver>,
     pub root: ProgramRoot,
     //Переменные пересекающихся областей определения переименовываются.
     pub names: HashMap<Id, String>,
 }
 impl SemanticTree {
-    pub fn new(pf: &ProgramFile, ctxsy: ContextSymbolResolver, name: Id) -> Result<Self, Vec<SemTreeBuildErrors>> {
+    pub fn new(pf: &ProgramFile, ctxsy: ContextSymbolResolver, name: Id, fileid: FileId, ty_res: Arc<TypeResolver>) -> Result<Self, Vec<SemTreeBuildErrors>> {
         let mut st = SemanticTree {
 
             names: HashMap::new(),
             symbols: ctxsy,
             root: ProgramRoot { funcs: vec![], extern_funcs: vec![] },
             semtree_name: name,
+            types_resolver: ty_res,
+            fileid
         };
         st.visit_program_file(pf)?;
 
@@ -44,7 +45,9 @@ impl SemanticTree {
                         Err(e) => errors.push(e),
                     }
                 }
-                crate::ast::Declaration::TypeDeclSection(x) => todo!(),
+                crate::ast::Declaration::TypeDeclSection(x) => {
+                    //TODO
+                },
             }
         }
         if errors.is_empty() {
@@ -65,7 +68,7 @@ impl SemanticTree {
             .flat_map(|x| {
                 x.names
                     .iter()
-                    .map(|y| (Id(y.to_string()), SLPType::from_ast_type(&x.ty.ty)))
+                    .map(|y| (Id(y.to_string()), self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid)))
             })
             .collect();
         let errs: Vec<_> = function_args
@@ -75,7 +78,7 @@ impl SemanticTree {
         if !errs.is_empty() {
             return Err(errs.first().unwrap().clone().clone());
         }
-        let return_arg = SLPType::from_ast_type(&func.return_arg.ty)?;
+        let return_arg = self.types_resolver.from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
         let function_args: Vec<(Id, SLPType)> = function_args
             .into_iter()
@@ -103,7 +106,7 @@ impl SemanticTree {
             .flat_map(|x| {
                 x.names
                     .iter()
-                    .map(|y| (Id(y.to_string()), SLPType::from_ast_type(&x.ty.ty)))
+                    .map(|y| (Id(y.to_string()), self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid)))
             })
             .collect();
         let errs: Vec<_> = function_args
@@ -113,7 +116,7 @@ impl SemanticTree {
         if !errs.is_empty() {
             return Err((*errs.first().unwrap()).clone());
         }
-        let return_arg = SLPType::from_ast_type(&func.return_arg.ty)?;
+        let return_arg = self.types_resolver.from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
         let function_args: Vec<(Id, SLPType)> = function_args
             .into_iter()
@@ -172,7 +175,7 @@ impl SemanticTree {
             match t {
                 Some((id, func)) => {
                     match func {
-                        crate::symbols::RawSymbol::FunctionDecl { loc, input, output } => {
+                        crate::symbols::FunctionDecl::FunctionDecl { loc, input, output } => {
                             let mut reconst_exprs = vec![];
                             for (inp_type, expr) in input.iter().zip(args.into_iter()) {
                                 let res = Self::insert_impl_conversion(expr, inp_type)?;
@@ -180,7 +183,7 @@ impl SemanticTree {
                             }
                             return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall { func: id, args: reconst_exprs, ret_type: output.clone() }));
                         },
-                        crate::symbols::RawSymbol::ExternFunctionDecl { loc, input, output } => {
+                        crate::symbols::FunctionDecl::ExternFunctionDecl { loc, input, output } => {
                             let mut reconst_exprs = vec![];
                             for (inp_type, expr) in input.iter().zip(args.into_iter()) {
                                 let res = Self::insert_impl_conversion(expr, inp_type)?;
@@ -264,7 +267,7 @@ impl SemanticTree {
     fn visit_vardelc(&mut self, vd: &ast::VarDecl, l: &Loc,  scope: &mut Scope) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
         match vd {
             ast::VarDecl::Multiple(s, ty) => {
-                let ty = SLPType::from_ast_type(&ty.ty)?;
+                let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let mut lvs = vec![];
                 for i in s {
                     let lv = scope.add_variable(&Id(i.clone()), ty.clone());
@@ -274,7 +277,7 @@ impl SemanticTree {
                 Ok(lvs)
             },
             ast::VarDecl::ExplicitType(s, ty, e) => {
-                let ty = SLPType::from_ast_type(&ty.ty)?;
+                let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
                 Ok(vec![STStatement::VarDecl(*l, VarDecl { id: lv, ty, init_expr: Some(self.visit_expression(e, scope)?) })])
             },

@@ -1,2 +1,4 @@
-external function putchar(c: int8):int8;
-external function getchar():int32;
+uses ctypes;
+
+external function putchar(c: ctypes::c_char): ctypes::c_int;
+external function getchar(): ctypes::c_char;

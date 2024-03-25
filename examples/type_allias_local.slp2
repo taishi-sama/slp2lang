@@ -1,0 +1,7 @@
+type
+    cint = int32;
+
+begin
+    var t : cint = 32i32;
+    Result := t;
+end.

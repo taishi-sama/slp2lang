@@ -73,12 +73,12 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::NumberLiteral(l) => StringTreeNode::new(
             "NumberLiteral = ".to_string()
                 + &match &l {
-                    NumberLiteral::U32(_) => todo!(),
+                    NumberLiteral::U32(i) => i.to_string(),
                     NumberLiteral::I32(i) => i.to_string(),
-                    NumberLiteral::U64(_) => todo!(),
+                    NumberLiteral::U64(i) => i.to_string(),
                     NumberLiteral::I64(i) => i.to_string(),
-                    NumberLiteral::U16(_) => todo!(),
-                    NumberLiteral::I16(_) => todo!(),
+                    NumberLiteral::U16(i) => i.to_string(),
+                    NumberLiteral::I16(i) => i.to_string(),
                     NumberLiteral::U8(i) => i.to_string(),
                     NumberLiteral::I8(i) => i.to_string(),
                 },

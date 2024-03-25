@@ -10,7 +10,7 @@ use lalrpop_util::lalrpop_mod;
 
 use crate::{
     ast_visualisator::get_program_tree, semtree::SemanticTree,
-    semtree_visualisator::get_program_root, symbols::{ContextSymbolResolver, Id, RawSymbols},
+    semtree_visualisator::get_program_root, symbols::{ContextSymbolResolver, Id, Symbols},
 };
 pub mod ast;
 pub mod ast_visualisator;

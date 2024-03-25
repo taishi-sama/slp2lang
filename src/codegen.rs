@@ -12,7 +12,7 @@ use inkwell::{
 };
 
 use crate::{
-    ast::Loc, semtree::{BoolBinOp, ComparationKind, ExprKind, ExternFunction, Function, IntBinOp, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{ContextSymbolResolver, Id, RawSymbol, RawSymbols}, types::{SLPPrimitiveType, SLPType}
+    ast::Loc, semtree::{BoolBinOp, ComparationKind, ExprKind, ExternFunction, Function, IntBinOp, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{ContextSymbolResolver, Id, FunctionDecl, Symbols}, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -47,7 +47,7 @@ impl<'a> Codegen<'a> {
         
         for f in &semtree.root.funcs {
             //println!("{:?}", f);
-            let id = semtree.symbols.main_file_symbols.canonical(&f.function_name, &semtree.symbols.main_file_symbols.decls[&f.function_name]);
+            let id = semtree.symbols.main_file_symbols.canonical(&f.function_name, &semtree.symbols.main_file_symbols.func_decls[&f.function_name]);
             let t = syms.get(&id).unwrap();
             self.compile_function(&f, t, &syms);
         }
@@ -58,11 +58,11 @@ impl<'a> Codegen<'a> {
         let q: Vec<_> = ctx.deps_symbols.iter().map(|x|self.declare_symbol(&x, true)).flatten().collect();
         t.into_iter().chain(q).collect()
     }
-    pub fn declare_symbol<'b>(&self, sym: &'b RawSymbols, are_external: bool) -> Vec<(Id, FunctionValue<'a>)> {
+    pub fn declare_symbol<'b>(&self, sym: &'b Symbols, are_external: bool) -> Vec<(Id, FunctionValue<'a>)> {
         let mut v = vec![];
-        for (id, s) in &sym.decls {
+        for (id, s) in &sym.func_decls {
             match s {
-                RawSymbol::FunctionDecl { loc, input, output } => {
+                FunctionDecl::FunctionDecl { loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
                     let name = sym.canonical(id, s);
                     let func = self.module.add_function(
@@ -72,7 +72,7 @@ impl<'a> Codegen<'a> {
                     );
                     v.push((name, func));
                 },
-                RawSymbol::ExternFunctionDecl { loc, input, output } => {
+                FunctionDecl::ExternFunctionDecl { loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
                     let name = sym.canonical(id, s);
                     let func = self.module.add_function(

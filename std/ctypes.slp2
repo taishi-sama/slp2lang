@@ -1,4 +1,9 @@
 type
-    c_int = int32;
     c_long = int64;
+    c_int = int32;
+    c_short = int16;
     c_char = int8;
+    c_ulong = uint64;
+    c_uint = uint32;
+    c_short = uint16;
+    c_char = uint8;

@@ -11,17 +11,17 @@ use std::{collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, sync::Arc
 
 use anyhow::Ok;
 
-use crate::{ast::{self, ProgramFile}, ast_visualisator, semtree::SemanticTree, semtree_visualisator, symbols::{ContextSymbolResolver, Id, RawSymbols}};
+use crate::{ast::{self, ProgramFile}, ast_visualisator, semtree::SemanticTree, semtree_visualisator, symbols::{ContextSymbolResolver, Id, Symbols, TypeResolverGenerator}};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileId(pub u32);
-
+#[derive(Debug, Clone)]
 pub struct Compiler{
     includes: Vec<PathBuf>,
-    filename_to_id: HashMap<String, FileId>,
+    pub filename_to_id: Arc<HashMap<String, FileId>>,
     id_to_filepath: HashMap<FileId, PathBuf>,
     asts: HashMap<FileId, Arc<ProgramFile>>,
-    deps: HashMap<FileId, Vec<FileId>>,
+    pub deps: Arc<HashMap<FileId, Vec<FileId>>>,
     queue_on_check: VecDeque<FileId>
 }
 
@@ -33,7 +33,7 @@ impl Compiler {
         let text = fs::read_to_string(&initial_file)?;
         let ast = crate::grammar::ProgramBlockParser::new().parse(&text).unwrap();
         
-        let fid = self.path_to_fileid(&initial_file);
+        let fid = self.path_to_fileid_mut(&initial_file);
         let pf = Arc::new(ast);
         println!("{}", ast_visualisator::get_program_tree(&pf));
         self.asts.insert(fid.0, pf.clone());
@@ -42,24 +42,30 @@ impl Compiler {
         Ok(())
     }
     pub fn continue_compilation(&mut self) -> anyhow::Result<Vec<SemanticTree>> {
-        let mut syms: HashMap<FileId, RawSymbols> = HashMap::new();
+        let mut t = TypeResolverGenerator::new(&self);
+        for (ids, deps) in self.deps.iter() {
+            t.fill(&self.asts[ids], ids.clone())
+        }
+        let type_resolver = t.resolve();
+        let type_resolver_arc = Arc::new(type_resolver);
+        let mut syms: HashMap<FileId, Symbols> = HashMap::new();
         
-        for (ids, deps) in &self.deps {
+        for (ids, deps) in self.deps.iter() {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);
-            let rs = RawSymbols::new(&p, &self.asts[ids])?;
+            let rs = Symbols::new(&p, &self.asts[ids], ids.clone(), &type_resolver_arc)?;
             //let ars = Arc::new(rs);
             syms.insert(*ids, rs);
         }
         let syms: HashMap<_, _> = syms.into_iter().map(|(k, v)|(k, Arc::new(v))).collect();
-
+        
         let mut semtrees = vec![];
-        for (ids, deps) in &self.deps {
+        for (ids, deps) in self.deps.iter() {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);
 
             println!("Compiling {}", self.id_to_filepath[ids].to_string_lossy());
             let ctx = ContextSymbolResolver::new(syms[ids].clone(), 
                 deps.iter().map(|x|syms[x].clone()).collect());
-            let semtree = SemanticTree::new(&self.asts[ids], ctx, Id(p));
+            let semtree = SemanticTree::new(&self.asts[ids], ctx, Id(p), ids.clone(), type_resolver_arc.clone());
             let semtree_unwrap = semtree.unwrap();
             semtrees.push(semtree_unwrap);
         }
@@ -82,7 +88,7 @@ impl Compiler {
                 ast::Usings::Name(_, n) => {
                     println!("Checking dep: {n}");
                     let f = self.find_first_applicable_child(n).unwrap();
-                    let (fid, cond) = self.path_to_fileid(&f);
+                    let (fid, cond) = self.path_to_fileid_mut(&f);
                     deps.push(fid);
                     if cond {
                         println!("File loaded: {}", f.to_string_lossy());
@@ -100,7 +106,7 @@ impl Compiler {
                 ast::Usings::Path(_, _) => todo!(),
             }
         };
-        self.deps.insert(*source_file, deps);
+        Arc::get_mut(&mut self.deps).unwrap().insert(*source_file, deps);
         Ok(())
     }
     fn check_queue(&mut self) -> anyhow::Result<()> {
@@ -113,7 +119,7 @@ impl Compiler {
     fn path_into_string(path: &Path) -> String {
         path.file_stem().unwrap().to_string_lossy().into_owned()
     } 
-    fn path_to_fileid(&mut self, path: &Path) -> (FileId, bool) {
+    fn path_to_fileid_mut(&mut self, path: &Path) -> (FileId, bool) {
         //Properly do hierarchy
         let p = Self::path_into_string(path);
         if let Some(f) = self.filename_to_id.get(&p) {
@@ -121,7 +127,7 @@ impl Compiler {
         }
         else {
             let counter = self.filename_to_id.len() as u32;
-            self.filename_to_id.insert(p, FileId(counter));
+            Arc::get_mut(&mut self.filename_to_id).unwrap().insert(p, FileId(counter));
             self.id_to_filepath.insert(FileId(counter), path.to_path_buf());
             (FileId(counter), true)
         }

@@ -111,33 +111,7 @@ impl SLPType {
             false
         }
     }
-    pub fn from_ast_type(ty: &Type) -> Result<Self, SemTreeBuildErrors> {
-        match ty {
-            Type::Primitive(t) => if t.path.is_empty() { Ok(Self::PrimitiveType(match &t.name[..] {
-                "int8" => SLPPrimitiveType::Int8,
-                "int16" => SLPPrimitiveType::Int16,
-                "int32" => SLPPrimitiveType::Int32,
-                "int64" => SLPPrimitiveType::Int64,
-                "isize" => SLPPrimitiveType::ISize,
-                "uint8" => SLPPrimitiveType::Uint8,
-                "uint16" => SLPPrimitiveType::Uint16,
-                "uint32" => SLPPrimitiveType::Uint32,
-                "uint64" => SLPPrimitiveType::Uint64,
-                "usize" => SLPPrimitiveType::USize,
-                "string" => SLPPrimitiveType::String,
-                "bool" => SLPPrimitiveType::Bool,
-                "void" => SLPPrimitiveType::Void,
-                _ => panic!("Unknown type!"), // TODO: Type alias resolving, structure name resolving
-            })) } else {todo!()},
-            Type::Pointer(t) => Ok(Self::Pointer(Box::new(Self::from_ast_type(&t)?))),
-            Type::DynArray(t) => Ok(Self::DynArray(Box::new(Self::from_ast_type(&t)?))),
-            Type::FixedArray(b, e, t) => Ok(Self::FixedArray {
-                begin: *b,
-                end: *e,
-                ty: Box::new(Self::from_ast_type(&t)?),
-            }),
-        }
-    }
+    
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeTable {
