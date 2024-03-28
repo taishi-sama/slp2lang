@@ -69,7 +69,7 @@ fn vardecl(vd: &VarDecl) -> StringTreeNode {
 pub fn expr(expression: &STExpr) -> StringTreeNode {
     match &expression.kind {
         ExprKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
-        ExprKind::TypeCast(_) => todo!(),
+        ExprKind::TypeCast(_, _) => todo!(),
         ExprKind::NumberLiteral(l) => StringTreeNode::new(
             "NumberLiteral = ".to_string()
                 + &match &l {
@@ -93,6 +93,14 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::PrimitiveIntUnaryOp(_,  _) => todo!(),
         ExprKind::BoolBinOp(_, _, _) => todo!(),
         ExprKind::BoolUnaryOp(_, _) => todo!(),
+        ExprKind::FloatLiteral(f) => StringTreeNode::new(
+            "FloatLiteral = ".to_string()
+                + &match &f {
+                    crate::semtree::FloatLiteral::F32(t) => t.to_string(),
+                    crate::semtree::FloatLiteral::F64(t) => t.to_string(),
+
+                },
+        ),
         
     }
 }

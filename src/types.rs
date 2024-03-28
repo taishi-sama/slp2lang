@@ -25,6 +25,8 @@ pub enum SLPPrimitiveType {
     Uint64,
     ISize,
     USize,
+    Float32,
+    Float64,
     String,
     Bool,
     Void,
@@ -41,6 +43,28 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::String => false,
             SLPPrimitiveType::Bool => false,
             SLPPrimitiveType::Void => false,
+            SLPPrimitiveType::Float32 => false,
+            SLPPrimitiveType::Float64 => false,
+        }
+    }
+    //Size in bytes
+    pub fn get_number_size(&self) -> Option<u8> {
+        match self {
+            SLPPrimitiveType::Int8 => Some(1),
+            SLPPrimitiveType::Int16 => Some(2),
+            SLPPrimitiveType::Int32 => Some(4),
+            SLPPrimitiveType::Int64 => Some(8),
+            SLPPrimitiveType::Uint8 => Some(1),
+            SLPPrimitiveType::Uint16 => Some(2),
+            SLPPrimitiveType::Uint32 => Some(4),
+            SLPPrimitiveType::Uint64 => Some(8),
+            SLPPrimitiveType::ISize => Some(todo!()),
+            SLPPrimitiveType::USize => Some(todo!()),
+            SLPPrimitiveType::Float32 => Some(4),
+            SLPPrimitiveType::Float64 => Some(8),
+            SLPPrimitiveType::String => None,
+            SLPPrimitiveType::Bool => None,
+            SLPPrimitiveType::Void => None,
         }
     }
     pub fn is_unsigned_int(&self) -> bool {
@@ -111,9 +135,11 @@ impl SLPType {
             false
         }
     }
+    pub fn get_number_size(&self) -> Option<u8> {
+        if let SLPType::PrimitiveType(pt) = self {
+            pt.get_number_size()
+        }
+        else {None}
+    }
     
-}
-#[derive(Debug, Clone, PartialEq)]
-pub struct TypeTable {
-
 }

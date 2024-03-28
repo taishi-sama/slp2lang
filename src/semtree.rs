@@ -142,25 +142,27 @@ impl SemanticTree {
         }
         Ok(stmts)
     }
-    fn check_implicit_convertion(from: &SLPType, to: &SLPType) -> Result<TypeConversionKind, SemTreeBuildErrors> {
+    fn check_implicit_convertion( from: &SLPType, to: &SLPType) -> Result<TypeConversionKind, SemTreeBuildErrors> {
         if from == to {Ok(TypeConversionKind::Identity)}
         else {todo!("Implement implicit conversion hierarcy: {:?} to {:?}", from, to)}
     }
+    
     fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
         match Self::check_implicit_convertion(&expr.ret_type, to)? {
             TypeConversionKind::Identity => return Ok(expr),
-            TypeConversionKind::Int64ToInt32 => todo!(),
-            TypeConversionKind::Int64ToInt16 => todo!(),
-            TypeConversionKind::Int64ToInt8 => todo!(),
-            TypeConversionKind::Int32ToInt64 => todo!(),
-            TypeConversionKind::Int32ToInt16 => todo!(),
-            TypeConversionKind::Int32ToInt8 => todo!(),
-            TypeConversionKind::Int16ToInt64 => todo!(),
-            TypeConversionKind::Int16ToInt32 => todo!(),
-            TypeConversionKind::Int16ToInt8 => todo!(),
-            TypeConversionKind::Int8ToInt64 => todo!(),
-            TypeConversionKind::Int8ToInt32 => todo!(),
-            TypeConversionKind::Int8ToInt16 => todo!(),
+            TypeConversionKind::SignedIntExtend => todo!(),
+            TypeConversionKind::UnsignedIntExtend => todo!(),
+            TypeConversionKind::SignedIntTruncate => todo!(),
+            TypeConversionKind::UnsignedIntTruncate => todo!(),
+            TypeConversionKind::SignedToUnsigned => todo!(),
+            TypeConversionKind::UnsignedToSigned => todo!(),
+            TypeConversionKind::SignedToUnsignedExtend => todo!(),
+            TypeConversionKind::UnsignedToSignedExtend => todo!(),
+            TypeConversionKind::SignedToUnsignedTruncate => todo!(),
+            TypeConversionKind::UnsignedToSignedTruncate => todo!(),
+            TypeConversionKind::IntToFloat => todo!(),
+            TypeConversionKind::UintToFloat => todo!(),
+
         }
     }
     fn check_kind_of_function(&mut self, loc: Loc, fc: &ast::FunctionCall, scope: &Scope) -> Result<FunctionCallResolveResult, SemTreeBuildErrors> {
@@ -194,7 +196,32 @@ impl SemanticTree {
                     }
                 },
                 None => {
-                    todo!("Type cast parse")
+                    let ty = ast::Type::Primitive(id.clone());
+                    let target = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
+                    if args.len() == 1 {
+                        let source = &args[0].ret_type;
+                        let tck = if &target == source {
+                            TypeConversionKind::Identity
+                            }
+                            else if source.is_int() && target.is_int() {
+                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                                    TypeConversionKind::SignedIntTruncate
+                                }
+                                else {TypeConversionKind::SignedIntExtend}
+                            } else if source.is_unsigned_int() && target.is_unsigned_int() {
+                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                                    TypeConversionKind::UnsignedIntTruncate
+                                }
+                                else {TypeConversionKind::UnsignedIntExtend}
+                            } else if source.is_int() && target.is_unsigned_int() {
+                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                                    TypeConversionKind::SignedToUnsignedTruncate
+                                }
+                                else {TypeConversionKind::SignedToUnsignedExtend}
+                            } else {todo!()};
+                            return Ok(FunctionCallResolveResult::TypeCast { from: Box::new(args.pop().unwrap()), ret_type:target, kind: tck  });
+                    }
+                    else {todo!()}
                 },
             }
         }
@@ -221,7 +248,7 @@ impl SemanticTree {
                 match self.check_kind_of_function(*l, func, outer)? {
                     FunctionCallResolveResult::FunctionCall(f) => 
                     Ok(vec![STStatement::FunctionCall(l.clone(), f)]),
-                    FunctionCallResolveResult::TypeCast { from, ret_type } => todo!(),
+                    FunctionCallResolveResult::TypeCast { from, ret_type, kind } => todo!(),
                 } 
             },
             Statement::Assignment(l, target, from) => {
@@ -314,11 +341,41 @@ impl SemanticTree {
                     loc: l.clone(),
                     kind: ExprKind::NumberLiteral(NumberLiteral::I8(*lit)),
                 },
-                ast::Constant::Float64(_) => todo!(),
                 ast::Constant::Bool(b) => STExpr {
                     ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Bool),
                     loc: l.clone(),
                     kind: ExprKind::BoolLiteral(*b)
+                },
+                ast::Constant::Uint64(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Uint64),
+                    loc: l.clone(),
+                    kind: ExprKind::NumberLiteral(NumberLiteral::U64(*lit)),
+                },
+                ast::Constant::Uint32(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Uint64),
+                    loc: l.clone(),
+                    kind: ExprKind::NumberLiteral(NumberLiteral::U32(*lit)),
+                },
+                ast::Constant::Uint16(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Uint64),
+                    loc: l.clone(),
+                    kind: ExprKind::NumberLiteral(NumberLiteral::U16(*lit)),
+                },
+                ast::Constant::Uint8(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Uint64),
+                    loc: l.clone(),
+                    kind: ExprKind::NumberLiteral(NumberLiteral::U8(*lit)),
+                },
+                ast::Constant::Float32(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Float32),
+                    loc: l.clone(),
+                    kind: ExprKind::FloatLiteral(FloatLiteral::F32(*lit)),
+                },
+                ast::Constant::Float64(lit) => STExpr {
+                    ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Float64),
+                    loc: l.clone(),
+                    kind: ExprKind::FloatLiteral(FloatLiteral::F64(*lit)),
+
                 },
                 
             },
@@ -386,7 +443,9 @@ impl SemanticTree {
             Expr::OpFunctionCall(l, func) => match self.check_kind_of_function(*l, func, scope)? {
                 FunctionCallResolveResult::FunctionCall(f) => 
                 STExpr{ret_type: f.ret_type.clone(), loc: l.clone(), kind: ExprKind::FunctionCall(f) },
-                FunctionCallResolveResult::TypeCast { from, ret_type } => todo!(),
+                FunctionCallResolveResult::TypeCast { from, ret_type, kind } => {
+                    STExpr{ret_type: ret_type, loc: l.clone(), kind: ExprKind::TypeCast(from, kind)}
+                },
             } ,
             Expr::OpUnAs(_, _, _) => todo!(),
             Expr::OpMethodCall(_, _, _) => todo!(),
@@ -577,6 +636,7 @@ pub enum FunctionCallResolveResult {
     FunctionCall(FunctionCall),
     TypeCast{
         from: Box<STExpr>,
+        kind: TypeConversionKind,
         ret_type: SLPType,
     }
 } 
@@ -589,8 +649,9 @@ pub struct STExpr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     LocalVariable(LocalVariable),
-    TypeCast(Box<STExpr>),
+    TypeCast(Box<STExpr>, TypeConversionKind),
     NumberLiteral(NumberLiteral),
+    FloatLiteral(FloatLiteral),
     BoolLiteral(bool),
     FunctionCall(FunctionCall),
     PrimitiveIntBinOp(Box<STExpr>, Box<STExpr>, IntBinOp),
@@ -613,6 +674,23 @@ pub enum NumberLiteral {
     U16(u16),
     U8(u8),
 }
+#[derive(Debug, Clone)]
+pub enum FloatLiteral {
+    F32(f32),
+    F64(f64),
+}
+impl PartialEq for FloatLiteral {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::F32(l0), Self::F32(r0)) => l0.to_bits() == r0.to_bits(),
+            (Self::F64(l0), Self::F64(r0)) => l0.to_bits() == r0.to_bits(),
+            _ => false,
+        }
+    }
+}
+impl Eq for FloatLiteral {
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ComparationKind {
     LesserThan,
@@ -653,16 +731,24 @@ pub enum BoolUnaryOp {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeConversionKind {
     Identity,
-    Int64ToInt32,
-    Int64ToInt16,
-    Int64ToInt8,
-    Int32ToInt64,
-    Int32ToInt16,
-    Int32ToInt8,
-    Int16ToInt64,
-    Int16ToInt32,
-    Int16ToInt8,
-    Int8ToInt64,
-    Int8ToInt32,
-    Int8ToInt16,
+
+    SignedIntExtend,
+    UnsignedIntExtend,
+
+    SignedIntTruncate,
+    UnsignedIntTruncate,
+    
+    SignedToUnsigned,
+    UnsignedToSigned,
+
+    SignedToUnsignedExtend,
+    UnsignedToSignedExtend,
+
+    SignedToUnsignedTruncate,
+    UnsignedToSignedTruncate,
+
+    IntToFloat,
+    UintToFloat,
+    
+    
 }

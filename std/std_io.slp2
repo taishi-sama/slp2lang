@@ -1,6 +1,6 @@
-uses cstd;
+uses cstd, ctypes;
 
-function writechar(c: int8):int8
+function writechar(c: int8): ctypes::c_int
 begin
     Result:= cstd::putchar(c);
 end; 

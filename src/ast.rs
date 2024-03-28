@@ -120,7 +120,13 @@ pub enum Constant {
     Int32(i32),
     Int16(i16),
     Int8(i8),
+    Uint64(u64),
+    Uint32(u32),
+    Uint16(u16),
+    Uint8(u8),
     Float64(f64),
+    Float32(f32),
+
     Bool(bool),
 }
 pub type StatementBlock = Vec<Statement>;

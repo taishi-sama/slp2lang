@@ -1,5 +1,6 @@
 use std::{collections::HashMap, mem, sync::Arc};
 
+
 use crate::{
     ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type}, compiler::{Compiler, FileId}, errors::SemTreeBuildErrors, types::{SLPPrimitiveType, SLPType}
 };
@@ -26,7 +27,7 @@ impl ContextSymbolResolver {
             if let Some(sym) = self.main_file_symbols.func_decls.get(&id) {
                 return Ok(Some((self.main_file_symbols.canonical(&id, sym), sym.clone())));
             }
-            todo!()
+            return Ok(None);
         }
         else if id.path.len() == 1 {
             let i = Id(id.name.clone());

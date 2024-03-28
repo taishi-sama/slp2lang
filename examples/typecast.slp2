@@ -1,0 +1,7 @@
+uses std_io;
+
+begin
+    var counter: int64 = -10i64;
+    var alt_counter: int32 = int32(counter);
+    Result := alt_counter;
+end.

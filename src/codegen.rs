@@ -185,6 +185,8 @@ impl<'a> Codegen<'a> {
             SLPPrimitiveType::String => todo!(),
             SLPPrimitiveType::Bool => self.ctx.context.bool_type().into(),
             SLPPrimitiveType::Void => panic!("Void type encountered outside function return value"),
+            SLPPrimitiveType::Float32 => self.ctx.context.f32_type().into(),
+            SLPPrimitiveType::Float64 => self.ctx.context.f32_type().into(),
         }
     }
     fn generate_main_body_of_function<'b>(&self, func: &FunctionValue, f: &'b Function, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) {
@@ -307,17 +309,35 @@ impl<'a> Codegen<'a> {
                 let load = self.builder.build_load(ty, ptr, "");
                 load
             },
-            ExprKind::TypeCast(_) => todo!(),
+            ExprKind::TypeCast(expr, kind) => {
+                let inp = self.visit_expression(expr, localvar_stackalloc, syms);
+                let source = self.slp_type_to_llvm(&expr.ret_type);
+                match kind {
+                    crate::semtree::TypeConversionKind::Identity => inp,
+                    crate::semtree::TypeConversionKind::SignedIntExtend => {self.builder.build_int_cast_sign_flag(inp.into_int_value(), ty.into_int_type(), true , "SignedIntExtend").into()},
+                    crate::semtree::TypeConversionKind::UnsignedIntExtend => {self.builder.build_int_cast_sign_flag(inp.into_int_value(), ty.into_int_type(), false , "UnsignedIntExtend").into()},
+                    crate::semtree::TypeConversionKind::SignedIntTruncate => {self.builder.build_int_cast_sign_flag(inp.into_int_value(), ty.into_int_type(), true , "SignedIntTruncate").into()},
+                    crate::semtree::TypeConversionKind::UnsignedIntTruncate => {self.builder.build_int_cast_sign_flag(inp.into_int_value(), ty.into_int_type(), false , "UnsignedIntTruncate").into()},
+                    crate::semtree::TypeConversionKind::SignedToUnsigned => todo!(),
+                    crate::semtree::TypeConversionKind::UnsignedToSigned => todo!(),
+                    crate::semtree::TypeConversionKind::SignedToUnsignedExtend => todo!(),
+                    crate::semtree::TypeConversionKind::UnsignedToSignedExtend => todo!(),
+                    crate::semtree::TypeConversionKind::SignedToUnsignedTruncate => todo!(),
+                    crate::semtree::TypeConversionKind::UnsignedToSignedTruncate => todo!(),
+                    crate::semtree::TypeConversionKind::IntToFloat => todo!(),
+                    crate::semtree::TypeConversionKind::UintToFloat => todo!(),
+                }
+            }
             ExprKind::NumberLiteral(l) => {
                 match l {
-                    crate::semtree::NumberLiteral::I64(_) => todo!(),
-                    crate::semtree::NumberLiteral::I32(i) => BasicValueEnum::IntValue(self.ctx.context.i32_type().const_int(*i as u32 as u64, true)),
-                    crate::semtree::NumberLiteral::I16(_) => todo!(),
-                    crate::semtree::NumberLiteral::I8(i) => BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as u8 as u64, true)),
-                    crate::semtree::NumberLiteral::U32(_) => todo!(),
-                    crate::semtree::NumberLiteral::U64(_) => todo!(),
-                    crate::semtree::NumberLiteral::U16(_) => todo!(),
-                    crate::semtree::NumberLiteral::U8(_) => todo!(),
+                    crate::semtree::NumberLiteral::I64(i) =>  BasicValueEnum::IntValue(self.ctx.context.i64_type().const_int(*i as u64, true)),
+                    crate::semtree::NumberLiteral::I32(i) => BasicValueEnum::IntValue(self.ctx.context.i32_type().const_int(*i as i64 as u64, true)),
+                    crate::semtree::NumberLiteral::I16(i) => BasicValueEnum::IntValue(self.ctx.context.i16_type().const_int(*i as i64 as u64, true)),
+                    crate::semtree::NumberLiteral::I8(i) => BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as i64 as u64, true)),
+                    crate::semtree::NumberLiteral::U64(i) => BasicValueEnum::IntValue(self.ctx.context.i64_type().const_int(*i as u64, false)),
+                    crate::semtree::NumberLiteral::U32(i) => BasicValueEnum::IntValue(self.ctx.context.i32_type().const_int(*i as u64, false)),
+                    crate::semtree::NumberLiteral::U16(i) => BasicValueEnum::IntValue(self.ctx.context.i16_type().const_int(*i as u64, false)),
+                    crate::semtree::NumberLiteral::U8(i) => BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as u64, false)),
                 }
             },
             ExprKind::FunctionCall(fc) => {
@@ -409,6 +429,7 @@ impl<'a> Codegen<'a> {
                     crate::semtree::BoolUnaryOp::Not => self.builder.build_not(inp, "").into(),
                 }
             },
+            ExprKind::FloatLiteral(_) => todo!(),
         }
                 
     }

@@ -62,7 +62,7 @@ match {
     r#"(-)?[0-9]+i16"# => Int16,
     r#"(-)?[0-9]+i8"# => Int8,
     r#"(-)?[0-9]+u64"# => Uint64,
-    r#"(-)?[0-9]+u32"# => Uit32,
+    r#"(-)?[0-9]+u32"# => Uint32,
     r#"(-)?[0-9]+u16"# => Uint16,
     r#"(-)?[0-9]+u8"# => Uint8,
     r#"(-)?[0-9]+"# => Int,
@@ -259,6 +259,10 @@ Constant: Constant = {
     <i: Int32Constant> => Constant::Int32(i),
     <i: Int16Constant> => Constant::Int16(i),
     <i: Int8Constant> => Constant::Int8(i),
+    <i: Uint64Constant> => Constant::Uint64(i),
+    <i: Uint32Constant> => Constant::Uint32(i),
+    <i: Uint16Constant> => Constant::Uint16(i),
+    <i: Uint8Constant> => Constant::Uint8(i),
     True => Constant::Bool(true),
     False => Constant::Bool(false),
 
@@ -268,6 +272,10 @@ Int64Constant: i64 = <s:Int64> => s[0..(s.len() - 3)].parse().unwrap();
 Int32Constant: i32 = <s:Int32> => s[0..(s.len() - 3)].parse().unwrap();
 Int16Constant: i16 = <s:Int16> => s[0..(s.len() - 3)].parse().unwrap();
 Int8Constant: i8 = <s:Int8> => s[0..(s.len() - 2)].parse().unwrap();
+Uint64Constant: u64 = <s:Uint64> => s[0..(s.len() - 3)].parse().unwrap();
+Uint32Constant: u32 = <s:Uint32> => s[0..(s.len() - 3)].parse().unwrap();
+Uint16Constant: u16 = <s:Uint16> => s[0..(s.len() - 3)].parse().unwrap();
+Uint8Constant: u8 = <s:Uint8> => s[0..(s.len() - 2)].parse().unwrap();
 
 StringConstant: String = <s:StrLiteral> => s[1..(s.len()-1)].to_string();
 
