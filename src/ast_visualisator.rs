@@ -82,9 +82,6 @@ pub fn statements(st: &Statement) -> StringTreeNode {
         Statement::CodeBlock(_, x) => {
             StringTreeNode::with_child_nodes("Codeblock".to_string(), x.iter().map(statements))
         }
-        Statement::Print(_, x) => {
-            StringTreeNode::with_child_nodes("Print".to_string(), vec![expressions(x)].into_iter())
-        }
         Statement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![expressions(x), expressions(y)].into_iter()),
         Statement::If(_, x, y, z) => StringTreeNode::with_child_nodes("If".to_string(), vec![expressions(x), statements(y)].into_iter().chain(z.as_deref().map(|t|statements(&t)))),
         Statement::While(_, x, y) => StringTreeNode::with_child_nodes("While".to_string(), vec![expressions(x), statements(y)].into_iter()),

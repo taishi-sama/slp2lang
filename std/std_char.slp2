@@ -1,0 +1,27 @@
+uses cstd, ctypes;
+type 
+    char = int32;
+
+procedure putchar(c: char) 
+begin
+    if c >= 0i32 then 
+    begin
+        if c < 127i32 then 
+            cstd::putchar(ctypes::c_char(c))
+        else if c < 2048i32 then 
+        begin
+            var byte1 := ctypes::c_char((c shr 6i32) or 192i32);
+            var byte2 := ctypes::c_char((c and 63i32) or 128i32);
+            cstd::putchar(byte1);
+            cstd::putchar(byte2);
+        end
+        else if c < 65536i32 then
+        begin
+
+        end
+        else if c < 1114112i32 then
+        begin
+
+        end;
+    end;
+end;

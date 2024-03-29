@@ -133,7 +133,6 @@ pub type StatementBlock = Vec<Statement>;
 #[derive(Debug, Clone)]
 pub enum Statement {
     CodeBlock(Loc, StatementBlock),
-    Print(Loc, Box<Expr>),
     FunctionCall(Loc, FunctionCall),
     //RHS, LHS
     Assignment(Loc, Box<Expr>, Box<Expr>),

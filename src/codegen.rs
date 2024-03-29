@@ -381,6 +381,8 @@ impl<'a> Codegen<'a> {
                     IntBinOp::Or => self.builder.build_or(lhs, rhs, "").into(),
                     IntBinOp::And => self.builder.build_and(lhs, rhs, "").into(),
                     IntBinOp::Xor => self.builder.build_xor(lhs, rhs, "").into(),
+                    IntBinOp::Shr => self.builder.build_right_shift(lhs, rhs, false, "").into(),
+                    IntBinOp::Shl => self.builder.build_left_shift(lhs, rhs, "").into(),
                 }
             },
             ExprKind::PrimitiveIntUnaryOp(_, _) => todo!(),

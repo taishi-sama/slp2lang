@@ -37,7 +37,7 @@ impl ContextSymbolResolver {
                 if let Some(sym) = syms.func_decls.get(&i) {
                     return Ok(Some((syms.canonical(&i, sym), sym.clone())));
                 }
-                else {todo!()}
+                return Ok(None);
             }
             else {todo!("Can't find symbol {:?}", id)}
         }

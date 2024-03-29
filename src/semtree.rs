@@ -240,10 +240,6 @@ impl SemanticTree {
                 l.clone(),
                 self.visit_codeblock(&b, &outer)?,
             )]),
-            Statement::Print(l, e) => Ok(vec![STStatement::Print(
-                l.clone(),
-                Box::new(self.visit_expression(&e, &outer)?),
-            )]),
             Statement::FunctionCall(l, func) => {
                 match self.check_kind_of_function(*l, func, outer)? {
                     FunctionCallResolveResult::FunctionCall(f) => 
@@ -305,10 +301,16 @@ impl SemanticTree {
             },
             ast::VarDecl::ExplicitType(s, ty, e) => {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
+                let expr = self.visit_expression(e, scope)?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
-                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: lv, ty, init_expr: Some(self.visit_expression(e, scope)?) })])
+                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: lv, ty, init_expr: Some(expr) })])
             },
-            ast::VarDecl::ImplicitType(_, _) => todo!(),
+            ast::VarDecl::ImplicitType(s, e) => {
+                //let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
+                let expr = self.visit_expression(e, scope)?;
+                let lv = scope.add_variable(&Id(s.clone()), expr.ret_type.clone());
+                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: lv, ty: expr.ret_type.clone(), init_expr: Some(self.visit_expression(e, scope)?) })])
+            },
         }
     }
     fn visit_expression(
@@ -417,8 +419,12 @@ impl SemanticTree {
                 self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Xor)?
             },
             Expr::OpUnNot(_, _) => todo!(),
-            Expr::OpBinShl(_, _, _) => todo!(),
-            Expr::OpBinShr(_, _, _) => todo!(),
+            Expr::OpBinShl(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shl)?
+            },
+            Expr::OpBinShr(l, x, y) => {
+                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shr)?
+            },
             Expr::OpBinLesser(l, x, y) => {
                 self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::LesserThan)?
             },
@@ -502,7 +508,7 @@ impl SemanticTree {
                 }
             }
             else {
-                todo!("Non-equal type conversion hierarchy")
+                todo!("Non-equal type conversion hierarchy from {:?} to {:?}", le.ret_type, re.ret_type)
             }
     }
     fn visit_int_unary_op(&mut self,
@@ -710,6 +716,8 @@ pub enum IntBinOp {
     Or,
     And,
     Xor,
+    Shr, 
+    Shl,
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IntUnaryOp {

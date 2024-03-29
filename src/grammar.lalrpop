@@ -18,6 +18,10 @@ match {
     r"(?i)then" => Then, 
     r"(?i)else" => Else, 
     r"(?i)not" => Not, 
+    r"(?i)shl" => Shl,
+    r"(?i)shr" => Shr,
+    r"(?i)and" => And,
+    r"(?i)or" => Or,
     r"(?i)new" => New, 
     r"(?i)uses" => Uses,
     r"(?i)external" => External,
@@ -52,7 +56,6 @@ match {
     "-",
     "*",
     "/",
-    "print"
     
 } else {
     
@@ -148,7 +151,6 @@ OpenStatement: Statement = {
     <whsmt: OpenWhileStatement> => whsmt,
 }
 ClosedStatement: Statement = {
-    <p:Print> => p,
     <cb:CodeBlock> => cb,
     <lvd: LocalVariableDecl> => lvd,
     <asmt: AssigmentStatement> => asmt,
@@ -191,7 +193,6 @@ AssigmentStatement : Statement = {
     <tl:@L> <lhs:Expr> ":=" <rhs:Expr> <tr:@R> => Statement::Assignment(Loc::new(tl, tr), Box::new(lhs), Box::new(rhs))
 }
 
-Print: Statement = <tl:@L> "print" "(" <e: Expr> ")" <tr:@R> => Statement::Print(Loc::new(tl, tr), Box::new(e));
 
 Expr: Expr = {
     Tier5
@@ -213,12 +214,17 @@ Tier5: Expr = {
 Tier4: Expr = {
     <tl:@L> <e1:Tier4> "+" <e2:Tier3> <tr:@R> => Expr::OpBinPlus(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
     <tl:@L> <e1:Tier4> "-" <e2:Tier3> <tr:@R> => Expr::OpBinMinus(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier4> Or <e2:Tier3> <tr:@R> => Expr::OpBinOr(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
     Tier3
 };
 
 Tier3: Expr = {
     <tl:@L> <e1:Tier3> "*" <e2:Tier2> <tr:@R> => Expr::OpBinAsterisk(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
     <tl:@L> <e1:Tier3> "/" <e2:Tier2> <tr:@R> => Expr::OpBinSlash(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> Shr <e2:Tier2> <tr:@R> => Expr::OpBinShr(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> Shl <e2:Tier2> <tr:@R> => Expr::OpBinShl(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> And <e2:Tier2> <tr:@R> => Expr::OpBinAnd(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+
     Tier2
 };
 
