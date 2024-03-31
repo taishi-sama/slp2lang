@@ -187,6 +187,7 @@ impl<'a> Codegen<'a> {
             SLPPrimitiveType::Void => panic!("Void type encountered outside function return value"),
             SLPPrimitiveType::Float32 => self.ctx.context.f32_type().into(),
             SLPPrimitiveType::Float64 => self.ctx.context.f32_type().into(),
+            SLPPrimitiveType::Char => self.ctx.context.i32_type().into(),
         }
     }
     fn generate_main_body_of_function<'b>(&self, func: &FunctionValue, f: &'b Function, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>) {
@@ -340,6 +341,8 @@ impl<'a> Codegen<'a> {
                     crate::semtree::NumberLiteral::U8(i) => BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as u64, false)),
                 }
             },
+            ExprKind::FloatLiteral(_) => todo!(),
+            ExprKind::CharLiteral(c) => BasicValueEnum::IntValue(self.ctx.context.i32_type().const_int(c.clone() as u32 as u64, false)),
             ExprKind::FunctionCall(fc) => {
                 let mut vls = vec![];
                 for arg in &fc.args {
@@ -431,7 +434,7 @@ impl<'a> Codegen<'a> {
                     crate::semtree::BoolUnaryOp::Not => self.builder.build_not(inp, "").into(),
                 }
             },
-            ExprKind::FloatLiteral(_) => todo!(),
+
         }
                 
     }

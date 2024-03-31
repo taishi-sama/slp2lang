@@ -1,5 +1,7 @@
 uses std_char;
 
 begin
-    std_char::putchar(std_char::char(1046));
+    std_char::putchar(char('Ж'));
+    std_char::putchar(char('\n'));
+    Result := 0i32;
 end.

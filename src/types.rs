@@ -28,6 +28,7 @@ pub enum SLPPrimitiveType {
     Float32,
     Float64,
     String,
+    Char,
     Bool,
     Void,
 }
@@ -41,6 +42,7 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::ISize => true,
             SLPPrimitiveType::USize => true,
             SLPPrimitiveType::String => false,
+            SLPPrimitiveType::Char => false,
             SLPPrimitiveType::Bool => false,
             SLPPrimitiveType::Void => false,
             SLPPrimitiveType::Float32 => false,
@@ -65,6 +67,7 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::String => None,
             SLPPrimitiveType::Bool => None,
             SLPPrimitiveType::Void => None,
+            SLPPrimitiveType::Char => Some(4),
         }
     }
     pub fn is_unsigned_int(&self) -> bool {
@@ -90,7 +93,7 @@ pub struct StructType {
 }
 
 impl SLPType {
-    pub fn is_int(&self) -> bool {
+    pub fn is_any_int(&self) -> bool {
         if let SLPType::PrimitiveType(p) = self {
             p.is_int()
         }
@@ -108,7 +111,7 @@ impl SLPType {
     }
     pub fn is_primitive_int_comparable(l: &Self, r: &Self) -> Option<SLPType> {
         if l == r {
-            if l.is_int() {
+            if l.is_any_int() {
                 Some(l.clone())
             }
             else {
@@ -132,6 +135,14 @@ impl SLPType {
             true
         }
         else { 
+            false
+        }
+    }
+    pub fn is_char(&self) -> bool {
+        if let &SLPType::PrimitiveType(SLPPrimitiveType::Char) = self {
+            true
+        }
+        else {
             false
         }
     }

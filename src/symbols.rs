@@ -2,7 +2,7 @@ use std::{collections::HashMap, mem, sync::Arc};
 
 
 use crate::{
-    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type}, compiler::{Compiler, FileId}, errors::SemTreeBuildErrors, types::{SLPPrimitiveType, SLPType}
+    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type}, compiler::{Compiler, FileId}, errors::SemTreeBuildErrors, types::{SLPPrimitiveType, SLPType, StructType}
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -78,8 +78,8 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
             }
         } 
     }
-    pub fn resolve(mut self) -> TypeResolver {
-        let mut resolver = TypeResolver {internal: self.resolved, deps: self.compiler.deps.clone(), translation: self.compiler.filename_to_id.clone() };
+    pub fn resolve(mut self) -> TypeSymbolResolver {
+        let mut resolver = TypeSymbolResolver {internal: self.resolved, deps: self.compiler.deps.clone(), translation: self.compiler.filename_to_id.clone() };
         let mut count = self.queue_to_resolve.len();
         while self.queue_to_resolve.len() > 0 {
             for ((fid, id), ty) in &self.queue_to_resolve {
@@ -100,12 +100,12 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
     
 }
 #[derive(Debug, Clone)]
-pub struct TypeResolver {
+pub struct TypeSymbolResolver {
     pub internal: HashMap<(FileId, Id), SLPTypeDecl>,
     pub deps: Arc<HashMap<FileId, Vec<FileId>>>,
     pub translation: Arc<HashMap<String, FileId>>
 }
-impl TypeResolver {
+impl TypeSymbolResolver {
     pub fn from_ast_type(&self, ty: &Type, file: &FileId) -> Result<SLPType, SemTreeBuildErrors> {
         match ty {
             Type::Primitive(t) => if t.path.is_empty() { Ok(SLPType::PrimitiveType(match &t.name[..] {
@@ -122,11 +122,13 @@ impl TypeResolver {
                 "string" => SLPPrimitiveType::String,
                 "bool" => SLPPrimitiveType::Bool,
                 "void" => SLPPrimitiveType::Void,
+                "char" => SLPPrimitiveType::Char,
                 _ => {
                     let id = (file.clone(), Id(t.name.clone()));
                     if let Some(ty) = self.internal.get(&id) {
                         return match ty {
                             SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
+                            SLPTypeDecl::StructDecl(_) => todo!(),
                         };
                     }
                     else{
@@ -146,6 +148,7 @@ impl TypeResolver {
                     
                     return match ty.unwrap() {
                         SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
+                        SLPTypeDecl::StructDecl(_) => todo!(),
                     };
                 }
                 else {
@@ -178,7 +181,7 @@ pub struct Symbols {
 #[derive(Debug, Clone)]
 pub enum SLPTypeDecl {
     TypeAlias(SLPType),
-
+    StructDecl(StructType)
 }
 impl Symbols {
     pub fn canonical(&self, name: &Id, symbol: &FunctionDecl) -> Id {
@@ -192,7 +195,7 @@ impl Symbols {
             }
         }
     }
-    fn convert_typedecls(fid: &FileId, v: &[ArgDecl], res: &TypeResolver) -> Result<Vec<SLPType>, SemTreeBuildErrors> {
+    fn convert_typedecls(fid: &FileId, v: &[ArgDecl], res: &TypeSymbolResolver) -> Result<Vec<SLPType>, SemTreeBuildErrors> {
         v.iter()
             .map(|x| x.names.iter().map(|_| res.from_ast_type(&x.ty.ty, fid)))
             .flatten()
@@ -201,7 +204,7 @@ impl Symbols {
     fn get_canonical_name(filename: &str, name: &str, is_extern: bool) -> String {
         todo!()
     }
-    pub fn new(filename: &str, pf: &ProgramFile, fid: FileId,  res: &TypeResolver) -> Result<Symbols, SemTreeBuildErrors> {
+    pub fn new(filename: &str, pf: &ProgramFile, fid: FileId,  res: &TypeSymbolResolver) -> Result<Symbols, SemTreeBuildErrors> {
         let mut decls_order = vec![];
         let mut decls = HashMap::new();
         for dec in &pf.declarations {

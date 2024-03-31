@@ -101,6 +101,8 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
 
                 },
         ),
+        ExprKind::CharLiteral(c) => StringTreeNode::new(
+            format!("CharLiteral = \"{}\"", c)),
         
     }
 }

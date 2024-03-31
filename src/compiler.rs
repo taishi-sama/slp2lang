@@ -126,6 +126,7 @@ impl Compiler {
             (f.clone(), false)
         }
         else {
+            
             let counter = self.filename_to_id.len() as u32;
             Arc::get_mut(&mut self.filename_to_id).unwrap().insert(p, FileId(counter));
             self.id_to_filepath.insert(FileId(counter), path.to_path_buf());

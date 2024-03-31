@@ -115,19 +115,10 @@ pub fn constant(c: &Constant) -> StringTreeNode {
         "Constant {}",
         match c {
             Constant::String(x)=>format!("String {x}"),
-            Constant::Int64(x)=>format!("Int64 {x}"),
-            Constant::Int32(x) =>format!("Int32 {x}"),
-            Constant::Int16(x) =>format!("Int16 {x}"),
-            Constant::Int8(x) =>format!("Int8 {x}"), 
-            Constant::Float64(x)=>format!("Float64 {x}"),
-            Constant::Float32(x)=>format!("Float32 {x}"),
-
+            Constant::Int(x)=>format!("Int {x}"),
             Constant::Bool(x)=>format!("Bool {x}"),
-            Constant::Uint64(x)=>format!("Uint64 {x}"),
-            Constant::Uint32(x) =>format!("Uint32 {x}"),
-            Constant::Uint16(x) =>format!("Uint16 {x}"),
-            Constant::Uint8(x) =>format!("Uint8 {x}"), 
-        }
+            Constant::Float(x)=>format!("Float {x}"),
+            Constant::Char(x)=>format!("Char {x}") }
     ))
 }
 pub fn ident(id: &Identificator) -> StringTreeNode {
