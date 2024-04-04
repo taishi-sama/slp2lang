@@ -32,7 +32,7 @@ match {
     r"(?i)type" => TypeKW,
     r"(?i)class" => Class,
     r"(?i)record" => Record,
-
+    r"(?i)as" => As,
     "(",
     ")",
     "[",
@@ -227,6 +227,7 @@ Tier2: Expr = {
     <tl:@L> "^" <e:Tier2> <tr:@R>  => Expr::OpUnDeref(Loc::new(tl, tr), Box::new(e)),
     <tl:@L> "+" <e:Tier2> <tr:@R>  => Expr::OpUnPlus(Loc::new(tl, tr), Box::new(e)),
     <tl:@L> "-" <e:Tier2> <tr:@R>  => Expr::OpUnMinus(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> <e:Tier1> As <ty:TypeDecl> <tr:@R>  => Expr::OpUnAs(Loc::new(tl, tr), Box::new(e), ty),
     Tier1
 };
 

@@ -1,14 +1,24 @@
-use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, rc::Rc, sync::Arc};
+use std::{
+    borrow::Borrow,
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    rc::Rc,
+    sync::Arc,
+};
 
 use regex::Regex;
 
 use crate::{
-    ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement}, compiler::FileId, errors::SemTreeBuildErrors, symbols::{self, ContextSymbolResolver, Id, Symbols, TypeSymbolResolver}, types::{SLPPrimitiveType, SLPType}
+    ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
+    compiler::FileId,
+    errors::SemTreeBuildErrors,
+    symbols::{self, ContextSymbolResolver, Id, Symbols, TypeSymbolResolver},
+    types::{SLPPrimitiveType, SLPType},
 };
 #[derive(Debug, Clone)]
 pub struct SemanticTree {
     pub semtree_name: Id,
-    pub fileid: FileId, 
+    pub fileid: FileId,
     //Replace when supporting compilation of many files
     pub symbols: ContextSymbolResolver,
     pub types_resolver: Arc<TypeSymbolResolver>,
@@ -17,15 +27,23 @@ pub struct SemanticTree {
     pub names: HashMap<Id, String>,
 }
 impl SemanticTree {
-    pub fn new(pf: &ProgramFile, ctxsy: ContextSymbolResolver, name: Id, fileid: FileId, ty_res: Arc<TypeSymbolResolver>) -> Result<Self, Vec<SemTreeBuildErrors>> {
+    pub fn new(
+        pf: &ProgramFile,
+        ctxsy: ContextSymbolResolver,
+        name: Id,
+        fileid: FileId,
+        ty_res: Arc<TypeSymbolResolver>,
+    ) -> Result<Self, Vec<SemTreeBuildErrors>> {
         let mut st = SemanticTree {
-
             names: HashMap::new(),
             symbols: ctxsy,
-            root: ProgramRoot { funcs: vec![], extern_funcs: vec![] },
+            root: ProgramRoot {
+                funcs: vec![],
+                extern_funcs: vec![],
+            },
             semtree_name: name,
             types_resolver: ty_res,
-            fileid
+            fileid,
         };
         st.visit_program_file(pf)?;
 
@@ -49,7 +67,7 @@ impl SemanticTree {
                 }
                 crate::ast::Declaration::TypeDeclSection(x) => {
                     //TODO
-                },
+                }
             }
         }
         if errors.is_empty() {
@@ -68,9 +86,12 @@ impl SemanticTree {
             .function_args
             .iter()
             .flat_map(|x| {
-                x.names
-                    .iter()
-                    .map(|y| (Id(y.to_string()), self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid)))
+                x.names.iter().map(|y| {
+                    (
+                        Id(y.to_string()),
+                        self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid),
+                    )
+                })
             })
             .collect();
         let errs: Vec<_> = function_args
@@ -80,7 +101,9 @@ impl SemanticTree {
         if !errs.is_empty() {
             return Err(errs.first().unwrap().clone().clone());
         }
-        let return_arg = self.types_resolver.from_ast_type(&func.return_arg.ty, &self.fileid)?;
+        let return_arg = self
+            .types_resolver
+            .from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
         let function_args: Vec<(Id, SLPType)> = function_args
             .into_iter()
@@ -106,9 +129,12 @@ impl SemanticTree {
             .function_args
             .iter()
             .flat_map(|x| {
-                x.names
-                    .iter()
-                    .map(|y| (Id(y.to_string()), self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid)))
+                x.names.iter().map(|y| {
+                    (
+                        Id(y.to_string()),
+                        self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid),
+                    )
+                })
             })
             .collect();
         let errs: Vec<_> = function_args
@@ -118,7 +144,9 @@ impl SemanticTree {
         if !errs.is_empty() {
             return Err((*errs.first().unwrap()).clone());
         }
-        let return_arg = self.types_resolver.from_ast_type(&func.return_arg.ty, &self.fileid)?;
+        let return_arg = self
+            .types_resolver
+            .from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
         let function_args: Vec<(Id, SLPType)> = function_args
             .into_iter()
@@ -144,11 +172,21 @@ impl SemanticTree {
         }
         Ok(stmts)
     }
-    fn check_implicit_convertion( from: &SLPType, to: &SLPType) -> Result<TypeConversionKind, SemTreeBuildErrors> {
-        if from == to {Ok(TypeConversionKind::Identity)}
-        else {todo!("Implement implicit conversion hierarcy: {:?} to {:?}", from, to)}
+    fn check_implicit_convertion(
+        from: &SLPType,
+        to: &SLPType,
+    ) -> Result<TypeConversionKind, SemTreeBuildErrors> {
+        if from == to {
+            Ok(TypeConversionKind::Identity)
+        } else {
+            todo!(
+                "Implement implicit conversion hierarcy: {:?} to {:?}",
+                from,
+                to
+            )
+        }
     }
-    
+
     fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
         match Self::check_implicit_convertion(&expr.ret_type, to)? {
             TypeConversionKind::Identity => return Ok(expr),
@@ -164,95 +202,118 @@ impl SemanticTree {
             TypeConversionKind::UnsignedToSignedTruncate => todo!(),
             TypeConversionKind::IntToFloat => todo!(),
             TypeConversionKind::UintToFloat => todo!(),
-
         }
     }
-    fn check_kind_of_function(&mut self, loc: Loc, fc: &ast::FunctionCall, scope: &Scope) -> Result<FunctionCallResolveResult, SemTreeBuildErrors> {
+    fn check_kind_of_function(
+        &mut self,
+        loc: Loc,
+        fc: &ast::FunctionCall,
+        scope: &Scope,
+    ) -> Result<FunctionCallResolveResult, SemTreeBuildErrors> {
         let mut args = vec![];
         for a in &fc.args {
             let expr = self.visit_expression(a, scope)?;
             args.push(expr);
         }
         if let ast::Expr::Ident(l, id) = fc.func.as_ref() {
-             //TODO full path resolve
+            //TODO full path resolve
             let t = self.symbols.resolve(id)?;
             match t {
-                Some((id, func)) => {
-                    match func {
-                        crate::symbols::FunctionDecl::FunctionDecl { loc, input, output } => {
-                            let mut reconst_exprs = vec![];
-                            for (inp_type, expr) in input.iter().zip(args.into_iter()) {
-                                let res = Self::insert_impl_conversion(expr, inp_type)?;
-                                reconst_exprs.push(res);
-                            }
-                            return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall { func: id, args: reconst_exprs, ret_type: output.clone() }));
-                        },
-                        crate::symbols::FunctionDecl::ExternFunctionDecl { loc, input, output } => {
-                            let mut reconst_exprs = vec![];
-                            for (inp_type, expr) in input.iter().zip(args.into_iter()) {
-                                let res = Self::insert_impl_conversion(expr, inp_type)?;
-                                reconst_exprs.push(res);
-                            }
-                            return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall { func: id, args: reconst_exprs, ret_type: output.clone() }));
-                        },
+                Some((id, func)) => match func {
+                    crate::symbols::FunctionDecl::FunctionDecl { loc, input, output } => {
+                        let mut reconst_exprs = vec![];
+                        for (inp_type, expr) in input.iter().zip(args.into_iter()) {
+                            let res = Self::insert_impl_conversion(expr, inp_type)?;
+                            reconst_exprs.push(res);
+                        }
+                        return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall {
+                            func: id,
+                            args: reconst_exprs,
+                            ret_type: output.clone(),
+                        }));
+                    }
+                    crate::symbols::FunctionDecl::ExternFunctionDecl { loc, input, output } => {
+                        let mut reconst_exprs = vec![];
+                        for (inp_type, expr) in input.iter().zip(args.into_iter()) {
+                            let res = Self::insert_impl_conversion(expr, inp_type)?;
+                            reconst_exprs.push(res);
+                        }
+                        return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall {
+                            func: id,
+                            args: reconst_exprs,
+                            ret_type: output.clone(),
+                        }));
                     }
                 },
                 None => {
+                    //TODO check if symbol is type instead of assuming this
                     let ty = ast::Type::Primitive(id.clone());
-                    let target = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
                     if args.len() == 1 {
-                        let source = &args[0].ret_type;
-                        let tck = if &target == source {
-                            TypeConversionKind::Identity
-                            }
-                             else if source.is_unsigned_int() && target.is_unsigned_int() {
-                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
-                                    TypeConversionKind::UnsignedIntTruncate
-                                }
-                                else {TypeConversionKind::UnsignedIntExtend}
-                            } else if source.is_any_int() && target.is_unsigned_int() {
-                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
-                                    TypeConversionKind::SignedToUnsignedTruncate
-                                }
-                                else {TypeConversionKind::SignedToUnsignedExtend}
-                            }
-                            else if source.is_unsigned_int() && target.is_any_int() {
-                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
-                                    TypeConversionKind::UnsignedToSignedTruncate
-                                }
-                                else {TypeConversionKind::UnsignedToSignedExtend}
-                            }
-                            else if source.is_any_int() && target.is_any_int() {
-                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
-                                    TypeConversionKind::SignedIntTruncate
-                                }
-                                else {TypeConversionKind::SignedIntExtend}
-                            }
-                            else if source.is_char() && target.is_any_int() {
-                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
-                                    TypeConversionKind::UnsignedIntTruncate
-                                }
-                                else {TypeConversionKind::UnsignedIntExtend}
-                            } 
-                            else if source.is_any_int() && target.is_char() {
-                                if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
-                                    TypeConversionKind::UnsignedIntTruncate
-                                }
-                                else {TypeConversionKind::UnsignedIntExtend}
-                            } 
-                            else {
-                                todo!()
-                            };
-                            return Ok(FunctionCallResolveResult::TypeCast { from: Box::new(args.pop().unwrap()), ret_type:target, kind: tck  });
+                        return Ok(FunctionCallResolveResult::TypeCast(self.resolve_typecast(&ty, args.pop().unwrap(), loc)?));
                     }
-                    else {todo!()}
-                },
+                    else {todo!("Invalid amount of arguments report")}
+                }
             }
-        }
-        else {
+        } else {
             todo!("Only direct function calls supported, loc: {}", loc)
         }
         todo!()
+    }
+    fn resolve_typecast(
+        &self,
+        ty: &ast::Type,
+        input_expr: STExpr,
+        loc: Loc,
+    ) -> Result<STExpr, SemTreeBuildErrors> {
+        let target = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
+
+        let source = &input_expr.ret_type;
+        let tck = if &target == source {
+            TypeConversionKind::Identity
+        } else if source.is_unsigned_int() && target.is_unsigned_int() {
+            if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                TypeConversionKind::UnsignedIntTruncate
+            } else {
+                TypeConversionKind::UnsignedIntExtend
+            }
+        } else if source.is_any_int() && target.is_unsigned_int() {
+            if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                TypeConversionKind::SignedToUnsignedTruncate
+            } else {
+                TypeConversionKind::SignedToUnsignedExtend
+            }
+        } else if source.is_unsigned_int() && target.is_any_int() {
+            if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                TypeConversionKind::UnsignedToSignedTruncate
+            } else {
+                TypeConversionKind::UnsignedToSignedExtend
+            }
+        } else if source.is_any_int() && target.is_any_int() {
+            if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                TypeConversionKind::SignedIntTruncate
+            } else {
+                TypeConversionKind::SignedIntExtend
+            }
+        } else if source.is_char() && target.is_any_int() {
+            if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                TypeConversionKind::UnsignedIntTruncate
+            } else {
+                TypeConversionKind::UnsignedIntExtend
+            }
+        } else if source.is_any_int() && target.is_char() {
+            if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
+                TypeConversionKind::UnsignedIntTruncate
+            } else {
+                TypeConversionKind::UnsignedIntExtend
+            }
+        } else {
+            todo!()
+        };
+        return Ok(STExpr {
+            ret_type: target,
+            loc,
+            kind: ExprKind::TypeCast(Box::new(input_expr), tck),
+        });
     }
     fn visit_statement(
         &mut self,
@@ -266,161 +327,253 @@ impl SemanticTree {
             )]),
             Statement::FunctionCall(l, func) => {
                 match self.check_kind_of_function(*l, func, outer)? {
-                    FunctionCallResolveResult::FunctionCall(f) => 
-                    Ok(vec![STStatement::FunctionCall(l.clone(), f)]),
-                    FunctionCallResolveResult::TypeCast { from, ret_type, kind } => todo!(),
-                } 
-            },
+                    FunctionCallResolveResult::FunctionCall(f) => {
+                        Ok(vec![STStatement::FunctionCall(l.clone(), f)])
+                    }
+                    FunctionCallResolveResult::TypeCast(_) => todo!("Report proper error about wrong context"),
+                }
+            }
             Statement::Assignment(l, target, from) => {
-                let target = self.visit_expression(&target, &outer)?;
+                let target = self.visit_rhs_expression(&target, &outer)?;
                 let from = self.visit_expression(&from, &outer)?;
-                let from = Self::insert_impl_conversion(from, &target.ret_type)?;
-                Ok(vec![STStatement::Assignment(*l, Box::new(target), Box::new(from))])
-            },
+                let from = Self::insert_impl_conversion(from, &target.required_type)?;
+                Ok(vec![STStatement::Assignment(
+                    *l,
+                    Box::new(target),
+                    Box::new(from),
+                )])
+            }
             Statement::If(l, cond, mb, ab) => {
                 let cond = self.visit_expression(cond, outer)?;
-                let cond = Self::insert_impl_conversion(cond, &SLPType::PrimitiveType(SLPPrimitiveType::Bool))?;
+                let cond = Self::insert_impl_conversion(
+                    cond,
+                    &SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                )?;
                 let mbstmt = {
                     let mut first_scope = Scope::new_with_outer(outer);
-                    Box::new(STStatement::CodeBlock(*l, self.visit_statement(&mb, &mut first_scope)?))
+                    Box::new(STStatement::CodeBlock(
+                        *l,
+                        self.visit_statement(&mb, &mut first_scope)?,
+                    ))
                 };
                 let abstmt = {
                     if let Some(stmt) = ab {
                         let mut first_scope = Scope::new_with_outer(outer);
-                        Some(Box::new(STStatement::CodeBlock(*l, self.visit_statement(&stmt, &mut first_scope)?)))
-                    }
-                    else {
+                        Some(Box::new(STStatement::CodeBlock(
+                            *l,
+                            self.visit_statement(&stmt, &mut first_scope)?,
+                        )))
+                    } else {
                         None
                     }
                 };
-                Ok(vec![STStatement::If(*l, Box::new(cond), mbstmt,  abstmt)])
-            },
+                Ok(vec![STStatement::If(*l, Box::new(cond), mbstmt, abstmt)])
+            }
             Statement::While(l, cond, stmt) => {
                 let cond = self.visit_expression(cond, outer)?;
-                let cond = Self::insert_impl_conversion(cond, &SLPType::PrimitiveType(SLPPrimitiveType::Bool))?;
+                let cond = Self::insert_impl_conversion(
+                    cond,
+                    &SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                )?;
                 let mbstmt = {
                     let mut first_scope = Scope::new_with_outer(outer);
-                    Box::new(STStatement::CodeBlock(*l, self.visit_statement(&stmt, &mut first_scope)?))
+                    Box::new(STStatement::CodeBlock(
+                        *l,
+                        self.visit_statement(&stmt, &mut first_scope)?,
+                    ))
                 };
                 Ok(vec![STStatement::While(*l, Box::new(cond), mbstmt)])
-            },
+            }
             Statement::RepeatUntil(_, _, _) => todo!(),
-            Statement::VarDecl(l, t) => {
-                self.visit_vardelc(t, l, outer)
-            },
+            Statement::VarDecl(l, t) => self.visit_vardelc(t, l, outer),
             Statement::Empty() => Ok(vec![STStatement::Empty()]),
         }
     }
-    fn visit_vardelc(&mut self, vd: &ast::VarDecl, l: &Loc,  scope: &mut Scope) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+    fn visit_vardelc(
+        &mut self,
+        vd: &ast::VarDecl,
+        l: &Loc,
+        scope: &mut Scope,
+    ) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
         match vd {
             ast::VarDecl::Multiple(s, ty) => {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let mut lvs = vec![];
                 for i in s {
                     let lv = scope.add_variable(&Id(i.clone()), ty.clone());
-                    let t = STStatement::VarDecl(*l, VarDecl { id: lv, ty: ty.clone(), init_expr: None });
+                    let t = STStatement::VarDecl(
+                        *l,
+                        VarDecl {
+                            id: lv,
+                            ty: ty.clone(),
+                            init_expr: None,
+                        },
+                    );
                     lvs.push(t)
                 }
                 Ok(lvs)
-            },
+            }
             ast::VarDecl::ExplicitType(s, ty, e) => {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
-                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: lv, ty, init_expr: Some(expr) })])
-            },
+                Ok(vec![STStatement::VarDecl(
+                    *l,
+                    VarDecl {
+                        id: lv,
+                        ty,
+                        init_expr: Some(expr),
+                    },
+                )])
+            }
             ast::VarDecl::ImplicitType(s, e) => {
                 //let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
                 let lv = scope.add_variable(&Id(s.clone()), expr.ret_type.clone());
-                Ok(vec![STStatement::VarDecl(*l, VarDecl { id: lv, ty: expr.ret_type.clone(), init_expr: Some(self.visit_expression(e, scope)?) })])
-            },
+                Ok(vec![STStatement::VarDecl(
+                    *l,
+                    VarDecl {
+                        id: lv,
+                        ty: expr.ret_type.clone(),
+                        init_expr: Some(self.visit_expression(e, scope)?),
+                    },
+                )])
+            }
         }
     }
     fn visit_int_constant(&self, cnst: &str, l: &Loc) -> Result<STExpr, SemTreeBuildErrors> {
         //let int = Regex::new(r#"(-)?(((0b|0x|0o)[0-9a-fA-F][0-9_a-fA-F]*)|([0-9][0-9_]*))(u8|i8|u16|i16|u32|i32|u64|i64|isize|usize)?"#).unwrap();
         let minus = cnst.starts_with('-');
-        let after_minus = if minus {
-            &cnst[1..]
-        } else {&cnst[..]};
-        let base : u32;
-        let after_prefix : &str;
+        let after_minus = if minus { &cnst[1..] } else { &cnst[..] };
+        let base: u32;
+        let after_prefix: &str;
         if after_minus.starts_with("0b") {
             base = 2;
             after_prefix = &after_minus[2..];
-        }
-        else if after_minus.starts_with("0x"){
+        } else if after_minus.starts_with("0x") {
             base = 16;
             after_prefix = &after_minus[2..];
-        }
-        else if after_minus.starts_with("0o") {
+        } else if after_minus.starts_with("0o") {
             base = 8;
             after_prefix = &after_minus[2..];
-        }
-        else {
+        } else {
             base = 10;
             after_prefix = &after_minus[..];
         }
         let (number, rem) = Self::parse_int(after_prefix, base)?;
         let ty = match rem {
-            "i8" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int8), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::I8(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {-num}} 
-                    )) 
-                },
-            "i16" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int16), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::I16(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {-num}} 
-                    )) 
-                },
-            "i32" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int32), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::I32(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {-num}} 
-                    )) 
-                },
-            "i64" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int64), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::I64(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {-num}} 
-                    )) 
-                },
+            "i8" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int8),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::I8({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        -num
+                    }
+                })),
+            },
+            "i16" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int16),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::I16({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        -num
+                    }
+                })),
+            },
+            "i32" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int32),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::I32({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        -num
+                    }
+                })),
+            },
+            "i64" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int64),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::I64({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        -num
+                    }
+                })),
+            },
             "isize" => todo!(),
-            "u8" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint8), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::U8(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {todo!("Can't apply minus operator for unsigned")}} 
-                    )) 
-                },
-            "u16" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint16), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::U16(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {todo!("Can't apply minus operator for unsigned")}} 
-                    )) 
-                },
-            "u32" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint32), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::U32(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {todo!("Can't apply minus operator for unsigned")}} 
-                    )) 
-                },
-            "u64" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint64), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::U64(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {todo!("Can't apply minus operator for unsigned")}} 
-                    )) 
-                },
+            "u8" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint8),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::U8({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        todo!("Can't apply minus operator for unsigned")
+                    }
+                })),
+            },
+            "u16" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint16),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::U16({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        todo!("Can't apply minus operator for unsigned")
+                    }
+                })),
+            },
+            "u32" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint32),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::U32({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        todo!("Can't apply minus operator for unsigned")
+                    }
+                })),
+            },
+            "u64" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Uint64),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::U64({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        todo!("Can't apply minus operator for unsigned")
+                    }
+                })),
+            },
             "usize" => todo!(),
 
-            "" => STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int32), loc: l.clone(), 
-                kind: ExprKind::NumberLiteral(
-                    NumberLiteral::I32(
-                        {let num = number.try_into().unwrap(); if !minus {num} else {-num}} 
-                    )) 
-                },
-            _ => todo!("Can't parse suffix: {}", rem)
+            "" => STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int32),
+                loc: l.clone(),
+                kind: ExprKind::NumberLiteral(NumberLiteral::I32({
+                    let num = number.try_into().unwrap();
+                    if !minus {
+                        num
+                    } else {
+                        -num
+                    }
+                })),
+            },
+            _ => todo!("Can't parse suffix: {}", rem),
         };
         Ok(ty)
     }
@@ -433,7 +586,7 @@ impl SemanticTree {
                 let digit = match c {
                     n @ '0'..='9' => n as u32 - '0' as u32,
                     n @ 'a'..='f' => 10 + n as u32 - 'a' as u32,
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 if digit >= base {
                     todo!("Proper wrong numer base exception!")
@@ -441,35 +594,124 @@ impl SemanticTree {
                 acc = acc.checked_mul(base as u64).unwrap();
                 acc = acc.checked_add(digit as u64).unwrap();
                 curr += 1;
-            }
-            else if "_".contains(c){
+            } else if "_".contains(c) {
                 curr += 1;
-            }
-            else {
+            } else {
                 return Ok((acc, &digits[curr..]));
             }
         }
         Ok((acc, &digits[curr..]))
     }
     fn visit_char_const(&self, cnst: &str, l: &Loc) -> Result<STExpr, SemTreeBuildErrors> {
-        let trimmed = &cnst[1..(cnst.len()-1)];
-        let ch : char;
+        let trimmed = &cnst[1..(cnst.len() - 1)];
+        let ch: char;
         if trimmed.chars().count() == 1 {
             ch = trimmed.chars().next().unwrap()
-        }
-        else {
-            if trimmed == "\\n" {ch = '\n'}
-            else if trimmed == r"\t" {ch = '\t'}
-            else if trimmed == r"\r" {ch = '\r'}
-            else if trimmed == r"\\" {ch = '\\'}
-            else if trimmed == r"\'" {ch = '\''}
-            else if trimmed == r#"\""# {ch = '\"'}
-            else {
+        } else {
+            if trimmed == "\\n" {
+                ch = '\n'
+            } else if trimmed == r"\t" {
+                ch = '\t'
+            } else if trimmed == r"\r" {
+                ch = '\r'
+            } else if trimmed == r"\\" {
+                ch = '\\'
+            } else if trimmed == r"\'" {
+                ch = '\''
+            } else if trimmed == r#"\""# {
+                ch = '\"'
+            } else {
                 todo!("{trimmed}")
             }
         };
-        Ok(STExpr{ ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Char), loc: l.clone(), 
-            kind: ExprKind::CharLiteral(ch)})
+        Ok(STExpr {
+            ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Char),
+            loc: l.clone(),
+            kind: ExprKind::CharLiteral(ch),
+        })
+    }
+    fn visit_indexation_expression(&mut self, index: &Expr, array_begin: i64, array_len: u64, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
+        let index = self.visit_expression(index, scope)?;
+        if index.ret_type.is_any_int() {
+            let c = match &index.ret_type {
+                SLPType::PrimitiveType(pt) => match pt {
+                    SLPPrimitiveType::Int8 => ExprKind::NumberLiteral(NumberLiteral::I8(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Int16 => ExprKind::NumberLiteral(NumberLiteral::I16(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Int32 => ExprKind::NumberLiteral(NumberLiteral::I32(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Int64 => ExprKind::NumberLiteral(NumberLiteral::I64(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Uint8 => ExprKind::NumberLiteral(NumberLiteral::U8(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Uint16 => ExprKind::NumberLiteral(NumberLiteral::U16(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Uint32 => ExprKind::NumberLiteral(NumberLiteral::U32(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Uint64 => ExprKind::NumberLiteral(NumberLiteral::U64(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::ISize => todo!(),
+                    SLPPrimitiveType::USize => todo!(),
+                    SLPPrimitiveType::Float32 => todo!(),
+                    SLPPrimitiveType::Float64 => todo!(),
+                    SLPPrimitiveType::String => todo!(),
+                    SLPPrimitiveType::Char => todo!(),
+                    SLPPrimitiveType::Bool => todo!(),
+                    SLPPrimitiveType::Void => todo!(),
+                },
+                _ => todo!()
+            };
+            let cons = STExpr{ret_type: index.ret_type.clone(), loc: index.loc.clone(), kind: c};
+            let ex = STExpr { ret_type: index.ret_type.clone(), loc: index.loc.clone(), kind: ExprKind::PrimitiveIntBinOp(Box::new(index), Box::new(cons), IntBinOp::Substract) };
+            Ok(ex)
+        }
+        else {
+            todo!("{:?}", index.ret_type)
+        }
+    }
+    fn visit_array_index(&mut self, indexable: &Expr, index: &Expr, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
+        todo!()
+    }
+    fn visit_rhs_expression (&mut self, expr: &Expr, scope: &Scope) -> Result<RhsExpr, SemTreeBuildErrors> {
+        match expr {
+            Expr::Ident(l, i) => {
+                let id = Id(i.name.clone());
+                if let Some((lv, ty)) = scope.get_variable(&id) {
+                    Ok(RhsExpr {
+                        required_type: ty,
+                        loc: *l,
+                        kind: RhsKind::LocalVariable(lv),
+                    })
+                } else {
+                    todo!()
+                }
+            },
+            Expr::OpBinIndex(l, i, index) => { 
+                let visit_array_index = self.visit_array_index(&i, &index, scope)?;
+                Ok(RhsExpr { required_type: visit_array_index.ret_type.get_underlying_pointer_type().unwrap().clone(), loc: l.clone(), kind: RhsKind::Defer(visit_array_index)})
+            
+            },
+            Expr::OpUnDeref(_, _) => todo!(),
+            Expr::Constant(_, _) => todo!(),
+            Expr::OpBinPlus(_, _, _) => todo!(),
+            Expr::OpBinMinus(_, _, _) => todo!(),
+            Expr::OpBinAsterisk(_, _, _) => todo!(),
+            Expr::OpBinSlash(_, _, _) => todo!(),
+            Expr::OpBinDiv(_, _, _) => todo!(),
+            Expr::OpBinMod(_, _, _) => todo!(),
+            Expr::OpUnPlus(_, _) => todo!(),
+            Expr::OpUnMinus(_, _) => todo!(),
+            Expr::OpBinAnd(_, _, _) => todo!(),
+            Expr::OpBinOr(_, _, _) => todo!(),
+            Expr::OpBinXor(_, _, _) => todo!(),
+            Expr::OpUnNot(_, _) => todo!(),
+            Expr::OpBinShl(_, _, _) => todo!(),
+            Expr::OpBinShr(_, _, _) => todo!(),
+            Expr::OpBinLesser(_, _, _) => todo!(),
+            Expr::OpBinGreater(_, _, _) => todo!(),
+            Expr::OpBinLesserEq(_, _, _) => todo!(),
+            Expr::OpBinGreaterEq(_, _, _) => todo!(),
+            Expr::OpBinEq(_, _, _) => todo!(),
+            Expr::OpBinNotEq(_, _, _) => todo!(),
+            Expr::OpUnGetRef(_, _) => todo!(),
+            Expr::OpFunctionCall(_, _) => todo!(),
+            Expr::OpUnAs(_, _, _) => todo!(),
+            Expr::OpMethodCall(_, _, _) => todo!(),
+            Expr::OpNew(_, _, _) => todo!(),
+        }
     }
     fn visit_expression(
         &mut self,
@@ -478,172 +720,202 @@ impl SemanticTree {
     ) -> Result<STExpr, SemTreeBuildErrors> {
         Ok(match expr {
             Expr::Constant(l, c) => match c {
-
-                
                 ast::Constant::String(_) => todo!(),
-                
+
                 ast::Constant::Bool(b) => STExpr {
                     ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Bool),
                     loc: l.clone(),
-                    kind: ExprKind::BoolLiteral(*b)
+                    kind: ExprKind::BoolLiteral(*b),
                 },
                 ast::Constant::Int(c) => self.visit_int_constant(c, l)?,
                 ast::Constant::Float(_) => todo!(),
                 ast::Constant::Char(c) => self.visit_char_const(c, l)?,
-                
-                
             },
             Expr::Ident(l, i) => {
                 let id = Id(i.name.clone());
                 if let Some((lv, ty)) = scope.get_variable(&id) {
-                    STExpr{ ret_type: ty, loc: *l, kind: ExprKind::LocalVariable(lv) }
-                }
-                else {
+                    STExpr {
+                        ret_type: ty,
+                        loc: *l,
+                        kind: ExprKind::LocalVariable(lv),
+                    }
+                } else {
                     todo!()
                 }
-                
             }
-            Expr::OpBinPlus(l, x, y) => {
-                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Add)?
-            },
+            Expr::OpBinPlus(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Add)?,
             Expr::OpBinMinus(l, x, y) => {
                 self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Substract)?
-            },
+            }
             Expr::OpBinAsterisk(l, x, y) => {
                 self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Multiplication)?
-            },
+            }
             Expr::OpBinSlash(l, x, y) => {
                 self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Division)?
-            },
+            }
             Expr::OpBinDiv(_, _, _) => todo!(),
             Expr::OpBinMod(l, x, y) => {
                 self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Modulo)?
-            },
+            }
             Expr::OpUnMinus(l, x) => self.visit_int_unary_op(*l, &x, scope, IntUnaryOp::Minus)?,
             Expr::OpUnNot(l, x) => self.visit_int_unary_op(*l, &x, scope, IntUnaryOp::Inverse)?,
 
             Expr::OpUnPlus(_, _) => todo!(),
-            Expr::OpBinAnd(l, x, y) => {
-                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::And)?
-            },
-            Expr::OpBinOr(l, x, y) => {
-                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Or)?
-            },
-            Expr::OpBinXor(l, x, y) => {
-                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Xor)?
-            },
-            Expr::OpBinShl(l, x, y) => {
-                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shl)?
-            },
-            Expr::OpBinShr(l, x, y) => {
-                self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shr)?
-            },
+            Expr::OpBinAnd(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::And)?,
+            Expr::OpBinOr(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Or)?,
+            Expr::OpBinXor(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Xor)?,
+            Expr::OpBinShl(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shl)?,
+            Expr::OpBinShr(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shr)?,
             Expr::OpBinLesser(l, x, y) => {
                 self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::LesserThan)?
-            },
+            }
             Expr::OpBinGreater(l, x, y) => {
                 self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::GreaterThan)?
-            },
+            }
             Expr::OpBinLesserEq(l, x, y) => {
                 self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::LesserEqual)?
-            },
+            }
             Expr::OpBinGreaterEq(l, x, y) => {
                 self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::GreaterEqual)?
-            },
+            }
             Expr::OpBinEq(l, x, y) => {
                 self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::Equal)?
-            },
+            }
             Expr::OpBinNotEq(l, x, y) => {
                 self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::NotEqual)?
-            },
+            }
             Expr::OpUnDeref(_, _) => todo!(),
             Expr::OpUnGetRef(_, _) => todo!(),
-            Expr::OpBinIndex(_, _, _) => todo!(),
+            Expr::OpBinIndex(l, indexable, index) => {
+                let i1 = self.visit_expression(indexable, scope)?;
+                let i2 = self.visit_expression(index, scope)?;
+                return Ok(STExpr{ ret_type: i1.ret_type.get_underlying_array_type().unwrap().clone(), loc: l.clone(), kind: ExprKind::NumberLiteral(NumberLiteral::U64(0)) });
+            }
             Expr::OpFunctionCall(l, func) => match self.check_kind_of_function(*l, func, scope)? {
-                FunctionCallResolveResult::FunctionCall(f) => 
-                STExpr{ret_type: f.ret_type.clone(), loc: l.clone(), kind: ExprKind::FunctionCall(f) },
-                FunctionCallResolveResult::TypeCast { from, ret_type, kind } => {
-                    STExpr{ret_type: ret_type, loc: l.clone(), kind: ExprKind::TypeCast(from, kind)}
+                FunctionCallResolveResult::FunctionCall(f) => STExpr {
+                    ret_type: f.ret_type.clone(),
+                    loc: l.clone(),
+                    kind: ExprKind::FunctionCall(f),
                 },
-            } ,
-            Expr::OpUnAs(_, _, _) => todo!(),
+                FunctionCallResolveResult::TypeCast (expr) => expr,
+            },
+            Expr::OpUnAs(l, e, td) => {
+                let expr = self.visit_expression(&e, scope)?;
+                self.resolve_typecast(&td.ty, expr, l.clone())?
+            },
             Expr::OpMethodCall(_, _, _) => todo!(),
             Expr::OpNew(_, _, _) => todo!(),
         })
     }
-    fn visit_int_bin_op(&mut self,
-        loc: Loc, l: &Expr, r: &Expr,
-        scope: &Scope, kind: IntBinOp) -> Result<STExpr, SemTreeBuildErrors> {
+    fn visit_int_bin_op(
+        &mut self,
+        loc: Loc,
+        l: &Expr,
+        r: &Expr,
+        scope: &Scope,
+        kind: IntBinOp,
+    ) -> Result<STExpr, SemTreeBuildErrors> {
         let le = Box::new(self.visit_expression(&l, scope)?);
         let re = Box::new(self.visit_expression(&r, scope)?);
         if le.ret_type == re.ret_type {
             if le.ret_type.is_any_int() {
-                Ok(STExpr{ret_type: le.ret_type.clone(), loc, kind: ExprKind::PrimitiveIntBinOp(le, re, kind) })
-            }
-            else if le.ret_type.is_bool() {
+                Ok(STExpr {
+                    ret_type: le.ret_type.clone(),
+                    loc,
+                    kind: ExprKind::PrimitiveIntBinOp(le, re, kind),
+                })
+            } else if le.ret_type.is_bool() {
                 let bool_op = match kind {
-
                     IntBinOp::Or => BoolBinOp::Or,
                     IntBinOp::And => BoolBinOp::And,
                     IntBinOp::Xor => BoolBinOp::Xor,
 
-                    _ => todo!("Proper error handling")
+                    _ => todo!("Proper error handling"),
                 };
-                Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::BoolBinOp(le, re, bool_op)})
-            }
-            else {
+                Ok(STExpr {
+                    ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                    loc,
+                    kind: ExprKind::BoolBinOp(le, re, bool_op),
+                })
+            } else {
                 todo!("Type error!");
             }
-        }
-        else {
-            todo!("Non-equal type conversion hierarchy from {:?} to {:?}", le.ret_type, re.ret_type)
+        } else {
+            todo!(
+                "Non-equal type conversion hierarchy from {:?} to {:?}",
+                le.ret_type,
+                re.ret_type
+            )
         }
     }
-    fn visit_int_comparations(&mut self,
-        loc: Loc, l: &Expr, r: &Expr,
-        scope: &Scope, kind: ComparationKind) -> Result<STExpr, SemTreeBuildErrors> {
-            let le = Box::new(self.visit_expression(&l, scope)?);
-            let re = Box::new(self.visit_expression(&r, scope)?);
-            if le.ret_type == re.ret_type {
-                if le.ret_type.is_any_int() {
-                    Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::PrimitiveIntComparation(le, re, kind) })
-                }
-                else if le.ret_type.is_bool() {
-                    let bool_op = match kind {
-                        ComparationKind::Equal => BoolBinOp::Equal,
-                        ComparationKind::NotEqual => BoolBinOp::NotEqual,
-                        _ => todo!("Proper error handling")
-                    };
-                    Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::BoolBinOp(le, re, bool_op)})
-                }
-                else {
-                    todo!("Type error!");
-                }
-            }
-            else {
-                todo!("Non-equal type conversion hierarchy from {:?} to {:?}", le.ret_type, re.ret_type)
-            }
-    }
-    fn visit_int_unary_op(&mut self,
-        loc: Loc, i: &Expr,
-        scope: &Scope, kind: IntUnaryOp) -> Result<STExpr, SemTreeBuildErrors> {
-            let inp = Box::new(self.visit_expression(&i, scope)?);
-            if inp.ret_type.is_any_int() {
-                Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::PrimitiveIntUnaryOp(inp, kind) })
-            }
-            else if inp.ret_type.is_bool() {
+    fn visit_int_comparations(
+        &mut self,
+        loc: Loc,
+        l: &Expr,
+        r: &Expr,
+        scope: &Scope,
+        kind: ComparationKind,
+    ) -> Result<STExpr, SemTreeBuildErrors> {
+        let le = Box::new(self.visit_expression(&l, scope)?);
+        let re = Box::new(self.visit_expression(&r, scope)?);
+        if le.ret_type == re.ret_type {
+            if le.ret_type.is_any_int() {
+                Ok(STExpr {
+                    ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                    loc,
+                    kind: ExprKind::PrimitiveIntComparation(le, re, kind),
+                })
+            } else if le.ret_type.is_bool() {
                 let bool_op = match kind {
-
-                    IntUnaryOp::Inverse => BoolUnaryOp::Not,
-
-                    _ => todo!("Proper error handling")
+                    ComparationKind::Equal => BoolBinOp::Equal,
+                    ComparationKind::NotEqual => BoolBinOp::NotEqual,
+                    _ => todo!("Proper error handling"),
                 };
-                Ok(STExpr{ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool), loc, kind: ExprKind::BoolUnaryOp(inp, bool_op)})
+                Ok(STExpr {
+                    ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                    loc,
+                    kind: ExprKind::BoolBinOp(le, re, bool_op),
+                })
+            } else {
+                todo!("Type error!");
             }
-            else {
-                todo!("Type error")
-            }
+        } else {
+            todo!(
+                "Non-equal type conversion hierarchy from {:?} to {:?}",
+                le.ret_type,
+                re.ret_type
+            )
         }
+    }
+    fn visit_int_unary_op(
+        &mut self,
+        loc: Loc,
+        i: &Expr,
+        scope: &Scope,
+        kind: IntUnaryOp,
+    ) -> Result<STExpr, SemTreeBuildErrors> {
+        let inp = Box::new(self.visit_expression(&i, scope)?);
+        if inp.ret_type.is_any_int() {
+            Ok(STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                loc,
+                kind: ExprKind::PrimitiveIntUnaryOp(inp, kind),
+            })
+        } else if inp.ret_type.is_bool() {
+            let bool_op = match kind {
+                IntUnaryOp::Inverse => BoolUnaryOp::Not,
+
+                _ => todo!("Proper error handling"),
+            };
+            Ok(STExpr {
+                ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                loc,
+                kind: ExprKind::BoolUnaryOp(inp, bool_op),
+            })
+        } else {
+            todo!("Type error")
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -684,13 +956,19 @@ impl<'a> Scope<'a> {
         let mut testing_name = candidate_name.clone();
         let mut counter = 0;
         //while self.rec_occupied(&testing_name) {
-        while self.occupied_global.as_ref().borrow().contains(&testing_name) {
-            
+        while self
+            .occupied_global
+            .as_ref()
+            .borrow()
+            .contains(&testing_name)
+        {
             testing_name = LocalVariable(format!("{}_{}", candidate_name.0, counter));
             counter += 1;
         }
         self.order.push(testing_name.clone());
-        self.occupied_global.borrow_mut().insert(testing_name.clone());
+        self.occupied_global
+            .borrow_mut()
+            .insert(testing_name.clone());
         if let Some(m) = self.local_variables.get_mut(tree_id) {
             m.push((testing_name.clone(), ty))
         } else {
@@ -736,7 +1014,7 @@ pub enum STStatement {
     Print(Loc, Box<STExpr>),
     FunctionCall(Loc, FunctionCall),
     //RHS, LHS
-    Assignment(Loc, Box<STExpr>, Box<STExpr>),
+    Assignment(Loc, Box<RhsExpr>, Box<STExpr>),
     If(Loc, Box<STExpr>, Box<STStatement>, Option<Box<STStatement>>),
     While(Loc, Box<STExpr>, Box<STStatement>),
     RepeatUntil(Loc, Box<STExpr>, Box<STStatement>),
@@ -759,12 +1037,21 @@ pub struct FunctionCall {
 #[derive(Debug, Clone)]
 pub enum FunctionCallResolveResult {
     FunctionCall(FunctionCall),
-    TypeCast{
-        from: Box<STExpr>,
-        kind: TypeConversionKind,
-        ret_type: SLPType,
-    }
-} 
+    TypeCast(STExpr),
+}
+#[derive(Debug, Clone)]
+pub struct RhsExpr {
+    pub required_type: SLPType,
+    pub loc: Loc,
+    pub kind: RhsKind,
+}
+#[derive(Debug, Clone)]
+pub enum RhsKind {
+    LocalVariable(LocalVariable),
+    Defer(STExpr),
+    //Assumes only zero-indexed arrays
+}
+
 #[derive(Debug, Clone)]
 pub struct STExpr {
     pub ret_type: SLPType,
@@ -785,6 +1072,7 @@ pub enum ExprKind {
     PrimitiveIntComparation(Box<STExpr>, Box<STExpr>, ComparationKind),
     BoolBinOp(Box<STExpr>, Box<STExpr>, BoolBinOp),
     BoolUnaryOp(Box<STExpr>, BoolUnaryOp),
+    GetArrayElement(Box<STExpr>, Box<STExpr>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);
@@ -794,7 +1082,7 @@ pub enum NumberLiteral {
     I32(i32),
     I16(i16),
     I8(i8),
-    U64(u64),    
+    U64(u64),
     U32(u32),
     U16(u16),
     U8(u8),
@@ -813,8 +1101,7 @@ impl PartialEq for FloatLiteral {
         }
     }
 }
-impl Eq for FloatLiteral {
-}
+impl Eq for FloatLiteral {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ComparationKind {
@@ -828,14 +1115,14 @@ pub enum ComparationKind {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IntBinOp {
     Add,
-    Substract, 
+    Substract,
     Multiplication,
     Division,
     Modulo,
     Or,
     And,
     Xor,
-    Shr, 
+    Shr,
     Shl,
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -849,11 +1136,11 @@ pub enum BoolBinOp {
     Or,
     Xor,
     Equal,
-    NotEqual
+    NotEqual,
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BoolUnaryOp {
-    Not
+    Not,
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeConversionKind {
@@ -864,7 +1151,7 @@ pub enum TypeConversionKind {
 
     SignedIntTruncate,
     UnsignedIntTruncate,
-    
+
     SignedToUnsigned,
     UnsignedToSigned,
 
@@ -876,6 +1163,4 @@ pub enum TypeConversionKind {
 
     IntToFloat,
     UintToFloat,
-    
-    
 }

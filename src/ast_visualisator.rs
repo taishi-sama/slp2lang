@@ -85,7 +85,7 @@ pub fn statements(st: &Statement) -> StringTreeNode {
         Statement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![expressions(x), expressions(y)].into_iter()),
         Statement::If(_, x, y, z) => StringTreeNode::with_child_nodes("If".to_string(), vec![expressions(x), statements(y)].into_iter().chain(z.as_deref().map(|t|statements(&t)))),
         Statement::While(_, x, y) => StringTreeNode::with_child_nodes("While".to_string(), vec![expressions(x), statements(y)].into_iter()),
-        Statement::RepeatUntil(_, x, y) => todo!(),
+        Statement::RepeatUntil(_, _, _) => todo!(),
         Statement::VarDecl(_, x) => vardecl(x),
         Statement::Empty() => StringTreeNode::new("*empty*".into()),
         Statement::FunctionCall(_, x) => StringTreeNode::with_child_nodes(
@@ -164,7 +164,10 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             "FunctionCall".to_string(),
             iter::once(expressions(&x.func)).chain(x.args.iter().map(expressions)),
         ),
-        Expr::OpUnAs(_, _, _) => todo!(),
+        Expr::OpUnAs(_, x, t) =>  StringTreeNode::with_child_nodes(
+            "Typecast As".to_string(),
+            vec![expressions(x), StringTreeNode::new(format!("{:?}", t))].into_iter(),
+        ),
         Expr::OpMethodCall(_, x, y) => StringTreeNode::with_child_nodes(
             "BinDot".to_string(),
             vec![expressions(x), StringTreeNode::new(format!("{}", y))].into_iter(),

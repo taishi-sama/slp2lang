@@ -1,17 +1,14 @@
-use std::{env::args, fs, path::{Path, PathBuf}, sync::Arc};
+use std::{env::args, path::Path, sync::Arc};
 
-use ast::{Constant, Expr, ProgramFile};
+
 use codegen::{Codegen, CodegenContext};
 use compiler::Compiler;
 use inkwell::{
-    context::Context, module::Module, passes::{PassBuilderOptions, PassManager}, targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple}, values::BasicMetadataValueEnum, AddressSpace, OptimizationLevel
+    passes::PassBuilderOptions, targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple}, OptimizationLevel
 };
 use lalrpop_util::lalrpop_mod;
 
-use crate::{
-    ast_visualisator::get_program_tree, semtree::SemanticTree,
-    semtree_visualisator::get_program_root, symbols::{ContextSymbolResolver, Id, Symbols},
-};
+
 pub mod ast;
 pub mod ast_visualisator;
 pub mod codegen;
@@ -90,10 +87,10 @@ pub fn new_compile(file: &str, output_filename: &str) {
         .write_to_file(&main_module.module, FileType::Object, &path)
         .unwrap();
     println!("Emit object file to {}", path.to_string_lossy());
-    target_machine
-        .write_to_file(&main_module.module, FileType::Assembly, &path_asm)
-        .unwrap();
-    println!("Emit asm file to {}", path_asm.to_string_lossy());
+    //target_machine
+    //    .write_to_file(&main_module.module, FileType::Assembly, &path_asm)
+    //    .unwrap();
+    //println!("Emit asm file to {}", path_asm.to_string_lossy());
 
 }
 

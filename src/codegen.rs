@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use inkwell::{
     builder::Builder,
@@ -8,11 +8,11 @@ use inkwell::{
     types::{
          BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, 
         
-    }, values::{AnyValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntMathValue, IntValue, PointerValue}, IntPredicate,
+    }, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue}, IntPredicate,
 };
 
 use crate::{
-    ast::Loc, semtree::{BoolBinOp, ComparationKind, ExprKind, ExternFunction, Function, IntBinOp, LocalVariable, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{ContextSymbolResolver, Id, FunctionDecl, Symbols}, types::{SLPPrimitiveType, SLPType}
+    semtree::{BoolBinOp, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable, RhsKind, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{ContextSymbolResolver, FunctionDecl, Id, Symbols}, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -157,8 +157,13 @@ impl<'a> Codegen<'a> {
                 .slp_type_to_llvm(&b)
                 .ptr_type(Default::default())
                 .into(),
+            SLPType::AutodeferPointer(b) => self
+            .slp_type_to_llvm(&b)
+            .ptr_type(Default::default())
+            .into(),
+
             SLPType::DynArray(_) => todo!(),
-            SLPType::FixedArray { begin, end, ty } => todo!(),
+            SLPType::FixedArray { size, index_offset, ty }=> self.slp_type_to_llvm(ty).array_type(size.clone().try_into().unwrap()).into(),
             SLPType::Struct(_) => todo!(),
         }
     }
@@ -225,7 +230,7 @@ impl<'a> Codegen<'a> {
             },
             STStatement::Assignment(l, target, to) => {
                 let expr = self.visit_expression(&to, localvar_stackalloc, syms);
-                if let ExprKind::LocalVariable(lv) = &target.kind {
+                if let RhsKind::LocalVariable(lv) = &target.kind {
                     let var = localvar_stackalloc[lv];
                     self.builder.build_store(var, expr);
                 }
@@ -312,7 +317,7 @@ impl<'a> Codegen<'a> {
             },
             ExprKind::TypeCast(expr, kind) => {
                 let inp = self.visit_expression(expr, localvar_stackalloc, syms);
-                let source = self.slp_type_to_llvm(&expr.ret_type);
+                let _source = self.slp_type_to_llvm(&expr.ret_type);
                 match kind {
                     crate::semtree::TypeConversionKind::Identity => inp,
                     crate::semtree::TypeConversionKind::SignedIntExtend => {self.builder.build_int_cast_sign_flag(inp.into_int_value(), ty.into_int_type(), true , "SignedIntExtend").into()},
@@ -434,6 +439,7 @@ impl<'a> Codegen<'a> {
                     crate::semtree::BoolUnaryOp::Not => self.builder.build_not(inp, "").into(),
                 }
             },
+            ExprKind::GetArrayElement(_, _) => todo!(),
 
         }
                 

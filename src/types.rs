@@ -5,10 +5,11 @@ use crate::{ast::Type, errors::SemTreeBuildErrors};
 pub enum SLPType {
     PrimitiveType(SLPPrimitiveType),
     Pointer(Box<SLPType>),
+    AutodeferPointer(Box<SLPType>),
     DynArray(Box<SLPType>),
     FixedArray {
-        begin: i64,
-        end: i64,
+        size: u64,
+        index_offset: i64,
         ty: Box<SLPType>,
     },
     Struct(Arc<StructType>),
@@ -93,6 +94,26 @@ pub struct StructType {
 }
 
 impl SLPType {
+    pub fn get_underlying_pointer_type(&self) -> Option<&SLPType> {
+        match self {
+            SLPType::PrimitiveType(_) => None,
+            SLPType::Pointer(ty) => Some(&ty),
+            SLPType::DynArray(d) => None,
+            SLPType::FixedArray { size: _, index_offset: _, ty: _ } => None,
+            SLPType::Struct(_) => None,
+            SLPType::AutodeferPointer(ty) => Some(&ty),
+        }
+    }
+    pub fn get_underlying_array_type(&self) -> Option<&SLPType> {
+        match self {
+            SLPType::PrimitiveType(_) => None,
+            SLPType::Pointer(_) => None,
+            SLPType::DynArray(d) => Some(d.as_ref()),
+            SLPType::FixedArray { size: _, index_offset: _, ty } => Some(ty.as_ref()),
+            SLPType::Struct(_) => None,
+            SLPType::AutodeferPointer(_) => None,
+        }
+    }
     pub fn is_any_int(&self) -> bool {
         if let SLPType::PrimitiveType(p) = self {
             p.is_int()

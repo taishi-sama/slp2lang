@@ -160,10 +160,12 @@ impl TypeSymbolResolver {
             },
             Type::Pointer(t) => Ok(SLPType::Pointer(Box::new(self.from_ast_type( &t, file)?))),
             Type::DynArray(t) => Ok(SLPType::DynArray(Box::new(self.from_ast_type( &t, file)?))),
+            //Insert offset to integer index on semtree building phase
             Type::FixedArray(b, e, t) => Ok(SLPType::FixedArray {
-                begin: *b,
-                end: *e,
+                
                 ty: Box::new(self.from_ast_type(&t, file)?),
+                size: (e - b + 1).try_into().unwrap(),
+                index_offset: b.clone(),
             }),
         }
     }

@@ -2,7 +2,7 @@ use std::iter;
 
 use text_trees::StringTreeNode;
 
-use crate::semtree::{ExprKind, ExternFunction, Function, NumberLiteral, ProgramRoot, STExpr, STStatement, VarDecl};
+use crate::semtree::{ExprKind, ExternFunction, Function, NumberLiteral, ProgramRoot, RhsExpr, STExpr, STStatement, VarDecl};
 
 pub fn get_program_root(root: &ProgramRoot) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
@@ -55,16 +55,22 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         }
         STStatement::FunctionCall(l, fc) => 
             StringTreeNode::with_child_nodes(fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type), fc.args.iter().map(expr)),
-        STStatement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![expr(x), expr(y)].into_iter()),
+        STStatement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![rhs(x), expr(y)].into_iter()),
         STStatement::If(_, _, _, _) => todo!(),
         STStatement::While(_, _, _) => todo!(),
         STStatement::RepeatUntil(_, _, _) => todo!(),
         STStatement::VarDecl(_, l) => vardecl(l),
-        STStatement::Empty() => todo!(),
+        STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
     }
 }
 fn vardecl(vd: &VarDecl) -> StringTreeNode {
     StringTreeNode::with_child_nodes(format!("var {}: {:?}", vd.id.0, vd.ty), vd.init_expr.as_ref().map(expr).into_iter())
+}
+pub fn rhs(expression: &RhsExpr) -> StringTreeNode {
+    match &expression.kind {
+        crate::semtree::RhsKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
+        crate::semtree::RhsKind::Defer(_) => todo!(),
+    }
 }
 pub fn expr(expression: &STExpr) -> StringTreeNode {
     match &expression.kind {
@@ -103,6 +109,7 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ),
         ExprKind::CharLiteral(c) => StringTreeNode::new(
             format!("CharLiteral = \"{}\"", c)),
+        ExprKind::GetArrayElement(_, _) => todo!(),
         
     }
 }
