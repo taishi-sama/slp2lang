@@ -1,0 +1,8 @@
+begin
+    var arr : array [0..3] of int32;
+    arr[0] := 1;
+    arr[1] := 2;
+    arr[2] := 3;
+    arr[3] := 4;
+
+end.
