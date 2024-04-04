@@ -5,7 +5,7 @@ begin
     var ch := int32(c);
     if ch >= 0i32 then 
     begin
-        if ch < 127i32 then 
+        if ch < 128i32 then 
             cstd::putchar(ctypes::c_char(ch))
         else if ch < 2048i32 then 
         begin
