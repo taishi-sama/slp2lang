@@ -104,6 +104,16 @@ impl SLPType {
             SLPType::AutodeferPointer(ty) => Some(&ty),
         }
     }
+    pub fn get_underlying_autodefer_type(&self) -> Option<&SLPType> {
+        match self {
+            SLPType::PrimitiveType(_) => None,
+            SLPType::Pointer(ty) => None,
+            SLPType::DynArray(d) => None,
+            SLPType::FixedArray { size: _, index_offset: _, ty: _ } => None,
+            SLPType::Struct(_) => None,
+            SLPType::AutodeferPointer(ty) => Some(&ty),
+        }
+    }
     pub fn get_underlying_array_type(&self) -> Option<&SLPType> {
         match self {
             SLPType::PrimitiveType(_) => None,
@@ -113,6 +123,12 @@ impl SLPType {
             SLPType::Struct(_) => None,
             SLPType::AutodeferPointer(_) => None,
         }
+    }
+    pub fn is_static_sized_array(&self) -> bool {
+        if let SLPType::FixedArray { size, index_offset, ty } = self {
+            true
+        }
+        else {false}
     }
     pub fn is_any_int(&self) -> bool {
         if let SLPType::PrimitiveType(p) = self {

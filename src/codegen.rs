@@ -230,12 +230,16 @@ impl<'a> Codegen<'a> {
             },
             STStatement::Assignment(l, target, to) => {
                 let expr = self.visit_expression(&to, localvar_stackalloc, syms);
-                if let RhsKind::LocalVariable(lv) = &target.kind {
-                    let var = localvar_stackalloc[lv];
-                    self.builder.build_store(var, expr);
-                }
-                else {
-                    todo!("Expression not supported! Loc: {}", l);
+                match &target.as_ref().kind {
+                    RhsKind::LocalVariable(lv) => {
+                        let var = localvar_stackalloc[lv];
+                        self.builder.build_store(var, expr);
+                    },
+                    RhsKind::Defer(ptr_expr) => {
+                        let ptr = self.visit_expression(ptr_expr, localvar_stackalloc, syms);
+                        let ptr_val = ptr.into_pointer_value();
+                        self.builder.build_store(ptr_val, expr);
+                    },
                 }
             },
             STStatement::If(loc, cond, mb, ab) => {
@@ -332,6 +336,7 @@ impl<'a> Codegen<'a> {
                     crate::semtree::TypeConversionKind::UnsignedToSignedTruncate => todo!(),
                     crate::semtree::TypeConversionKind::IntToFloat => todo!(),
                     crate::semtree::TypeConversionKind::UintToFloat => todo!(),
+                    crate::semtree::TypeConversionKind::AutoDefer => todo!(),
                 }
             }
             ExprKind::NumberLiteral(l) => {
@@ -439,7 +444,21 @@ impl<'a> Codegen<'a> {
                     crate::semtree::BoolUnaryOp::Not => self.builder.build_not(inp, "").into(),
                 }
             },
-            ExprKind::GetArrayElement(_, _) => todo!(),
+            ExprKind::GetRefToLocalVariableArray(r, l) => {
+                let ptr = localvar_stackalloc[r].clone();
+                let index = self.visit_expression(&l, localvar_stackalloc, syms);
+                let pointee_type = self.slp_type_to_llvm(expr.ret_type.get_underlying_autodefer_type().unwrap());
+                unsafe { 
+                    //Pray to compiler gods    
+                    self.builder.build_gep(pointee_type, ptr, &vec![index.into_int_value()], "").into()
+                }
+            },
+            ExprKind::Deref(d) => {
+                let tmp = self.visit_expression(&d, localvar_stackalloc, syms);
+                let ptr = tmp.into_pointer_value();
+                let pointee_type = self.slp_type_to_llvm(&expr.ret_type);
+                self.builder.build_load(pointee_type, ptr, "")
+            },
 
         }
                 

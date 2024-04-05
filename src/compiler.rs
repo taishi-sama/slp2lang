@@ -68,9 +68,9 @@ impl Compiler {
             let semtree = SemanticTree::new(&self.asts[ids], ctx, Id(p), ids.clone(), type_resolver_arc.clone());
             let semtree_unwrap = semtree.unwrap();
             
-            //if semtree_unwrap.symbols.main_file_symbols.func_decls.contains_key(&Id("main".to_string())) {
-            //    println!("{}", semtree_visualisator::get_program_root(&semtree_unwrap.root));
-            //}
+            if semtree_unwrap.symbols.main_file_symbols.func_decls.contains_key(&Id("main".to_string())) {
+                println!("{}", semtree_visualisator::get_program_root(&semtree_unwrap.root));
+            }
 
             semtrees.push(semtree_unwrap);
             

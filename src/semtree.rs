@@ -113,12 +113,15 @@ impl SemanticTree {
             scope.add_variable(id, ty.clone());
         }
         scope.add_variable(&Id("Result".to_owned()), return_arg.clone());
+        let visit_result = self.visit_codeblock(&func.body, &scope)?;
+        let temp_variables = scope.temporary_variables.as_ref().borrow().clone();
         Ok(Function {
             function_name: Id(func.function_name.clone()),
             function_args,
             return_arg,
-            body: self.visit_codeblock(&func.body, &scope)?,
+            body: visit_result,
             loc: func.loc,
+            temporary_variables: temp_variables,
         })
     }
     fn visit_extern_function_decl(
@@ -178,6 +181,11 @@ impl SemanticTree {
     ) -> Result<TypeConversionKind, SemTreeBuildErrors> {
         if from == to {
             Ok(TypeConversionKind::Identity)
+        } else if let Some(ty) = from.get_underlying_autodefer_type() {
+            if ty == to {
+                Ok(TypeConversionKind::AutoDefer)
+            }
+            else {todo!()}
         } else {
             todo!(
                 "Implement implicit conversion hierarcy: {:?} to {:?}",
@@ -202,6 +210,9 @@ impl SemanticTree {
             TypeConversionKind::UnsignedToSignedTruncate => todo!(),
             TypeConversionKind::IntToFloat => todo!(),
             TypeConversionKind::UintToFloat => todo!(),
+            TypeConversionKind::AutoDefer => {
+                Ok(STExpr{ ret_type: to.clone(), loc: expr.loc.clone(), kind: ExprKind::Deref(Box::new(expr)) })
+            },
         }
     }
     fn check_kind_of_function(
@@ -662,8 +673,19 @@ impl SemanticTree {
             todo!("{:?}", index.ret_type)
         }
     }
-    fn visit_array_index(&mut self, indexable: &Expr, index: &Expr, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
-        todo!()
+    fn visit_array_index(&mut self, indexable: &Expr, index: &Expr, scope: &Scope, loc: Loc) -> Result<STExpr, SemTreeBuildErrors> {
+        let indexable_expr = self.visit_expression(indexable, scope)?;
+        if let SLPType::FixedArray { size, index_offset, ty } = &indexable_expr.ret_type {
+            if let ExprKind::LocalVariable(lv) = &indexable_expr.kind {
+                let index_expr = self.visit_indexation_expression(index, *index_offset, *size, scope)?;
+                let res = STExpr{ ret_type: SLPType::AutodeferPointer(ty.clone()), loc, kind: ExprKind::GetRefToLocalVariableArray(lv.clone(), Box::new(index_expr))};
+                Ok(res)
+            } 
+            else {todo!()}
+        } else if let SLPType::AutodeferPointer(internal_ty) = &indexable_expr.ret_type{
+            todo!()
+        } else {todo!()}
+
     }
     fn visit_rhs_expression (&mut self, expr: &Expr, scope: &Scope) -> Result<RhsExpr, SemTreeBuildErrors> {
         match expr {
@@ -680,7 +702,7 @@ impl SemanticTree {
                 }
             },
             Expr::OpBinIndex(l, i, index) => { 
-                let visit_array_index = self.visit_array_index(&i, &index, scope)?;
+                let visit_array_index = self.visit_array_index(&i, &index, scope, l.clone())?;
                 Ok(RhsExpr { required_type: visit_array_index.ret_type.get_underlying_pointer_type().unwrap().clone(), loc: l.clone(), kind: RhsKind::Defer(visit_array_index)})
             
             },
@@ -787,9 +809,7 @@ impl SemanticTree {
             Expr::OpUnDeref(_, _) => todo!(),
             Expr::OpUnGetRef(_, _) => todo!(),
             Expr::OpBinIndex(l, indexable, index) => {
-                let i1 = self.visit_expression(indexable, scope)?;
-                let i2 = self.visit_expression(index, scope)?;
-                return Ok(STExpr{ ret_type: i1.ret_type.get_underlying_array_type().unwrap().clone(), loc: l.clone(), kind: ExprKind::NumberLiteral(NumberLiteral::U64(0)) });
+                self.visit_array_index(indexable, index, scope, l.clone())?
             }
             Expr::OpFunctionCall(l, func) => match self.check_kind_of_function(*l, func, scope)? {
                 FunctionCallResolveResult::FunctionCall(f) => STExpr {
@@ -921,6 +941,7 @@ impl SemanticTree {
 #[derive(Debug, Clone)]
 struct Scope<'a> {
     occupied_global: Rc<RefCell<HashSet<LocalVariable>>>,
+    temporary_variables : Rc<RefCell<HashMap<LocalVariable, SLPType>>>,
     outer_scope: Option<&'a Scope<'a>>,
     local_variables: HashMap<Id, Vec<(LocalVariable, SLPType)>>,
     order: Vec<LocalVariable>,
@@ -932,6 +953,7 @@ impl<'a> Scope<'a> {
             local_variables: Default::default(),
             order: Default::default(),
             occupied_global: Default::default(),
+            temporary_variables: Default::default(),
         }
     }
     pub fn new_with_outer<'b: 'a>(outer: &'b Scope<'b>) -> Self {
@@ -940,6 +962,8 @@ impl<'a> Scope<'a> {
             outer_scope: Some(outer),
             local_variables: Default::default(),
             order: Default::default(),
+            temporary_variables: outer.temporary_variables.clone(),
+
         }
     }
     fn rec_occupied(&self, lv: &LocalVariable) -> bool {
@@ -999,6 +1023,7 @@ pub struct Function {
     pub function_args: Vec<(Id, SLPType)>,
     pub return_arg: SLPType,
     pub body: Vec<STStatement>,
+    pub temporary_variables: HashMap<LocalVariable, SLPType>,
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
@@ -1072,7 +1097,8 @@ pub enum ExprKind {
     PrimitiveIntComparation(Box<STExpr>, Box<STExpr>, ComparationKind),
     BoolBinOp(Box<STExpr>, Box<STExpr>, BoolBinOp),
     BoolUnaryOp(Box<STExpr>, BoolUnaryOp),
-    GetArrayElement(Box<STExpr>, Box<STExpr>),
+    GetRefToLocalVariableArray(LocalVariable, Box<STExpr>),
+    Deref(Box<STExpr>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);
@@ -1145,7 +1171,7 @@ pub enum BoolUnaryOp {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeConversionKind {
     Identity,
-
+    AutoDefer,
     SignedIntExtend,
     UnsignedIntExtend,
 

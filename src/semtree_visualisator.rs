@@ -49,7 +49,7 @@ pub fn statement_block(block: &[STStatement]) -> StringTreeNode {
 }
 pub fn statement(stmt: &STStatement) -> StringTreeNode {
     match stmt {
-        STStatement::CodeBlock(_, _) => todo!(),
+        STStatement::CodeBlock(_, v) => StringTreeNode::with_child_nodes("Codeblock".to_string(), v.iter().map(|x|statement(x))),
         STStatement::Print(_, e) => {
             StringTreeNode::with_child_nodes("print".to_owned(), iter::once(expr(&e)))
         }
@@ -57,7 +57,7 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
             StringTreeNode::with_child_nodes(fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type), fc.args.iter().map(expr)),
         STStatement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![rhs(x), expr(y)].into_iter()),
         STStatement::If(_, _, _, _) => todo!(),
-        STStatement::While(_, _, _) => todo!(),
+        STStatement::While(_, cond, block) => StringTreeNode::with_child_nodes("While ".to_string(), vec![expr(cond), statement(block)].into_iter()),
         STStatement::RepeatUntil(_, _, _) => todo!(),
         STStatement::VarDecl(_, l) => vardecl(l),
         STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
@@ -69,7 +69,7 @@ fn vardecl(vd: &VarDecl) -> StringTreeNode {
 pub fn rhs(expression: &RhsExpr) -> StringTreeNode {
     match &expression.kind {
         crate::semtree::RhsKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
-        crate::semtree::RhsKind::Defer(_) => todo!(),
+        crate::semtree::RhsKind::Defer(dt) => StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter()),
     }
 }
 pub fn expr(expression: &STExpr) -> StringTreeNode {
@@ -94,8 +94,32 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::BoolLiteral(b) =>  StringTreeNode::new(
             "BoolLiteral = ".to_string() + &b.to_string() ),
 
-        ExprKind::PrimitiveIntComparation(_, _, _) => todo!(),
-        ExprKind::PrimitiveIntBinOp(_, _, _) => todo!(),
+        ExprKind::PrimitiveIntComparation(l, r, kind) => {
+            let name = match kind {
+                crate::semtree::ComparationKind::LesserThan => "<",
+                crate::semtree::ComparationKind::LesserEqual => "<=",
+                crate::semtree::ComparationKind::GreaterThan => ">",
+                crate::semtree::ComparationKind::GreaterEqual => ">=",
+                crate::semtree::ComparationKind::Equal => "=",
+                crate::semtree::ComparationKind::NotEqual => "!=",
+            };
+            StringTreeNode::with_child_nodes(format!("Binary op {}", name), vec![expr(l), expr(r)].into_iter())
+        },
+        ExprKind::PrimitiveIntBinOp(l, r, kind) => {
+            let name = match kind {
+                crate::semtree::IntBinOp::Add => "+",
+                crate::semtree::IntBinOp::Substract => "-",
+                crate::semtree::IntBinOp::Multiplication => "*",
+                crate::semtree::IntBinOp::Division => "/",
+                crate::semtree::IntBinOp::Modulo => "mod",
+                crate::semtree::IntBinOp::Or => "or",
+                crate::semtree::IntBinOp::And => "and",
+                crate::semtree::IntBinOp::Xor => "xor",
+                crate::semtree::IntBinOp::Shr => "shr",
+                crate::semtree::IntBinOp::Shl => "shl",
+            };
+            StringTreeNode::with_child_nodes(format!("Binary op {}", name), vec![expr(l), expr(r)].into_iter())
+        },
         ExprKind::PrimitiveIntUnaryOp(_,  _) => todo!(),
         ExprKind::BoolBinOp(_, _, _) => todo!(),
         ExprKind::BoolUnaryOp(_, _) => todo!(),
@@ -109,7 +133,9 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ),
         ExprKind::CharLiteral(c) => StringTreeNode::new(
             format!("CharLiteral = \"{}\"", c)),
-        ExprKind::GetArrayElement(_, _) => todo!(),
+        ExprKind::GetRefToLocalVariableArray(arr, index) => 
+            StringTreeNode::with_child_nodes("Indexation in local variable ".to_owned(), vec![StringTreeNode::new("Variable: ".to_string() + &arr.0), expr(index)].into_iter()),
+        ExprKind::Deref(dt) => StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter()),
         
     }
 }

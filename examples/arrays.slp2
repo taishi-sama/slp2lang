@@ -1,8 +1,31 @@
-begin
-    var arr : array [0..3] of int32;
-    arr[0] := 1;
-    arr[1] := 2;
-    arr[2] := 3;
-    arr[3] := 4;
+uses std_char;
 
+function t(): array [0..12] of char
+begin
+    var arr : array [0..12] of char;
+    arr[0] := 'H';
+    arr[1] := 'e';
+    arr[2] := 'l';
+    arr[3] := 'l';
+    arr[4] := 'o';
+    arr[5] := ' ';
+    arr[6] := 'W';
+    arr[7] := 'o';
+    arr[8] := 'r';
+    arr[9] := 'l';
+    arr[10]:= 'd';
+    arr[11]:= '!';
+    arr[12]:= '\n';
+    Result := arr;
+end;
+
+begin
+    var arr := t();
+    var index := 0;
+    while (index < 13) do
+    begin
+        std_char::putchar(arr[index]);
+        index := index + 1;
+    end;
+    Result := 0;
 end.
