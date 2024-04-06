@@ -1,0 +1,29 @@
+uses std_char;
+
+begin
+    var i : array [0..5] of array [0..5] of int32;
+    var x := 0;
+    while (x <= 5) do 
+    begin
+        var y := 0;
+        while (y <= 5) do 
+        begin
+            i[x][y] := x * y;
+            y := y + 1;
+        end;
+        x := x + 1;
+    end;
+    var x := 0;
+    while (x <= 5) do 
+    begin
+        var y := 0;
+        while (y <= 5) do 
+        begin
+            std_char::putchar(char(int32('a') + i[x][y]));
+            y := y + 1;
+        end;
+        std_char::putchar('\n');
+        x := x + 1;
+    end;
+    Result := 0;
+end.

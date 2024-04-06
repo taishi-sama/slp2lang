@@ -75,7 +75,8 @@ pub fn rhs(expression: &RhsExpr) -> StringTreeNode {
 pub fn expr(expression: &STExpr) -> StringTreeNode {
     match &expression.kind {
         ExprKind::LocalVariable(v) => StringTreeNode::new("Variable: ".to_string() + &v.0),
-        ExprKind::TypeCast(_, _) => todo!(),
+        ExprKind::TypeCast(ex, typecast) => 
+        StringTreeNode::with_child_nodes(format!("Typecast: {typecast:?}"), vec![expr(ex)].into_iter()),
         ExprKind::NumberLiteral(l) => StringTreeNode::new(
             "NumberLiteral = ".to_string()
                 + &match &l {
@@ -133,9 +134,11 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ),
         ExprKind::CharLiteral(c) => StringTreeNode::new(
             format!("CharLiteral = \"{}\"", c)),
-        ExprKind::GetRefToLocalVariableArray(arr, index) => 
+        ExprKind::GetElementRefToLocalVariableArray(arr, index) => 
             StringTreeNode::with_child_nodes("Indexation in local variable ".to_owned(), vec![StringTreeNode::new("Variable: ".to_string() + &arr.0), expr(index)].into_iter()),
         ExprKind::Deref(dt) => StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter()),
+        ExprKind::GetElementRefToReffedArray(arr, index) => 
+        StringTreeNode::with_child_nodes("Indexation in referenced array ".to_owned(), vec![expr(arr), expr(index)].into_iter()),
         
     }
 }

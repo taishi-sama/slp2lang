@@ -5,7 +5,7 @@ use crate::{ast::Type, errors::SemTreeBuildErrors};
 pub enum SLPType {
     PrimitiveType(SLPPrimitiveType),
     Pointer(Box<SLPType>),
-    AutodeferPointer(Box<SLPType>),
+    AutoderefPointer(Box<SLPType>),
     DynArray(Box<SLPType>),
     FixedArray {
         size: u64,
@@ -101,7 +101,7 @@ impl SLPType {
             SLPType::DynArray(d) => None,
             SLPType::FixedArray { size: _, index_offset: _, ty: _ } => None,
             SLPType::Struct(_) => None,
-            SLPType::AutodeferPointer(ty) => Some(&ty),
+            SLPType::AutoderefPointer(ty) => Some(&ty),
         }
     }
     pub fn get_underlying_autodefer_type(&self) -> Option<&SLPType> {
@@ -111,7 +111,7 @@ impl SLPType {
             SLPType::DynArray(d) => None,
             SLPType::FixedArray { size: _, index_offset: _, ty: _ } => None,
             SLPType::Struct(_) => None,
-            SLPType::AutodeferPointer(ty) => Some(&ty),
+            SLPType::AutoderefPointer(ty) => Some(&ty),
         }
     }
     pub fn get_underlying_array_type(&self) -> Option<&SLPType> {
@@ -121,7 +121,7 @@ impl SLPType {
             SLPType::DynArray(d) => Some(d.as_ref()),
             SLPType::FixedArray { size: _, index_offset: _, ty } => Some(ty.as_ref()),
             SLPType::Struct(_) => None,
-            SLPType::AutodeferPointer(_) => None,
+            SLPType::AutoderefPointer(_) => None,
         }
     }
     pub fn is_static_sized_array(&self) -> bool {

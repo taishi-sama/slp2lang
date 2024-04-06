@@ -154,7 +154,10 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             vec![expressions(x), expressions(y)].into_iter(),
         ),
         Expr::OpBinGreater(_, _, _) => todo!(),
-        Expr::OpBinLesserEq(_, _, _) => todo!(),
+        Expr::OpBinLesserEq(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinLesserEq".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpBinGreaterEq(_, _, _) => todo!(),
         Expr::OpBinEq(_, _, _) => todo!(),
         Expr::OpBinNotEq(_, _, _) => todo!(),

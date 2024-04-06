@@ -157,7 +157,7 @@ impl<'a> Codegen<'a> {
                 .slp_type_to_llvm(&b)
                 .ptr_type(Default::default())
                 .into(),
-            SLPType::AutodeferPointer(b) => self
+            SLPType::AutoderefPointer(b) => self
             .slp_type_to_llvm(&b)
             .ptr_type(Default::default())
             .into(),
@@ -444,7 +444,7 @@ impl<'a> Codegen<'a> {
                     crate::semtree::BoolUnaryOp::Not => self.builder.build_not(inp, "").into(),
                 }
             },
-            ExprKind::GetRefToLocalVariableArray(r, l) => {
+            ExprKind::GetElementRefToLocalVariableArray(r, l) => {
                 let ptr = localvar_stackalloc[r].clone();
                 let index = self.visit_expression(&l, localvar_stackalloc, syms);
                 let pointee_type = self.slp_type_to_llvm(expr.ret_type.get_underlying_autodefer_type().unwrap());
@@ -458,6 +458,16 @@ impl<'a> Codegen<'a> {
                 let ptr = tmp.into_pointer_value();
                 let pointee_type = self.slp_type_to_llvm(&expr.ret_type);
                 self.builder.build_load(pointee_type, ptr, "")
+            },
+            ExprKind::GetElementRefToReffedArray(ref_array, index) => {
+                let indexable = self.visit_expression(ref_array, localvar_stackalloc, syms);
+                let ptr = indexable.into_pointer_value();
+                let index = self.visit_expression(&index, localvar_stackalloc, syms);
+                let pointee_type = self.slp_type_to_llvm(expr.ret_type.get_underlying_autodefer_type().unwrap());
+                unsafe { 
+                    //Pray to compiler gods    
+                    self.builder.build_gep(pointee_type, ptr, &vec![index.into_int_value()], "").into()
+                }
             },
 
         }

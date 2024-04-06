@@ -678,12 +678,19 @@ impl SemanticTree {
         if let SLPType::FixedArray { size, index_offset, ty } = &indexable_expr.ret_type {
             if let ExprKind::LocalVariable(lv) = &indexable_expr.kind {
                 let index_expr = self.visit_indexation_expression(index, *index_offset, *size, scope)?;
-                let res = STExpr{ ret_type: SLPType::AutodeferPointer(ty.clone()), loc, kind: ExprKind::GetRefToLocalVariableArray(lv.clone(), Box::new(index_expr))};
+                let res = STExpr{ ret_type: SLPType::AutoderefPointer(ty.clone()), loc, kind: ExprKind::GetElementRefToLocalVariableArray(lv.clone(), Box::new(index_expr))};
                 Ok(res)
             } 
             else {todo!()}
-        } else if let SLPType::AutodeferPointer(internal_ty) = &indexable_expr.ret_type{
-            todo!()
+        } else if let SLPType::AutoderefPointer(internal_ty) = &indexable_expr.ret_type{
+            if let SLPType::FixedArray { size, index_offset, ty } = internal_ty.as_ref() {
+                let index_expr = self.visit_indexation_expression(index, *index_offset, *size, scope)?;
+                let res = STExpr{ ret_type: SLPType::AutoderefPointer(ty.clone()), loc, kind: ExprKind::GetElementRefToReffedArray(Box::new(indexable_expr), Box::new(index_expr))};
+                Ok(res)
+            }
+            else {
+                todo!()
+            }
         } else {todo!()}
 
     }
@@ -835,8 +842,16 @@ impl SemanticTree {
         scope: &Scope,
         kind: IntBinOp,
     ) -> Result<STExpr, SemTreeBuildErrors> {
-        let le = Box::new(self.visit_expression(&l, scope)?);
-        let re = Box::new(self.visit_expression(&r, scope)?);
+        let mut le = Box::new(self.visit_expression(&l, scope)?);
+        let mut re = Box::new(self.visit_expression(&r, scope)?);
+        if let Some(ty) = le.ret_type.get_underlying_autodefer_type() {
+            let target = ty.clone();
+            le = Box::new(Self::insert_impl_conversion(*le, &target)?);
+        }
+        if let Some(ty) = re.ret_type.get_underlying_autodefer_type() {
+            let target = ty.clone();
+            re = Box::new(Self::insert_impl_conversion(*re, &target)?);
+        }
         if le.ret_type == re.ret_type {
             if le.ret_type.is_any_int() {
                 Ok(STExpr {
@@ -1097,7 +1112,8 @@ pub enum ExprKind {
     PrimitiveIntComparation(Box<STExpr>, Box<STExpr>, ComparationKind),
     BoolBinOp(Box<STExpr>, Box<STExpr>, BoolBinOp),
     BoolUnaryOp(Box<STExpr>, BoolUnaryOp),
-    GetRefToLocalVariableArray(LocalVariable, Box<STExpr>),
+    GetElementRefToLocalVariableArray(LocalVariable, Box<STExpr>),
+    GetElementRefToReffedArray(Box<STExpr>, Box<STExpr>),
     Deref(Box<STExpr>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
