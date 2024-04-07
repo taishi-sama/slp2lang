@@ -120,7 +120,7 @@ ArgsList: ArgDeclList = {
     () => Vec::new(),
 }
 ArgsDecl: ArgDecl = {
-    <tl:@L> <il:IndList> ":" <t:TypeDecl> <tr:@R> => ArgDecl{names: il, ty: t, loc: Loc::new(tl, tr)}
+    <tl:@L> <q:Var?> <il:IndList> ":" <t:TypeDecl> <tr:@R> => ArgDecl{names: il, ty: t, loc: Loc::new(tl, tr), var_param: q.is_some()}
 }
 IndList: Vec<String> = {
     <id:SoloId> "," <mut il: IndList> => {il.insert(0, id.clone()); return il;},

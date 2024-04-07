@@ -82,33 +82,12 @@ impl SemanticTree {
     }
     fn visit_function_decl(&mut self, func: &FunctionBody) -> Result<Function, SemTreeBuildErrors> {
         let mut scope = Scope::new();
-        let function_args: Vec<_> = func
-            .function_args
-            .iter()
-            .flat_map(|x| {
-                x.names.iter().map(|y| {
-                    (
-                        Id(y.to_string()),
-                        self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid),
-                    )
-                })
-            })
-            .collect();
-        let errs: Vec<_> = function_args
-            .iter()
-            .filter_map(|x| x.1.as_ref().err())
-            .collect();
-        if !errs.is_empty() {
-            return Err(errs.first().unwrap().clone().clone());
-        }
         let return_arg = self
             .types_resolver
             .from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
-        let function_args: Vec<(Id, SLPType)> = function_args
-            .into_iter()
-            .map(|(id, ty)| (id, ty.unwrap()))
-            .collect();
+        let function_args: Vec<(Id, SLPType)> = Symbols::convert_typedecls(&self.fileid, &func.function_args, &self.types_resolver)?;
+
         for (id, ty) in &function_args {
             scope.add_variable(id, ty.clone());
         }
@@ -128,33 +107,12 @@ impl SemanticTree {
         &mut self,
         func: &ExternFunctionBody,
     ) -> Result<ExternFunction, SemTreeBuildErrors> {
-        let function_args: Vec<_> = func
-            .function_args
-            .iter()
-            .flat_map(|x| {
-                x.names.iter().map(|y| {
-                    (
-                        Id(y.to_string()),
-                        self.types_resolver.from_ast_type(&x.ty.ty, &self.fileid),
-                    )
-                })
-            })
-            .collect();
-        let errs: Vec<_> = function_args
-            .iter()
-            .filter_map(|x| x.1.as_ref().err())
-            .collect();
-        if !errs.is_empty() {
-            return Err((*errs.first().unwrap()).clone());
-        }
+    
         let return_arg = self
             .types_resolver
             .from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
-        let function_args: Vec<(Id, SLPType)> = function_args
-            .into_iter()
-            .map(|(id, ty)| (id, ty.unwrap()))
-            .collect();
+        let function_args: Vec<(Id, SLPType)> = Symbols::convert_typedecls(&self.fileid, &func.function_args, &self.types_resolver)?;
 
         Ok(ExternFunction {
             function_name: Id(func.function_name.clone()),
@@ -183,10 +141,25 @@ impl SemanticTree {
             Ok(TypeConversionKind::Identity)
         } else if let Some(ty) = from.get_underlying_autodefer_type() {
             if ty == to {
-                Ok(TypeConversionKind::AutoDefer)
+                Ok(TypeConversionKind::AutoDeref)
             }
-            else {todo!()}
-        } else {
+            else {todo!(
+                "Implement implicit conversion hierarcy: {:?} to {:?}",
+                from,
+                to
+            )}
+        } else if let Some(ty) = to.get_underlying_autodefer_type() {
+            if ty == from {
+                Ok(TypeConversionKind::AutoRef)
+            }
+            else {todo!(
+                "Implement implicit conversion hierarcy: {:?} to {:?}",
+                from,
+                to
+            )}
+        }
+        else
+        {
             todo!(
                 "Implement implicit conversion hierarcy: {:?} to {:?}",
                 from,
@@ -194,7 +167,16 @@ impl SemanticTree {
             )
         }
     }
-
+    fn try_get_autoref(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
+        if let ExprKind::LocalVariable(lv) = expr.kind {
+            let ty = SLPType::AutoderefPointer(Box::new(expr.ret_type));
+            let res = STExpr{ ret_type: ty, loc: expr.loc.clone(), kind: ExprKind::GetLocalVariableRef(lv) };
+            Ok(res)
+        }
+        else {
+            todo!()
+        }
+    } 
     fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
         match Self::check_implicit_convertion(&expr.ret_type, to)? {
             TypeConversionKind::Identity => return Ok(expr),
@@ -210,8 +192,11 @@ impl SemanticTree {
             TypeConversionKind::UnsignedToSignedTruncate => todo!(),
             TypeConversionKind::IntToFloat => todo!(),
             TypeConversionKind::UintToFloat => todo!(),
-            TypeConversionKind::AutoDefer => {
+            TypeConversionKind::AutoDeref => {
                 Ok(STExpr{ ret_type: to.clone(), loc: expr.loc.clone(), kind: ExprKind::Deref(Box::new(expr)) })
+            },
+            TypeConversionKind::AutoRef => {
+                Self::try_get_autoref(expr)
             },
         }
     }
@@ -1115,6 +1100,7 @@ pub enum ExprKind {
     GetElementRefToLocalVariableArray(LocalVariable, Box<STExpr>),
     GetElementRefToReffedArray(Box<STExpr>, Box<STExpr>),
     Deref(Box<STExpr>),
+    GetLocalVariableRef(LocalVariable),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);
@@ -1187,7 +1173,8 @@ pub enum BoolUnaryOp {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeConversionKind {
     Identity,
-    AutoDefer,
+    AutoDeref,
+    AutoRef,
     SignedIntExtend,
     UnsignedIntExtend,
 

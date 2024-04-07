@@ -336,7 +336,8 @@ impl<'a> Codegen<'a> {
                     crate::semtree::TypeConversionKind::UnsignedToSignedTruncate => todo!(),
                     crate::semtree::TypeConversionKind::IntToFloat => todo!(),
                     crate::semtree::TypeConversionKind::UintToFloat => todo!(),
-                    crate::semtree::TypeConversionKind::AutoDefer => todo!(),
+                    crate::semtree::TypeConversionKind::AutoDeref => todo!(),
+                    crate::semtree::TypeConversionKind::AutoRef => todo!(),
                 }
             }
             ExprKind::NumberLiteral(l) => {
@@ -468,6 +469,10 @@ impl<'a> Codegen<'a> {
                     //Pray to compiler gods    
                     self.builder.build_gep(pointee_type, ptr, &vec![index.into_int_value()], "").into()
                 }
+            },
+            ExprKind::GetLocalVariableRef(r) => {
+                let ptr = localvar_stackalloc[r].clone();
+                ptr.into()
             },
 
         }

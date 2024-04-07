@@ -139,6 +139,7 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::Deref(dt) => StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter()),
         ExprKind::GetElementRefToReffedArray(arr, index) => 
         StringTreeNode::with_child_nodes("Indexation in referenced array ".to_owned(), vec![expr(arr), expr(index)].into_iter()),
+        ExprKind::GetLocalVariableRef(lv) => StringTreeNode::with_child_nodes("Ref of local variable ".to_owned(), vec![StringTreeNode::new("Variable: ".to_string() + &lv.0)].into_iter()),
         
     }
 }

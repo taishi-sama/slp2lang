@@ -148,6 +148,7 @@ pub struct FunctionCall {
 #[derive(Debug, Clone)]
 pub struct ArgDecl {
     pub names: Vec<String>,
+    pub var_param: bool,
     pub ty: TypeDecl,
     pub loc: Loc,
 }

@@ -197,11 +197,22 @@ impl Symbols {
             }
         }
     }
-    fn convert_typedecls(fid: &FileId, v: &[ArgDecl], res: &TypeSymbolResolver) -> Result<Vec<SLPType>, SemTreeBuildErrors> {
-        v.iter()
-            .map(|x| x.names.iter().map(|_| res.from_ast_type(&x.ty.ty, fid)))
-            .flatten()
-            .collect()
+    pub fn convert_typedecls(fid: &FileId, v: &[ArgDecl], res: &TypeSymbolResolver) -> Result<Vec<(Id, SLPType)>, SemTreeBuildErrors> {
+        //v.iter()
+        //    .map(|x| x.names.iter().map(|_| res.from_ast_type(&x.ty.ty, fid)))
+        //    .flatten()
+        //    .collect()
+        let mut vardecls = vec![];
+        for vardecl in v {
+            let mut ty = res.from_ast_type(&vardecl.ty.ty, fid)?;
+            if vardecl.var_param {
+                ty = SLPType::AutoderefPointer(Box::new(ty));
+            }
+            for decl in &vardecl.names {
+                vardecls.push((Id(decl.clone()), ty.clone()))
+            }
+        }
+        Ok(vardecls)
     }
     fn get_canonical_name(filename: &str, name: &str, is_extern: bool) -> String {
         todo!()
@@ -217,7 +228,7 @@ impl Symbols {
                         Id(f.function_name.to_string()),
                         FunctionDecl::FunctionDecl {
                             loc: f.loc,
-                            input: Self::convert_typedecls(&fid, &f.function_args, res)?,
+                            input: Self::convert_typedecls(&fid, &f.function_args, res)?.into_iter().map(|x|x.1).collect(),
                             output: res.from_ast_type(&f.return_arg.ty, &fid)?,
                         },
                     );
@@ -228,7 +239,7 @@ impl Symbols {
                         Id(f.function_name.to_string()),
                         FunctionDecl::ExternFunctionDecl {
                             loc: f.loc,
-                            input: Self::convert_typedecls(&fid, &f.function_args, res)?,
+                            input: Self::convert_typedecls(&fid, &f.function_args, res)?.into_iter().map(|x|x.1).collect(),
                             output: res.from_ast_type(&f.return_arg.ty, &fid)?,
                         },
                     );
