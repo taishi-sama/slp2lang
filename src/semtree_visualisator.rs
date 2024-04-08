@@ -47,7 +47,7 @@ pub fn extern_function(func: &ExternFunction) -> StringTreeNode {
             + &format!("{:?}", func.return_arg),
     )
 }
-pub fn statement_block(block: &[STStatement]) -> StringTreeNode {
+pub fn statement_block(_block: &[STStatement]) -> StringTreeNode {
     todo!()
 }
 pub fn statement(stmt: &STStatement) -> StringTreeNode {
@@ -59,7 +59,7 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::Print(_, e) => {
             StringTreeNode::with_child_nodes("print".to_owned(), iter::once(expr(&e)))
         }
-        STStatement::FunctionCall(l, fc) => StringTreeNode::with_child_nodes(
+        STStatement::FunctionCall(_, fc) => StringTreeNode::with_child_nodes(
             fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
             fc.args.iter().map(expr),
         ),

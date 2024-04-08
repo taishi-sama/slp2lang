@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{ast::Type, errors::SemTreeBuildErrors};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SLPType {
     PrimitiveType(SLPPrimitiveType),
@@ -66,8 +66,8 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::Uint16 => Some(2),
             SLPPrimitiveType::Uint32 => Some(4),
             SLPPrimitiveType::Uint64 => Some(8),
-            SLPPrimitiveType::ISize => Some(todo!()),
-            SLPPrimitiveType::USize => Some(todo!()),
+            SLPPrimitiveType::ISize => todo!(),
+            SLPPrimitiveType::USize => todo!(),
             SLPPrimitiveType::Float32 => Some(4),
             SLPPrimitiveType::Float64 => Some(8),
             SLPPrimitiveType::String => None,
@@ -108,7 +108,7 @@ impl SLPType {
         match self {
             SLPType::PrimitiveType(_) => None,
             SLPType::Pointer(ty) => Some(&ty),
-            SLPType::DynArray(d) => None,
+            SLPType::DynArray(_d) => None,
             SLPType::FixedArray {
                 size: _,
                 index_offset: _,
@@ -121,8 +121,8 @@ impl SLPType {
     pub fn get_underlying_autoderef_type(&self) -> Option<&SLPType> {
         match self {
             SLPType::PrimitiveType(_) => None,
-            SLPType::Pointer(ty) => None,
-            SLPType::DynArray(d) => None,
+            SLPType::Pointer(_ty) => None,
+            SLPType::DynArray(_d) => None,
             SLPType::FixedArray {
                 size: _,
                 index_offset: _,
@@ -148,9 +148,9 @@ impl SLPType {
     }
     pub fn is_static_sized_array(&self) -> bool {
         if let SLPType::FixedArray {
-            size,
-            index_offset,
-            ty,
+            size: _size,
+            index_offset: _index_offset,
+            ty: _ty,
         } = self
         {
             true

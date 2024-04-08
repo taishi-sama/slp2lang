@@ -85,7 +85,7 @@ impl<'a> Codegen<'a> {
         let mut v = vec![];
         for (id, s) in &sym.func_decls {
             match s {
-                FunctionDecl::FunctionDecl { loc, input, output } => {
+                FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
                     let name = sym.canonical(id, s);
                     let func = self.module.add_function(
@@ -99,7 +99,7 @@ impl<'a> Codegen<'a> {
                     );
                     v.push((name, func));
                 }
-                FunctionDecl::ExternFunctionDecl { loc, input, output } => {
+                FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
                     let name = sym.canonical(id, s);
                     let func = self.module.add_function(
@@ -163,7 +163,7 @@ impl<'a> Codegen<'a> {
             .zip(f.function_args.iter())
             .collect();
         //Allocate stack space for input variables
-        for (val, (id, ty)) in &input {
+        for (_val, (id, ty)) in &input {
             let ty = self.slp_type_to_llvm(&ty);
             let stackalloc = self.builder.build_alloca(ty, &id.0);
             hm.insert(LocalVariable(id.0.clone()), stackalloc);
@@ -180,7 +180,7 @@ impl<'a> Codegen<'a> {
             hm.insert(LocalVariable(v.id.0.clone()), stackalloc);
         }
         //Generate store code for input variables
-        for (val, (id, ty)) in &input {
+        for (val, (id, _ty)) in &input {
             self.builder
                 .build_store(hm[&LocalVariable(id.0.clone())], val.clone());
         }
@@ -207,7 +207,7 @@ impl<'a> Codegen<'a> {
                 .collect(),
             STStatement::While(_, _, s) => self.get_variables_list(s),
             STStatement::RepeatUntil(_, _, s) => self.get_variables_list(s),
-            STStatement::VarDecl(l, d) => vec![d],
+            STStatement::VarDecl(_l, d) => vec![d],
             STStatement::Empty() => vec![],
         }
     }
@@ -226,7 +226,7 @@ impl<'a> Codegen<'a> {
             SLPType::DynArray(_) => todo!(),
             SLPType::FixedArray {
                 size,
-                index_offset,
+                index_offset: _index_offset,
                 ty,
             } => self
                 .slp_type_to_llvm(ty)
@@ -282,7 +282,7 @@ impl<'a> Codegen<'a> {
         syms: &HashMap<Id, FunctionValue<'a>>,
     ) {
         match stmt {
-            STStatement::CodeBlock(l, stmts) => {
+            STStatement::CodeBlock(_l, stmts) => {
                 //let codeblock_begin = self.ctx.context.append_basic_block(*func, "codeblock_begin");
                 //self.builder.build_unconditional_branch(codeblock_begin);
 
@@ -307,7 +307,7 @@ impl<'a> Codegen<'a> {
                     .collect();
                 self.builder.build_call(fnct, &vls2, "");
             }
-            STStatement::Assignment(l, target, to) => {
+            STStatement::Assignment(_l, target, to) => {
                 let expr = self.visit_expression(&to, localvar_stackalloc, syms);
                 match &target.as_ref().kind {
                     RhsKind::LocalVariable(lv) => {
@@ -321,7 +321,7 @@ impl<'a> Codegen<'a> {
                     }
                 }
             }
-            STStatement::If(loc, cond, mb, ab) => {
+            STStatement::If(_loc, cond, mb, ab) => {
                 let e = self.visit_expression(&cond, localvar_stackalloc, syms);
                 let int = e.into_int_value();
 
@@ -379,7 +379,7 @@ impl<'a> Codegen<'a> {
                 }
             }
             STStatement::RepeatUntil(_, _, _) => todo!(),
-            STStatement::VarDecl(l, vd) => {
+            STStatement::VarDecl(_l, vd) => {
                 if let Some(init_expr) = &vd.init_expr {
                     let expr = self.visit_expression(init_expr, localvar_stackalloc, syms);
                     self.builder.build_store(localvar_stackalloc[&vd.id], expr);
@@ -451,8 +451,7 @@ impl<'a> Codegen<'a> {
                     crate::semtree::TypeConversionKind::UnsignedToSignedTruncate => todo!(),
                     crate::semtree::TypeConversionKind::IntToFloat => todo!(),
                     crate::semtree::TypeConversionKind::UintToFloat => todo!(),
-                    crate::semtree::TypeConversionKind::AutoDeref => todo!(),
-                    crate::semtree::TypeConversionKind::AutoRef => todo!(),
+
                 }
             }
             ExprKind::NumberLiteral(l) => match l {

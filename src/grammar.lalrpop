@@ -169,17 +169,17 @@ FuncCallStmt: Statement = {
     <tl:@L> <fc:FuncCall> <tr:@R> => Statement::FunctionCall(Loc::new(tl, tr), fc),
 }
 OpenIfStatement: Statement = {
-    <tl:@L> If <cond:Expr> Then <trueStmt: Statement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), None),
-    <tl:@L> If <cond:Expr> Then <trueStmt: ClosedStatement> Else <falseStmt: OpenStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), Some(Box::new(falseStmt))),
+    <tl:@L> If <cond:Expr> Then <true_stmt: Statement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(true_stmt), None),
+    <tl:@L> If <cond:Expr> Then <true_stmt: ClosedStatement> Else <false_stmt: OpenStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(true_stmt), Some(Box::new(false_stmt))),
 }
 ClosedIfStatement: Statement = {
-    <tl:@L> If <cond:Expr> Then <trueStmt: ClosedStatement> Else <falseStmt: ClosedStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(trueStmt), Some(Box::new(falseStmt))),
+    <tl:@L> If <cond:Expr> Then <true_stmt: ClosedStatement> Else <false_stmt: ClosedStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(true_stmt), Some(Box::new(false_stmt))),
 }
 OpenWhileStatement: Statement = {
-    <tl:@L> While <cond:Expr> Do <bodyStmt: OpenStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(bodyStmt)),
+    <tl:@L> While <cond:Expr> Do <body_stmt: OpenStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(body_stmt)),
 }
 ClosedWhileStatement: Statement = {
-    <tl:@L> While <cond:Expr> Do <bodyStmt: ClosedStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(bodyStmt)),
+    <tl:@L> While <cond:Expr> Do <body_stmt: ClosedStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(body_stmt)),
 }
 
 AssigmentStatement : Statement = {

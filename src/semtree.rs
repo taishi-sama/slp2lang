@@ -1,18 +1,15 @@
 use std::{
-    borrow::Borrow,
     cell::RefCell,
     collections::{HashMap, HashSet},
     rc::Rc,
     sync::Arc,
 };
 
-use regex::Regex;
-
 use crate::{
     ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
     compiler::FileId,
     errors::SemTreeBuildErrors,
-    symbols::{self, ContextSymbolResolver, Id, Symbols, TypeSymbolResolver},
+    symbols::{ContextSymbolResolver, Id, Symbols, TypeSymbolResolver},
     types::{SLPPrimitiveType, SLPType},
 };
 #[derive(Debug, Clone)]
@@ -65,7 +62,7 @@ impl SemanticTree {
                         Err(e) => errors.push(e),
                     }
                 }
-                crate::ast::Declaration::TypeDeclSection(x) => {
+                crate::ast::Declaration::TypeDeclSection(_x) => {
                     //TODO
                 }
             }
@@ -134,40 +131,7 @@ impl SemanticTree {
         }
         Ok(stmts)
     }
-    fn check_implicit_convertion(
-        from: &SLPType,
-        to: &SLPType,
-    ) -> Result<TypeConversionKind, SemTreeBuildErrors> {
-        if from == to {
-            Ok(TypeConversionKind::Identity)
-        } else if let Some(ty) = from.get_underlying_autoderef_type() {
-            if ty == to {
-                Ok(TypeConversionKind::AutoDeref)
-            } else {
-                todo!(
-                    "Implement implicit conversion hierarcy: {:?} to {:?}",
-                    from,
-                    to
-                )
-            }
-        } else if let Some(ty) = to.get_underlying_autoderef_type() {
-            if ty == from {
-                Ok(TypeConversionKind::AutoRef)
-            } else {
-                todo!(
-                    "Implement implicit conversion hierarcy: {:?} to {:?}",
-                    from,
-                    to
-                )
-            }
-        } else {
-            todo!(
-                "Implement implicit conversion hierarcy: {:?} to {:?}",
-                from,
-                to
-            )
-        }
-    }
+
     fn try_get_autoref(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
         if let ExprKind::LocalVariable(lv) = expr.kind {
             let ty = SLPType::AutoderefPointer(Box::new(expr.ret_type));
@@ -194,27 +158,41 @@ impl SemanticTree {
         }
     }
     fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
-        match Self::check_implicit_convertion(&expr.ret_type, to)? {
-            TypeConversionKind::Identity => return Ok(expr),
-            TypeConversionKind::SignedIntExtend => todo!(),
-            TypeConversionKind::UnsignedIntExtend => todo!(),
-            TypeConversionKind::SignedIntTruncate => todo!(),
-            TypeConversionKind::UnsignedIntTruncate => todo!(),
-            TypeConversionKind::SignedToUnsigned => todo!(),
-            TypeConversionKind::UnsignedToSigned => todo!(),
-            TypeConversionKind::SignedToUnsignedExtend => todo!(),
-            TypeConversionKind::UnsignedToSignedExtend => todo!(),
-            TypeConversionKind::SignedToUnsignedTruncate => todo!(),
-            TypeConversionKind::UnsignedToSignedTruncate => todo!(),
-            TypeConversionKind::IntToFloat => todo!(),
-            TypeConversionKind::UintToFloat => todo!(),
-            TypeConversionKind::AutoDeref => Ok(STExpr {
-                ret_type: to.clone(),
-                loc: expr.loc.clone(),
-                kind: ExprKind::Deref(Box::new(expr)),
-            }),
-            TypeConversionKind::AutoRef => Self::try_get_autoref(expr),
+        let from = &expr.ret_type;
+        if from == to {
+            Ok(expr)
+        } else if let Some(ty) = from.get_underlying_autoderef_type() {
+            if ty == to {
+                Ok(STExpr {
+                    ret_type: to.clone(),
+                    loc: expr.loc.clone(),
+                    kind: ExprKind::Deref(Box::new(expr)),
+                })
+            } else {
+                todo!(
+                    "Implement implicit conversion hierarcy: {:?} to {:?}",
+                    from,
+                    to
+                )
+            }
+        } else if let Some(ty) = to.get_underlying_autoderef_type() {
+            if ty == from {
+                Self::try_get_autoref(expr)
+            } else {
+                todo!(
+                    "Implement implicit conversion hierarcy: {:?} to {:?}",
+                    from,
+                    to
+                )
+            }
+        } else {
+            todo!(
+                "Implement implicit conversion hierarcy: {:?} to {:?}",
+                from,
+                to
+            )
         }
+
     }
     fn check_kind_of_function(
         &mut self,
@@ -227,12 +205,12 @@ impl SemanticTree {
             let expr = self.visit_expression(a, scope)?;
             args.push(expr);
         }
-        if let ast::Expr::Ident(l, id) = fc.func.as_ref() {
+        if let ast::Expr::Ident(_l, id) = fc.func.as_ref() {
             //TODO full path resolve
             let t = self.symbols.resolve(id)?;
             match t {
                 Some((id, func)) => match func {
-                    crate::symbols::FunctionDecl::FunctionDecl { loc, input, output } => {
+                    crate::symbols::FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
                         let mut reconst_exprs = vec![];
                         for (inp_type, expr) in input.iter().zip(args.into_iter()) {
                             let res = Self::insert_impl_conversion(expr, inp_type)?;
@@ -244,7 +222,7 @@ impl SemanticTree {
                             ret_type: output.clone(),
                         }));
                     }
-                    crate::symbols::FunctionDecl::ExternFunctionDecl { loc, input, output } => {
+                    crate::symbols::FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
                         let mut reconst_exprs = vec![];
                         for (inp_type, expr) in input.iter().zip(args.into_iter()) {
                             let res = Self::insert_impl_conversion(expr, inp_type)?;
@@ -274,7 +252,6 @@ impl SemanticTree {
         } else {
             todo!("Only direct function calls supported, loc: {}", loc)
         }
-        todo!()
     }
     fn resolve_typecast(
         &self,
@@ -654,7 +631,7 @@ impl SemanticTree {
         &mut self,
         index: &Expr,
         array_begin: i64,
-        array_len: u64,
+        _array_len: u64,
         scope: &Scope,
     ) -> Result<STExpr, SemTreeBuildErrors> {
         let index = self.visit_expression(index, scope)?;
@@ -1067,13 +1044,13 @@ impl<'a> Scope<'a> {
             temporary_variables: outer.temporary_variables.clone(),
         }
     }
-    fn rec_occupied(&self, lv: &LocalVariable) -> bool {
-        self.order.contains(lv)
-            || self
-                .outer_scope
-                .map(|x| x.rec_occupied(lv))
-                .unwrap_or(false)
-    }
+    //fn rec_occupied(&self, lv: &LocalVariable) -> bool {
+    //    self.order.contains(lv)
+    //        || self
+    //            .outer_scope
+    //            .map(|x| x.rec_occupied(lv))
+    //            .unwrap_or(false)
+    //}
     //Перекрывающиеся области видимости
     pub fn add_variable(&mut self, tree_id: &Id, ty: SLPType) -> LocalVariable {
         //Rename all variables in scope of function
@@ -1274,8 +1251,7 @@ pub enum BoolUnaryOp {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeConversionKind {
     Identity,
-    AutoDeref,
-    AutoRef,
+
     SignedIntExtend,
     UnsignedIntExtend,
 

@@ -56,13 +56,13 @@ impl ContextSymbolResolver {
         }
     }
 
-    fn canonical_name_of_id(id: &Identificator) -> String {
-        let mut t = id.path.iter().fold(String::new(), |x, y| x + "$" + y);
-        if t.is_empty() {
-            t += "$";
-        }
-        t
-    }
+    //fn canonical_name_of_id(id: &Identificator) -> String {
+    //    let mut t = id.path.iter().fold(String::new(), |x, y| x + "$" + y);
+    //    if t.is_empty() {
+    //        t += "$";
+    //    }
+    //    t
+    //}
 }
 #[derive(Debug, Clone)]
 pub struct TypeResolverGenerator<'a, 'b> {
@@ -85,7 +85,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
             if let Declaration::TypeDeclSection(section) = decs {
                 for ty_decl in &section.decls {
                     match ty_decl {
-                        crate::ast::TypeDeclElement::TypeAlias(l, name, ty) => {
+                        crate::ast::TypeDeclElement::TypeAlias(_l, name, ty) => {
                             self.queue_to_resolve.insert((file, Id(name.clone())), ty);
                         }
                         crate::ast::TypeDeclElement::RecordDeclare(_) => todo!(),
@@ -239,9 +239,7 @@ impl Symbols {
         }
         Ok(vardecls)
     }
-    fn get_canonical_name(filename: &str, name: &str, is_extern: bool) -> String {
-        todo!()
-    }
+
     pub fn new(
         filename: &str,
         pf: &ProgramFile,

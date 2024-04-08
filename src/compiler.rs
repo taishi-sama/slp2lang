@@ -63,14 +63,14 @@ impl Compiler {
     }
     pub fn continue_compilation(&mut self) -> anyhow::Result<Vec<SemanticTree>> {
         let mut t = TypeResolverGenerator::new(&self);
-        for (ids, deps) in self.deps.iter() {
+        for (ids, _deps) in self.deps.iter() {
             t.fill(&self.asts[ids], ids.clone())
         }
         let type_resolver = t.resolve();
         let type_resolver_arc = Arc::new(type_resolver);
         let mut syms: HashMap<FileId, Symbols> = HashMap::new();
 
-        for (ids, deps) in self.deps.iter() {
+        for (ids, _deps) in self.deps.iter() {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);
             let rs = Symbols::new(&p, &self.asts[ids], ids.clone(), &type_resolver_arc)?;
             //let ars = Arc::new(rs);

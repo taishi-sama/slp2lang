@@ -47,6 +47,9 @@ impl LinkerBuilder {
         for libc_option in &self.libc_options {
             comm.arg(libc_option);
         }
+        for linker_option in &self.linker_options {
+            comm.arg(linker_option);
+        }
         comm.arg(main_linkable_object).arg("-o").arg(output_object);
 
         //println!("{:#?}", comm);
@@ -56,6 +59,7 @@ impl LinkerBuilder {
         if res.code().unwrap() != 0 {
             panic!("Linker error!")
         }
+
         Ok(())
     }
 }

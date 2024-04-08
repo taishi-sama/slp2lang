@@ -1,4 +1,4 @@
-use std::{env::args, fs::{self, create_dir}, path::Path, sync::Arc};
+use std::{env::args, fs::create_dir, path::Path, sync::Arc};
 
 use codegen::{Codegen, CodegenContext};
 use compiler::Compiler;
