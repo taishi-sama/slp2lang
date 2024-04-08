@@ -1,0 +1,5 @@
+begin
+    var expr := 1 + 2 + 3 + 4 + 5;
+    var expr2 := 1 + 2 * 3 + 4 * 5;
+    Result := 0;
+end.

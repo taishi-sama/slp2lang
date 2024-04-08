@@ -224,9 +224,9 @@ Tier3: Expr = {
 Tier2: Expr = {
     <tl:@L> "@" <e:Tier2> <tr:@R>  => Expr::OpUnGetRef(Loc::new(tl, tr), Box::new(e)),
     <tl:@L> Not <e:Tier2> <tr:@R>  => Expr::OpUnNot(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> "^" <e:Tier2> <tr:@R>  => Expr::OpUnDeref(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> "+" <e:Tier2> <tr:@R>  => Expr::OpUnPlus(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> "-" <e:Tier2> <tr:@R>  => Expr::OpUnMinus(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> <e:Tier1> "^" <tr:@R>  => Expr::OpUnDeref(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> "+" <e:Tier1> <tr:@R>  => Expr::OpUnPlus(Loc::new(tl, tr), Box::new(e)),
+    <tl:@L> "-" <e:Tier1> <tr:@R>  => Expr::OpUnMinus(Loc::new(tl, tr), Box::new(e)),
     <tl:@L> <e:Tier1> As <ty:TypeDecl> <tr:@R>  => Expr::OpUnAs(Loc::new(tl, tr), Box::new(e), ty),
     Tier1
 };
