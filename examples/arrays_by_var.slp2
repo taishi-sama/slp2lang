@@ -14,13 +14,14 @@ begin
 end;
 
 begin
-    var a : arr;
+    var a : arr; //:= new array [1..10] of int32(0);
     update(a);
     var i := 1;
     while i <= 10 do
     begin
-        std_char::putchar( (int32('a') + a[i]) as char );
+        std_char::putchar( (int32('а') + a[i] - 1) as char );
         i := i + 1
     end;
+    std_char::putchar('\n');
     Result := 0;
 end.

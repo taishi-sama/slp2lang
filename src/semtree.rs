@@ -86,7 +86,8 @@ impl SemanticTree {
             .types_resolver
             .from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
-        let function_args: Vec<(Id, SLPType)> = Symbols::convert_typedecls(&self.fileid, &func.function_args, &self.types_resolver)?;
+        let function_args: Vec<(Id, SLPType)> =
+            Symbols::convert_typedecls(&self.fileid, &func.function_args, &self.types_resolver)?;
 
         for (id, ty) in &function_args {
             scope.add_variable(id, ty.clone());
@@ -107,12 +108,12 @@ impl SemanticTree {
         &mut self,
         func: &ExternFunctionBody,
     ) -> Result<ExternFunction, SemTreeBuildErrors> {
-    
         let return_arg = self
             .types_resolver
             .from_ast_type(&func.return_arg.ty, &self.fileid)?;
 
-        let function_args: Vec<(Id, SLPType)> = Symbols::convert_typedecls(&self.fileid, &func.function_args, &self.types_resolver)?;
+        let function_args: Vec<(Id, SLPType)> =
+            Symbols::convert_typedecls(&self.fileid, &func.function_args, &self.types_resolver)?;
 
         Ok(ExternFunction {
             function_name: Id(func.function_name.clone()),
@@ -139,27 +140,27 @@ impl SemanticTree {
     ) -> Result<TypeConversionKind, SemTreeBuildErrors> {
         if from == to {
             Ok(TypeConversionKind::Identity)
-        } else if let Some(ty) = from.get_underlying_autodefer_type() {
+        } else if let Some(ty) = from.get_underlying_autoderef_type() {
             if ty == to {
                 Ok(TypeConversionKind::AutoDeref)
+            } else {
+                todo!(
+                    "Implement implicit conversion hierarcy: {:?} to {:?}",
+                    from,
+                    to
+                )
             }
-            else {todo!(
-                "Implement implicit conversion hierarcy: {:?} to {:?}",
-                from,
-                to
-            )}
-        } else if let Some(ty) = to.get_underlying_autodefer_type() {
+        } else if let Some(ty) = to.get_underlying_autoderef_type() {
             if ty == from {
                 Ok(TypeConversionKind::AutoRef)
+            } else {
+                todo!(
+                    "Implement implicit conversion hierarcy: {:?} to {:?}",
+                    from,
+                    to
+                )
             }
-            else {todo!(
-                "Implement implicit conversion hierarcy: {:?} to {:?}",
-                from,
-                to
-            )}
-        }
-        else
-        {
+        } else {
             todo!(
                 "Implement implicit conversion hierarcy: {:?} to {:?}",
                 from,
@@ -170,13 +171,28 @@ impl SemanticTree {
     fn try_get_autoref(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
         if let ExprKind::LocalVariable(lv) = expr.kind {
             let ty = SLPType::AutoderefPointer(Box::new(expr.ret_type));
-            let res = STExpr{ ret_type: ty, loc: expr.loc.clone(), kind: ExprKind::GetLocalVariableRef(lv) };
+            let res = STExpr {
+                ret_type: ty,
+                loc: expr.loc.clone(),
+                kind: ExprKind::GetLocalVariableRef(lv),
+            };
             Ok(res)
-        }
-        else {
+        } else {
             todo!()
         }
-    } 
+    }
+    fn insert_autoderef_or_pass(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
+        if let Some(ty) = expr.ret_type.get_underlying_autoderef_type() {
+            let target = ty.clone();
+            Ok(STExpr {
+                ret_type: target,
+                loc: expr.loc.clone(),
+                kind: ExprKind::Deref(Box::new(expr)),
+            })
+        } else {
+            Ok(expr)
+        }
+    }
     fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
         match Self::check_implicit_convertion(&expr.ret_type, to)? {
             TypeConversionKind::Identity => return Ok(expr),
@@ -192,12 +208,12 @@ impl SemanticTree {
             TypeConversionKind::UnsignedToSignedTruncate => todo!(),
             TypeConversionKind::IntToFloat => todo!(),
             TypeConversionKind::UintToFloat => todo!(),
-            TypeConversionKind::AutoDeref => {
-                Ok(STExpr{ ret_type: to.clone(), loc: expr.loc.clone(), kind: ExprKind::Deref(Box::new(expr)) })
-            },
-            TypeConversionKind::AutoRef => {
-                Self::try_get_autoref(expr)
-            },
+            TypeConversionKind::AutoDeref => Ok(STExpr {
+                ret_type: to.clone(),
+                loc: expr.loc.clone(),
+                kind: ExprKind::Deref(Box::new(expr)),
+            }),
+            TypeConversionKind::AutoRef => Self::try_get_autoref(expr),
         }
     }
     fn check_kind_of_function(
@@ -245,9 +261,14 @@ impl SemanticTree {
                     //TODO check if symbol is type instead of assuming this
                     let ty = ast::Type::Primitive(id.clone());
                     if args.len() == 1 {
-                        return Ok(FunctionCallResolveResult::TypeCast(self.resolve_typecast(&ty, args.pop().unwrap(), loc)?));
+                        return Ok(FunctionCallResolveResult::TypeCast(self.resolve_typecast(
+                            &ty,
+                            args.pop().unwrap(),
+                            loc,
+                        )?));
+                    } else {
+                        todo!("Invalid amount of arguments report")
                     }
-                    else {todo!("Invalid amount of arguments report")}
                 }
             }
         } else {
@@ -326,7 +347,9 @@ impl SemanticTree {
                     FunctionCallResolveResult::FunctionCall(f) => {
                         Ok(vec![STStatement::FunctionCall(l.clone(), f)])
                     }
-                    FunctionCallResolveResult::TypeCast(_) => todo!("Report proper error about wrong context"),
+                    FunctionCallResolveResult::TypeCast(_) => {
+                        todo!("Report proper error about wrong context")
+                    }
                 }
             }
             Statement::Assignment(l, target, from) => {
@@ -412,13 +435,14 @@ impl SemanticTree {
             ast::VarDecl::ExplicitType(s, ty, e) => {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
+                let converted_expr = Self::insert_impl_conversion(expr, &ty)?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
                 Ok(vec![STStatement::VarDecl(
                     *l,
                     VarDecl {
                         id: lv,
                         ty,
-                        init_expr: Some(expr),
+                        init_expr: Some(converted_expr),
                     },
                 )])
             }
@@ -626,19 +650,42 @@ impl SemanticTree {
             kind: ExprKind::CharLiteral(ch),
         })
     }
-    fn visit_indexation_expression(&mut self, index: &Expr, array_begin: i64, array_len: u64, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
+    fn visit_indexation_expression(
+        &mut self,
+        index: &Expr,
+        array_begin: i64,
+        array_len: u64,
+        scope: &Scope,
+    ) -> Result<STExpr, SemTreeBuildErrors> {
         let index = self.visit_expression(index, scope)?;
+        let index = Self::insert_autoderef_or_pass(index)?;
         if index.ret_type.is_any_int() {
             let c = match &index.ret_type {
                 SLPType::PrimitiveType(pt) => match pt {
-                    SLPPrimitiveType::Int8 => ExprKind::NumberLiteral(NumberLiteral::I8(array_begin.try_into().unwrap())),
-                    SLPPrimitiveType::Int16 => ExprKind::NumberLiteral(NumberLiteral::I16(array_begin.try_into().unwrap())),
-                    SLPPrimitiveType::Int32 => ExprKind::NumberLiteral(NumberLiteral::I32(array_begin.try_into().unwrap())),
-                    SLPPrimitiveType::Int64 => ExprKind::NumberLiteral(NumberLiteral::I64(array_begin.try_into().unwrap())),
-                    SLPPrimitiveType::Uint8 => ExprKind::NumberLiteral(NumberLiteral::U8(array_begin.try_into().unwrap())),
-                    SLPPrimitiveType::Uint16 => ExprKind::NumberLiteral(NumberLiteral::U16(array_begin.try_into().unwrap())),
-                    SLPPrimitiveType::Uint32 => ExprKind::NumberLiteral(NumberLiteral::U32(array_begin.try_into().unwrap())),
-                    SLPPrimitiveType::Uint64 => ExprKind::NumberLiteral(NumberLiteral::U64(array_begin.try_into().unwrap())),
+                    SLPPrimitiveType::Int8 => {
+                        ExprKind::NumberLiteral(NumberLiteral::I8(array_begin.try_into().unwrap()))
+                    }
+                    SLPPrimitiveType::Int16 => {
+                        ExprKind::NumberLiteral(NumberLiteral::I16(array_begin.try_into().unwrap()))
+                    }
+                    SLPPrimitiveType::Int32 => {
+                        ExprKind::NumberLiteral(NumberLiteral::I32(array_begin.try_into().unwrap()))
+                    }
+                    SLPPrimitiveType::Int64 => {
+                        ExprKind::NumberLiteral(NumberLiteral::I64(array_begin.try_into().unwrap()))
+                    }
+                    SLPPrimitiveType::Uint8 => {
+                        ExprKind::NumberLiteral(NumberLiteral::U8(array_begin.try_into().unwrap()))
+                    }
+                    SLPPrimitiveType::Uint16 => {
+                        ExprKind::NumberLiteral(NumberLiteral::U16(array_begin.try_into().unwrap()))
+                    }
+                    SLPPrimitiveType::Uint32 => {
+                        ExprKind::NumberLiteral(NumberLiteral::U32(array_begin.try_into().unwrap()))
+                    }
+                    SLPPrimitiveType::Uint64 => {
+                        ExprKind::NumberLiteral(NumberLiteral::U64(array_begin.try_into().unwrap()))
+                    }
                     SLPPrimitiveType::ISize => todo!(),
                     SLPPrimitiveType::USize => todo!(),
                     SLPPrimitiveType::Float32 => todo!(),
@@ -648,38 +695,86 @@ impl SemanticTree {
                     SLPPrimitiveType::Bool => todo!(),
                     SLPPrimitiveType::Void => todo!(),
                 },
-                _ => todo!()
+                _ => todo!(),
             };
-            let cons = STExpr{ret_type: index.ret_type.clone(), loc: index.loc.clone(), kind: c};
-            let ex = STExpr { ret_type: index.ret_type.clone(), loc: index.loc.clone(), kind: ExprKind::PrimitiveIntBinOp(Box::new(index), Box::new(cons), IntBinOp::Substract) };
+            let cons = STExpr {
+                ret_type: index.ret_type.clone(),
+                loc: index.loc.clone(),
+                kind: c,
+            };
+            let ex = STExpr {
+                ret_type: index.ret_type.clone(),
+                loc: index.loc.clone(),
+                kind: ExprKind::PrimitiveIntBinOp(
+                    Box::new(index),
+                    Box::new(cons),
+                    IntBinOp::Substract,
+                ),
+            };
             Ok(ex)
-        }
-        else {
+        } else {
             todo!("{:?}", index.ret_type)
         }
     }
-    fn visit_array_index(&mut self, indexable: &Expr, index: &Expr, scope: &Scope, loc: Loc) -> Result<STExpr, SemTreeBuildErrors> {
+    fn visit_array_index(
+        &mut self,
+        indexable: &Expr,
+        index: &Expr,
+        scope: &Scope,
+        loc: Loc,
+    ) -> Result<STExpr, SemTreeBuildErrors> {
         let indexable_expr = self.visit_expression(indexable, scope)?;
-        if let SLPType::FixedArray { size, index_offset, ty } = &indexable_expr.ret_type {
+        if let SLPType::FixedArray {
+            size,
+            index_offset,
+            ty,
+        } = &indexable_expr.ret_type
+        {
             if let ExprKind::LocalVariable(lv) = &indexable_expr.kind {
-                let index_expr = self.visit_indexation_expression(index, *index_offset, *size, scope)?;
-                let res = STExpr{ ret_type: SLPType::AutoderefPointer(ty.clone()), loc, kind: ExprKind::GetElementRefToLocalVariableArray(lv.clone(), Box::new(index_expr))};
+                let index_expr =
+                    self.visit_indexation_expression(index, *index_offset, *size, scope)?;
+                let res = STExpr {
+                    ret_type: SLPType::AutoderefPointer(ty.clone()),
+                    loc,
+                    kind: ExprKind::GetElementRefToLocalVariableArray(
+                        lv.clone(),
+                        Box::new(index_expr),
+                    ),
+                };
                 Ok(res)
-            } 
-            else {todo!()}
-        } else if let SLPType::AutoderefPointer(internal_ty) = &indexable_expr.ret_type{
-            if let SLPType::FixedArray { size, index_offset, ty } = internal_ty.as_ref() {
-                let index_expr = self.visit_indexation_expression(index, *index_offset, *size, scope)?;
-                let res = STExpr{ ret_type: SLPType::AutoderefPointer(ty.clone()), loc, kind: ExprKind::GetElementRefToReffedArray(Box::new(indexable_expr), Box::new(index_expr))};
-                Ok(res)
+            } else {
+                todo!("Implement putting array into local temporary variable")
             }
-            else {
+        } else if let SLPType::AutoderefPointer(internal_ty) = &indexable_expr.ret_type {
+            if let SLPType::FixedArray {
+                size,
+                index_offset,
+                ty,
+            } = internal_ty.as_ref()
+            {
+                let index_expr =
+                    self.visit_indexation_expression(index, *index_offset, *size, scope)?;
+                let res = STExpr {
+                    ret_type: SLPType::AutoderefPointer(ty.clone()),
+                    loc,
+                    kind: ExprKind::GetElementRefToReffedArray(
+                        Box::new(indexable_expr),
+                        Box::new(index_expr),
+                    ),
+                };
+                Ok(res)
+            } else {
                 todo!()
             }
-        } else {todo!()}
-
+        } else {
+            todo!()
+        }
     }
-    fn visit_rhs_expression (&mut self, expr: &Expr, scope: &Scope) -> Result<RhsExpr, SemTreeBuildErrors> {
+    fn visit_rhs_expression(
+        &mut self,
+        expr: &Expr,
+        scope: &Scope,
+    ) -> Result<RhsExpr, SemTreeBuildErrors> {
         match expr {
             Expr::Ident(l, i) => {
                 let id = Id(i.name.clone());
@@ -692,12 +787,19 @@ impl SemanticTree {
                 } else {
                     todo!()
                 }
-            },
-            Expr::OpBinIndex(l, i, index) => { 
+            }
+            Expr::OpBinIndex(l, i, index) => {
                 let visit_array_index = self.visit_array_index(&i, &index, scope, l.clone())?;
-                Ok(RhsExpr { required_type: visit_array_index.ret_type.get_underlying_pointer_type().unwrap().clone(), loc: l.clone(), kind: RhsKind::Defer(visit_array_index)})
-            
-            },
+                Ok(RhsExpr {
+                    required_type: visit_array_index
+                        .ret_type
+                        .get_underlying_pointer_type()
+                        .unwrap()
+                        .clone(),
+                    loc: l.clone(),
+                    kind: RhsKind::Defer(visit_array_index),
+                })
+            }
             Expr::OpUnDeref(_, _) => todo!(),
             Expr::Constant(_, _) => todo!(),
             Expr::OpBinPlus(_, _, _) => todo!(),
@@ -809,12 +911,12 @@ impl SemanticTree {
                     loc: l.clone(),
                     kind: ExprKind::FunctionCall(f),
                 },
-                FunctionCallResolveResult::TypeCast (expr) => expr,
+                FunctionCallResolveResult::TypeCast(expr) => expr,
             },
             Expr::OpUnAs(l, e, td) => {
                 let expr = self.visit_expression(&e, scope)?;
                 self.resolve_typecast(&td.ty, expr, l.clone())?
-            },
+            }
             Expr::OpMethodCall(_, _, _) => todo!(),
             Expr::OpNew(_, _, _) => todo!(),
         })
@@ -827,16 +929,12 @@ impl SemanticTree {
         scope: &Scope,
         kind: IntBinOp,
     ) -> Result<STExpr, SemTreeBuildErrors> {
-        let mut le = Box::new(self.visit_expression(&l, scope)?);
-        let mut re = Box::new(self.visit_expression(&r, scope)?);
-        if let Some(ty) = le.ret_type.get_underlying_autodefer_type() {
-            let target = ty.clone();
-            le = Box::new(Self::insert_impl_conversion(*le, &target)?);
-        }
-        if let Some(ty) = re.ret_type.get_underlying_autodefer_type() {
-            let target = ty.clone();
-            re = Box::new(Self::insert_impl_conversion(*re, &target)?);
-        }
+        let le = Box::new(Self::insert_autoderef_or_pass(
+            self.visit_expression(&l, scope)?,
+        )?);
+        let re = Box::new(Self::insert_autoderef_or_pass(
+            self.visit_expression(&r, scope)?,
+        )?);
         if le.ret_type == re.ret_type {
             if le.ret_type.is_any_int() {
                 Ok(STExpr {
@@ -876,8 +974,12 @@ impl SemanticTree {
         scope: &Scope,
         kind: ComparationKind,
     ) -> Result<STExpr, SemTreeBuildErrors> {
-        let le = Box::new(self.visit_expression(&l, scope)?);
-        let re = Box::new(self.visit_expression(&r, scope)?);
+        let le = Box::new(Self::insert_autoderef_or_pass(
+            self.visit_expression(&l, scope)?,
+        )?);
+        let re = Box::new(Self::insert_autoderef_or_pass(
+            self.visit_expression(&r, scope)?,
+        )?);
         if le.ret_type == re.ret_type {
             if le.ret_type.is_any_int() {
                 Ok(STExpr {
@@ -941,7 +1043,7 @@ impl SemanticTree {
 #[derive(Debug, Clone)]
 struct Scope<'a> {
     occupied_global: Rc<RefCell<HashSet<LocalVariable>>>,
-    temporary_variables : Rc<RefCell<HashMap<LocalVariable, SLPType>>>,
+    temporary_variables: Rc<RefCell<HashMap<LocalVariable, SLPType>>>,
     outer_scope: Option<&'a Scope<'a>>,
     local_variables: HashMap<Id, Vec<(LocalVariable, SLPType)>>,
     order: Vec<LocalVariable>,
@@ -963,7 +1065,6 @@ impl<'a> Scope<'a> {
             local_variables: Default::default(),
             order: Default::default(),
             temporary_variables: outer.temporary_variables.clone(),
-
         }
     }
     fn rec_occupied(&self, lv: &LocalVariable) -> bool {

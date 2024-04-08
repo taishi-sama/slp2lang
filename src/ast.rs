@@ -35,12 +35,12 @@ pub enum Declaration {
 
 #[derive(Debug, Clone)]
 pub struct TypeDeclSectionBody {
-    pub decls: Vec<TypeDeclElement>
+    pub decls: Vec<TypeDeclElement>,
 }
 #[derive(Debug, Clone)]
 pub enum TypeDeclElement {
     TypeAlias(Loc, String, Type),
-    RecordDeclare(Loc, )//TODO
+    RecordDeclare(Loc), //TODO
 }
 
 #[derive(Debug, Clone)]
@@ -171,6 +171,9 @@ pub enum Type {
 }
 impl Type {
     pub fn void() -> Self {
-        Type::Primitive(Identificator { name: "void".to_string(), path: vec![] })
+        Type::Primitive(Identificator {
+            name: "void".to_string(),
+            path: vec![],
+        })
     }
 }

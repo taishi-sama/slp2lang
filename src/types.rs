@@ -36,9 +36,14 @@ pub enum SLPPrimitiveType {
 impl SLPPrimitiveType {
     pub fn is_int(&self) -> bool {
         match self {
-            SLPPrimitiveType::Int8 | SLPPrimitiveType::Int16 | SLPPrimitiveType::Int32 | SLPPrimitiveType::Int64 => true,
-            SLPPrimitiveType::Uint8 | SLPPrimitiveType::Uint16 | SLPPrimitiveType::Uint32 | SLPPrimitiveType::Uint64 => true,
-
+            SLPPrimitiveType::Int8
+            | SLPPrimitiveType::Int16
+            | SLPPrimitiveType::Int32
+            | SLPPrimitiveType::Int64 => true,
+            SLPPrimitiveType::Uint8
+            | SLPPrimitiveType::Uint16
+            | SLPPrimitiveType::Uint32
+            | SLPPrimitiveType::Uint64 => true,
 
             SLPPrimitiveType::ISize => true,
             SLPPrimitiveType::USize => true,
@@ -74,18 +79,23 @@ impl SLPPrimitiveType {
     pub fn is_unsigned_int(&self) -> bool {
         if self.is_int() {
             match self {
-                SLPPrimitiveType::Int8 | SLPPrimitiveType::Int16 | SLPPrimitiveType::Int32 | SLPPrimitiveType::Int64 => false,
-                SLPPrimitiveType::Uint8 | SLPPrimitiveType::Uint16 | SLPPrimitiveType::Uint32 | SLPPrimitiveType::Uint64 => true,
-
+                SLPPrimitiveType::Int8
+                | SLPPrimitiveType::Int16
+                | SLPPrimitiveType::Int32
+                | SLPPrimitiveType::Int64 => false,
+                SLPPrimitiveType::Uint8
+                | SLPPrimitiveType::Uint16
+                | SLPPrimitiveType::Uint32
+                | SLPPrimitiveType::Uint64 => true,
 
                 SLPPrimitiveType::ISize => false,
                 SLPPrimitiveType::USize => true,
-                _ => unreachable!()
+                _ => unreachable!(),
             }
+        } else {
+            false
         }
-        else {false}
     }
-    
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructType {
@@ -99,17 +109,25 @@ impl SLPType {
             SLPType::PrimitiveType(_) => None,
             SLPType::Pointer(ty) => Some(&ty),
             SLPType::DynArray(d) => None,
-            SLPType::FixedArray { size: _, index_offset: _, ty: _ } => None,
+            SLPType::FixedArray {
+                size: _,
+                index_offset: _,
+                ty: _,
+            } => None,
             SLPType::Struct(_) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
         }
     }
-    pub fn get_underlying_autodefer_type(&self) -> Option<&SLPType> {
+    pub fn get_underlying_autoderef_type(&self) -> Option<&SLPType> {
         match self {
             SLPType::PrimitiveType(_) => None,
             SLPType::Pointer(ty) => None,
             SLPType::DynArray(d) => None,
-            SLPType::FixedArray { size: _, index_offset: _, ty: _ } => None,
+            SLPType::FixedArray {
+                size: _,
+                index_offset: _,
+                ty: _,
+            } => None,
             SLPType::Struct(_) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
         }
@@ -119,30 +137,38 @@ impl SLPType {
             SLPType::PrimitiveType(_) => None,
             SLPType::Pointer(_) => None,
             SLPType::DynArray(d) => Some(d.as_ref()),
-            SLPType::FixedArray { size: _, index_offset: _, ty } => Some(ty.as_ref()),
+            SLPType::FixedArray {
+                size: _,
+                index_offset: _,
+                ty,
+            } => Some(ty.as_ref()),
             SLPType::Struct(_) => None,
             SLPType::AutoderefPointer(_) => None,
         }
     }
     pub fn is_static_sized_array(&self) -> bool {
-        if let SLPType::FixedArray { size, index_offset, ty } = self {
+        if let SLPType::FixedArray {
+            size,
+            index_offset,
+            ty,
+        } = self
+        {
             true
+        } else {
+            false
         }
-        else {false}
     }
     pub fn is_any_int(&self) -> bool {
         if let SLPType::PrimitiveType(p) = self {
             p.is_int()
-        }
-        else {
+        } else {
             false
         }
     }
     pub fn is_unsigned_int(&self) -> bool {
         if let SLPType::PrimitiveType(p) = self {
             p.is_unsigned_int()
-        }
-        else {
+        } else {
             false
         }
     }
@@ -150,44 +176,39 @@ impl SLPType {
         if l == r {
             if l.is_any_int() {
                 Some(l.clone())
-            }
-            else {
+            } else {
                 todo!()
             }
-        }
-        else {
+        } else {
             todo!()
         }
     }
     pub fn is_bool(&self) -> bool {
         if let &SLPType::PrimitiveType(SLPPrimitiveType::Bool) = self {
             true
-        }
-        else { 
+        } else {
             false
         }
     }
     pub fn is_void(&self) -> bool {
         if let &SLPType::PrimitiveType(SLPPrimitiveType::Void) = self {
             true
-        }
-        else { 
+        } else {
             false
         }
     }
     pub fn is_char(&self) -> bool {
         if let &SLPType::PrimitiveType(SLPPrimitiveType::Char) = self {
             true
-        }
-        else {
+        } else {
             false
         }
     }
     pub fn get_number_size(&self) -> Option<u8> {
         if let SLPType::PrimitiveType(pt) = self {
             pt.get_number_size()
+        } else {
+            None
         }
-        else {None}
     }
-    
 }

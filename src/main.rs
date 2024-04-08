@@ -1,23 +1,26 @@
-use std::{env::args, path::Path, sync::Arc};
-
+use std::{env::args, fs::{self, create_dir}, path::Path, sync::Arc};
 
 use codegen::{Codegen, CodegenContext};
 use compiler::Compiler;
 use inkwell::{
-    passes::PassBuilderOptions, targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple}, OptimizationLevel
+    passes::PassBuilderOptions,
+    targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple},
+    OptimizationLevel,
 };
 use lalrpop_util::lalrpop_mod;
 
+use crate::linkage::LinkerBuilder;
 
 pub mod ast;
 pub mod ast_visualisator;
 pub mod codegen;
+pub mod compiler;
 pub mod errors;
+pub mod linkage;
 pub mod semtree;
 pub mod semtree_visualisator;
 pub mod symbols;
 pub mod types;
-pub mod compiler;
 
 lalrpop_mod!(pub grammar);
 fn main() {
@@ -57,17 +60,28 @@ pub fn new_compile(file: &str, output_filename: &str) {
         cdgn.compile_semtree(i);
         match cdgn.module.verify() {
             Ok(_) => {
-                println!("Module {}:--------------------------------------- \n{}", i.semtree_name.0, cdgn.module.print_to_string().to_string_lossy())
-            },
+                println!(
+                    "Module {}:--------------------------------------- \n{}",
+                    i.semtree_name.0,
+                    cdgn.module.print_to_string().to_string_lossy()
+                )
+            }
             Err(e) => {
-                println!("Error in module {}: {}", i.semtree_name.0, e.to_string_lossy());
-                println!("Module {}:--------------------------------------- \n{}", i.semtree_name.0, cdgn.module.print_to_string().to_string_lossy());
+                println!(
+                    "Error in module {}: {}",
+                    i.semtree_name.0,
+                    e.to_string_lossy()
+                );
+                println!(
+                    "Module {}:--------------------------------------- \n{}",
+                    i.semtree_name.0,
+                    cdgn.module.print_to_string().to_string_lossy()
+                );
 
                 break;
-            },
+            }
         }
         modules.push(cdgn);
-
     }
     modules.reverse();
     let main_module = modules.pop().unwrap();
@@ -76,22 +90,40 @@ pub fn new_compile(file: &str, output_filename: &str) {
         main_module.module.link_in_module(m.module).unwrap();
     }
     target_machine.get_target_data();
-    main_module.module.run_passes("mem2reg", &target_machine, PassBuilderOptions::create()).unwrap();
-    println!("{}", main_module.module.print_to_string().to_string_lossy());
-
-    let path = String::from(output_filename) + ".o";
-    let path = Path::new(&path);
-    let path_asm = String::from(output_filename) + ".asm";
-    let path_asm = Path::new(&path_asm);
-    target_machine
-        .write_to_file(&main_module.module, FileType::Object, &path)
+    main_module
+        .module
+        .run_passes("mem2reg", &target_machine, PassBuilderOptions::create())
         .unwrap();
-    println!("Emit object file to {}", path.to_string_lossy());
+    println!("{}", main_module.module.print_to_string().to_string_lossy());
+    let p = Path::new(output_filename);
+
+    let output_dir = p
+    .parent()
+    .unwrap()
+    .join("target");
+    if !Path::exists(&output_dir) {
+        create_dir(&output_dir).unwrap();
+    }
+    
+    let filename = p.file_stem().unwrap();
+    let object_output = (&output_dir).join(Path::new(filename).with_extension("o"));
+    let executable_output = (&output_dir).join(filename);
+
+    target_machine
+        .write_to_file(&main_module.module, FileType::Object, &object_output)
+        .unwrap();
+    println!("Emit object file to {}", object_output.to_string_lossy());
+    let linker =
+        LinkerBuilder::new_linux_x86_64().link_gnu_linker_flavor(&object_output, &executable_output);
+    linker.unwrap();
+    println!(
+        "Linkage complete... File available at {:}",
+        executable_output.to_string_lossy()
+    )
     //target_machine
     //    .write_to_file(&main_module.module, FileType::Assembly, &path_asm)
     //    .unwrap();
     //println!("Emit asm file to {}", path_asm.to_string_lossy());
-
 }
 
 #[cfg(test)]

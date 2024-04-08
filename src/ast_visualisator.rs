@@ -3,21 +3,25 @@ use std::iter;
 use text_trees::StringTreeNode;
 
 use crate::ast::{
-    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, Statement, Type, TypeDeclElement, TypeDeclSectionBody, Usings, VarDecl
+    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, Statement, Type,
+    TypeDeclElement, TypeDeclSectionBody, Usings, VarDecl,
 };
 
 pub fn get_program_tree(pf: &ProgramFile) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
         "FileRoot".to_string(),
-        pf.uses.iter().map(usings).chain(pf.declarations.iter().map(declaration)),
+        pf.uses
+            .iter()
+            .map(usings)
+            .chain(pf.declarations.iter().map(declaration)),
     )
 }
 pub fn usings(decl: &Usings) -> StringTreeNode {
     match decl {
         Usings::Name(_, s) => StringTreeNode::new(format!("Uses: {}", s)),
         Usings::Path(_, s) => StringTreeNode::new(format!("Uses path: \"{}\"", s)),
-    } 
-} 
+    }
+}
 pub fn declaration(decl: &Declaration) -> StringTreeNode {
     match decl {
         Declaration::Function(f) => {
@@ -30,16 +34,12 @@ pub fn declaration(decl: &Declaration) -> StringTreeNode {
                     .chain(vec![types(ret)])
                     .chain(f.body.iter().map(statements)),
             )
-        },
+        }
         Declaration::ExternFunction(f) => {
             let ret = &f.return_arg.ty;
             StringTreeNode::with_child_nodes(
                 format!("external fn {}", f.function_name),
-                f.function_args
-                    .iter()
-                    .map(arg_decl)
-                    .chain(vec![types(ret)])
-                    
+                f.function_args.iter().map(arg_decl).chain(vec![types(ret)]),
             )
         }
         Declaration::TypeDeclSection(d) => type_decl_section(d),
@@ -51,7 +51,9 @@ pub fn type_decl_section(d: &TypeDeclSectionBody) -> StringTreeNode {
 }
 pub fn type_decl_element(e: &TypeDeclElement) -> StringTreeNode {
     match e {
-        TypeDeclElement::TypeAlias(_, n, t) => StringTreeNode::with_child_nodes(format!("{} = ", n), iter::once(types(t))),
+        TypeDeclElement::TypeAlias(_, n, t) => {
+            StringTreeNode::with_child_nodes(format!("{} = ", n), iter::once(types(t)))
+        }
         TypeDeclElement::RecordDeclare(_) => todo!(),
     }
 }
@@ -82,9 +84,20 @@ pub fn statements(st: &Statement) -> StringTreeNode {
         Statement::CodeBlock(_, x) => {
             StringTreeNode::with_child_nodes("Codeblock".to_string(), x.iter().map(statements))
         }
-        Statement::Assignment(_, x, y) => StringTreeNode::with_child_nodes("Assign".to_string(), vec![expressions(x), expressions(y)].into_iter()),
-        Statement::If(_, x, y, z) => StringTreeNode::with_child_nodes("If".to_string(), vec![expressions(x), statements(y)].into_iter().chain(z.as_deref().map(|t|statements(&t)))),
-        Statement::While(_, x, y) => StringTreeNode::with_child_nodes("While".to_string(), vec![expressions(x), statements(y)].into_iter()),
+        Statement::Assignment(_, x, y) => StringTreeNode::with_child_nodes(
+            "Assign".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Statement::If(_, x, y, z) => StringTreeNode::with_child_nodes(
+            "If".to_string(),
+            vec![expressions(x), statements(y)]
+                .into_iter()
+                .chain(z.as_deref().map(|t| statements(&t))),
+        ),
+        Statement::While(_, x, y) => StringTreeNode::with_child_nodes(
+            "While".to_string(),
+            vec![expressions(x), statements(y)].into_iter(),
+        ),
         Statement::RepeatUntil(_, _, _) => todo!(),
         Statement::VarDecl(_, x) => vardecl(x),
         Statement::Empty() => StringTreeNode::new("*empty*".into()),
@@ -114,16 +127,16 @@ pub fn constant(c: &Constant) -> StringTreeNode {
     StringTreeNode::new(format!(
         "Constant {}",
         match c {
-            Constant::String(x)=>format!("String {x}"),
-            Constant::Int(x)=>format!("Int {x}"),
-            Constant::Bool(x)=>format!("Bool {x}"),
-            Constant::Float(x)=>format!("Float {x}"),
-            Constant::Char(x)=>format!("Char {x}") }
+            Constant::String(x) => format!("String {x}"),
+            Constant::Int(x) => format!("Int {x}"),
+            Constant::Bool(x) => format!("Bool {x}"),
+            Constant::Float(x) => format!("Float {x}"),
+            Constant::Char(x) => format!("Char {x}"),
+        }
     ))
 }
 pub fn ident(id: &Identificator) -> StringTreeNode {
-    StringTreeNode::new(
-        format!("Id: {}", id))
+    StringTreeNode::new(format!("Id: {}", id))
 }
 pub fn expressions(ex: &Expr) -> StringTreeNode {
     match ex {
@@ -133,41 +146,80 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             "BinPlus".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
-        Expr::OpBinMinus(_, _, _) => todo!(),
+        Expr::OpBinMinus(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinMinus".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpBinAsterisk(_, x, y) => StringTreeNode::with_child_nodes(
             "BinAsterisk".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
-        Expr::OpBinSlash(_, _, _) => todo!(),
-        Expr::OpBinDiv(_, _, _) => todo!(),
-        Expr::OpBinMod(_, _, _) => todo!(),
+        Expr::OpBinSlash(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinSlash".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Expr::OpBinDiv(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinDiv".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Expr::OpBinMod(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinMod".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpUnPlus(_, _) => todo!(),
         Expr::OpUnMinus(_, _) => todo!(),
-        Expr::OpBinAnd(_, _, _) => todo!(),
-        Expr::OpBinOr(_, _, _) => todo!(),
-        Expr::OpBinXor(_, _, _) => todo!(),
+        Expr::OpBinAnd(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinAnd".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Expr::OpBinOr(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinOr".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Expr::OpBinXor(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinXor".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpUnNot(_, _) => todo!(),
-        Expr::OpBinShl(_, _, _) => todo!(),
-        Expr::OpBinShr(_, _, _) => todo!(),
+        Expr::OpBinShl(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinShl".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Expr::OpBinShr(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinShr".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpBinLesser(_, x, y) => StringTreeNode::with_child_nodes(
             "BinLesser".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
-        Expr::OpBinGreater(_, _, _) => todo!(),
+        Expr::OpBinGreater(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinGreater".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpBinLesserEq(_, x, y) => StringTreeNode::with_child_nodes(
             "BinLesserEq".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
-        Expr::OpBinGreaterEq(_, _, _) => todo!(),
-        Expr::OpBinEq(_, _, _) => todo!(),
-        Expr::OpBinNotEq(_, _, _) => todo!(),
+        Expr::OpBinGreaterEq(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinGreaterEq".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Expr::OpBinEq(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinEq".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
+        Expr::OpBinNotEq(_, x, y) => StringTreeNode::with_child_nodes(
+            "BinLesserEq".to_string(),
+            vec![expressions(x), expressions(y)].into_iter(),
+        ),
         Expr::OpUnDeref(_, _) => todo!(),
         Expr::OpUnGetRef(_, _) => todo!(),
         Expr::OpFunctionCall(_, x) => StringTreeNode::with_child_nodes(
             "FunctionCall".to_string(),
             iter::once(expressions(&x.func)).chain(x.args.iter().map(expressions)),
         ),
-        Expr::OpUnAs(_, x, t) =>  StringTreeNode::with_child_nodes(
+        Expr::OpUnAs(_, x, t) => StringTreeNode::with_child_nodes(
             "Typecast As".to_string(),
             vec![expressions(x), StringTreeNode::new(format!("{:?}", t))].into_iter(),
         ),
