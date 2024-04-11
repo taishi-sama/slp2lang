@@ -96,9 +96,21 @@ Declarations: Declaration = {
 TypeDeclSection: TypeDeclSectionBody = {
     <tl:@L> TypeKW <decls: TypeDeclElement+> <tr:@R> => TypeDeclSectionBody{decls}, 
 }
-
 TypeDeclElement: TypeDeclElement = {
+    <a:TypeAliasElement> => a,
+    <a:RecordDeclElement> => a,
+
+}
+TypeAliasElement: TypeDeclElement = {
     <tl:@L> <id: SoloId> "=" <al: Type> ";" <tr:@R> => TypeDeclElement::TypeAlias(Loc::new(tl, tr), id, al),
+}
+
+RecordDeclElement: TypeDeclElement = {
+    <tl:@L> <id: SoloId> "=" Record <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr), id, rf),
+}
+
+RecordField: RecordField = {
+    <tl:@L> <id: SoloId> ":" <ty: TypeDecl> <tr:@R> ";" => RecordField{id, ty, loc: Loc::new(tl, tr)},
 }
 
 ProcedureDecl: FunctionBody = {

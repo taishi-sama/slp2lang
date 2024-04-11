@@ -54,7 +54,7 @@ pub fn type_decl_element(e: &TypeDeclElement) -> StringTreeNode {
         TypeDeclElement::TypeAlias(_, n, t) => {
             StringTreeNode::with_child_nodes(format!("{} = ", n), iter::once(types(t)))
         }
-        TypeDeclElement::RecordDeclare(_) => todo!(),
+        TypeDeclElement::RecordDeclare(_, _, _) => todo!(),
     }
 }
 

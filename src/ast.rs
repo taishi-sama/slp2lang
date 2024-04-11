@@ -40,7 +40,13 @@ pub struct TypeDeclSectionBody {
 #[derive(Debug, Clone)]
 pub enum TypeDeclElement {
     TypeAlias(Loc, String, Type),
-    RecordDeclare(Loc), //TODO
+    RecordDeclare(Loc, String, Vec<RecordField>), //TODO
+}
+#[derive(Debug, Clone)]
+pub struct RecordField {
+    pub loc: Loc,
+    pub id: String,
+    pub ty: TypeDecl,
 }
 
 #[derive(Debug, Clone)]

@@ -1,0 +1,4 @@
+type Hello = record 
+    Id: int32;
+    Age: int32;
+end;

@@ -88,7 +88,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                         crate::ast::TypeDeclElement::TypeAlias(_l, name, ty) => {
                             self.queue_to_resolve.insert((file, Id(name.clone())), ty);
                         }
-                        crate::ast::TypeDeclElement::RecordDeclare(_) => todo!(),
+                        crate::ast::TypeDeclElement::RecordDeclare(_, _, _) => todo!(),
                     }
                 }
             }
