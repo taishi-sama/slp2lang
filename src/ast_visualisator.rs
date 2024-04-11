@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, vec};
 
 use text_trees::StringTreeNode;
 
@@ -104,6 +104,10 @@ pub fn statements(st: &Statement) -> StringTreeNode {
         Statement::FunctionCall(_, x) => StringTreeNode::with_child_nodes(
             "FunctionCall".to_string(),
             iter::once(expressions(&x.func)).chain(x.args.iter().map(expressions)),
+        ),
+        Statement::Defer(_, x) =>  StringTreeNode::with_child_nodes(
+            "Defer".to_string(),
+            vec![statements(x)].into_iter()
         ),
     }
 }

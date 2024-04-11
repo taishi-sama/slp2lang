@@ -138,6 +138,8 @@ pub enum Statement {
     While(Loc, Box<Expr>, Box<Statement>),
     RepeatUntil(Loc, Box<Expr>, Box<Statement>),
     VarDecl(Loc, VarDecl),
+    Defer(Loc, Box<Statement>),
+
     Empty(),
 }
 #[derive(Debug, Clone)]

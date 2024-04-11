@@ -383,6 +383,7 @@ impl SemanticTree {
             Statement::RepeatUntil(_, _, _) => todo!(),
             Statement::VarDecl(l, t) => self.visit_vardelc(t, l, outer),
             Statement::Empty() => Ok(vec![STStatement::Empty()]),
+            Statement::Defer(_, _) => todo!(),
         }
     }
     fn visit_vardelc(

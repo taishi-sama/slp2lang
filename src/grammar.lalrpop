@@ -33,6 +33,7 @@ match {
     r"(?i)class" => Class,
     r"(?i)record" => Record,
     r"(?i)as" => As,
+    r"(?i)defer" => Defer,
     "(",
     ")",
     "[",
@@ -161,10 +162,14 @@ ClosedStatement: Statement = {
     <asmt: AssigmentStatement> => asmt,
     <ifsmt: ClosedIfStatement> => ifsmt,
     <whsmt: ClosedWhileStatement> => whsmt,
-
     <fc: FuncCallStmt> => fc,
+    <df: DeferStatement> => df,
     () => Statement::Empty(),
 
+}
+
+DeferStatement: Statement = {
+    <tl:@L> Defer <s:ClosedStatement> <tr:@R> => Statement::Defer(Loc::new(tl, tr), Box::new(s))
 }
 
 CodeBlock : Statement = {

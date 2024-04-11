@@ -1,0 +1,18 @@
+
+
+procedure t() 
+begin
+
+end;
+
+begin
+    if 1 > 0 then 
+        defer if 3 > 0 then
+                t() 
+                else t()
+    else 
+        defer if 2 > 0 then
+                t() 
+                else t();
+
+end.
