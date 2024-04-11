@@ -3,8 +3,7 @@ use std::iter;
 use text_trees::StringTreeNode;
 
 use crate::semtree::{
-    ExprKind, ExternFunction, Function, NumberLiteral, ProgramRoot, RhsExpr, STExpr, STStatement,
-    VarDecl,
+    CodeBlock, ExprKind, ExternFunction, Function, NumberLiteral, ProgramRoot, RhsExpr, STExpr, STStatement, VarDecl
 };
 
 pub fn get_program_root(root: &ProgramRoot) -> StringTreeNode {
@@ -29,7 +28,7 @@ pub fn function(func: &Function) -> StringTreeNode {
                 .unwrap_or_default()
             + "): "
             + &format!("{:?}", func.return_arg),
-        func.body.iter().map(statement),
+        vec![statement_block(&func.body)].into_iter(),
     )
 }
 pub fn extern_function(func: &ExternFunction) -> StringTreeNode {
@@ -47,15 +46,16 @@ pub fn extern_function(func: &ExternFunction) -> StringTreeNode {
             + &format!("{:?}", func.return_arg),
     )
 }
-pub fn statement_block(_block: &[STStatement]) -> StringTreeNode {
-    todo!()
+pub fn statement_block(block: &CodeBlock) -> StringTreeNode {
+    StringTreeNode::with_child_nodes(
+        "Codeblock".to_string(),
+        vec![StringTreeNode::with_child_nodes("Common statements: ".to_owned(), block.common_statements.iter().map(|x|statement(x))),
+        StringTreeNode::with_child_nodes("Defer statements(in call order): ".to_owned(), block.defer_statements.iter().rev().map(|x|statement(x)))].into_iter()
+    )
 }
 pub fn statement(stmt: &STStatement) -> StringTreeNode {
     match stmt {
-        STStatement::CodeBlock(_, v) => StringTreeNode::with_child_nodes(
-            "Codeblock".to_string(),
-            v.iter().map(|x| statement(x)),
-        ),
+        STStatement::CodeBlock(_, v) => statement_block(v),
         STStatement::Print(_, e) => {
             StringTreeNode::with_child_nodes("print".to_owned(), iter::once(expr(&e)))
         }

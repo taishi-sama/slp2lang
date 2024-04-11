@@ -90,13 +90,17 @@ impl SemanticTree {
             scope.add_variable(id, ty.clone());
         }
         scope.add_variable(&Id("Result".to_owned()), return_arg.clone());
-        let visit_result = self.visit_codeblock(&func.body, &scope)?;
+        let mut codeblock = CodeBlock::new();
+        for st in &func.body {
+            self.visit_statement(st, &mut scope, &mut codeblock)?;
+        }
+        //code_block.common_statements.push(STStatement::CodeBlock(loc, stmts));
         let temp_variables = scope.temporary_variables.as_ref().borrow().clone();
         Ok(Function {
             function_name: Id(func.function_name.clone()),
             function_args,
             return_arg,
-            body: visit_result,
+            body: codeblock,
             loc: func.loc,
             temporary_variables: temp_variables,
         })
@@ -121,15 +125,18 @@ impl SemanticTree {
     }
     fn visit_codeblock(
         &mut self,
+        loc: Loc,
         block: &[Statement],
         outer: &Scope,
-    ) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+        code_block: &mut CodeBlock, 
+    ) -> Result<(), SemTreeBuildErrors> {
         let mut scope = Scope::new_with_outer(outer);
-        let mut stmts: Vec<STStatement> = vec![];
+        let mut stmts = CodeBlock::new();
         for st in block {
-            stmts.append(&mut self.visit_statement(st, &mut scope)?);
+            self.visit_statement(st, &mut scope, &mut stmts)?;
         }
-        Ok(stmts)
+        code_block.common_statements.push(STStatement::CodeBlock(loc, stmts));
+        Ok(())
     }
 
     fn try_get_autoref(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
@@ -313,16 +320,18 @@ impl SemanticTree {
         &mut self,
         statement: &Statement,
         outer: &mut Scope,
-    ) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+        code_block: &mut CodeBlock
+    ) -> Result<(), SemTreeBuildErrors> {
         match &statement {
-            Statement::CodeBlock(l, b) => Ok(vec![STStatement::CodeBlock(
-                l.clone(),
-                self.visit_codeblock(&b, &outer)?,
-            )]),
+            Statement::CodeBlock(l, b) => {
+                self.visit_codeblock(l.clone(), &b, outer, code_block)
+            },
             Statement::FunctionCall(l, func) => {
                 match self.check_kind_of_function(*l, func, outer)? {
                     FunctionCallResolveResult::FunctionCall(f) => {
-                        Ok(vec![STStatement::FunctionCall(l.clone(), f)])
+                        let t = STStatement::FunctionCall(l.clone(), f);
+                        code_block.common_statements.push(t);
+                        Ok(())
                     }
                     FunctionCallResolveResult::TypeCast(_) => {
                         todo!("Report proper error about wrong context")
@@ -333,11 +342,12 @@ impl SemanticTree {
                 let target = self.visit_rhs_expression(&target, &outer)?;
                 let from = self.visit_expression(&from, &outer)?;
                 let from = Self::insert_impl_conversion(from, &target.required_type)?;
-                Ok(vec![STStatement::Assignment(
+                code_block.common_statements.push(STStatement::Assignment(
                     *l,
                     Box::new(target),
                     Box::new(from),
-                )])
+                ));
+                Ok(())
             }
             Statement::If(l, cond, mb, ab) => {
                 let cond = self.visit_expression(cond, outer)?;
@@ -347,23 +357,28 @@ impl SemanticTree {
                 )?;
                 let mbstmt = {
                     let mut first_scope = Scope::new_with_outer(outer);
+                    let mut cb = CodeBlock::new();
+                    self.visit_statement(&mb, &mut first_scope, &mut cb)?;
                     Box::new(STStatement::CodeBlock(
                         *l,
-                        self.visit_statement(&mb, &mut first_scope)?,
+                        cb,
                     ))
                 };
                 let abstmt = {
                     if let Some(stmt) = ab {
                         let mut first_scope = Scope::new_with_outer(outer);
+                        let mut cb = CodeBlock::new();
+                        self.visit_statement(&stmt, &mut first_scope, &mut cb)?;
                         Some(Box::new(STStatement::CodeBlock(
                             *l,
-                            self.visit_statement(&stmt, &mut first_scope)?,
+                            cb,
                         )))
                     } else {
                         None
                     }
                 };
-                Ok(vec![STStatement::If(*l, Box::new(cond), mbstmt, abstmt)])
+                code_block.common_statements.push(STStatement::If(*l, Box::new(cond), mbstmt, abstmt));
+                Ok(())
             }
             Statement::While(l, cond, stmt) => {
                 let cond = self.visit_expression(cond, outer)?;
@@ -373,17 +388,25 @@ impl SemanticTree {
                 )?;
                 let mbstmt = {
                     let mut first_scope = Scope::new_with_outer(outer);
+                    let mut cb = CodeBlock::new();
+                    self.visit_statement(&stmt, &mut first_scope, &mut cb)?;
                     Box::new(STStatement::CodeBlock(
                         *l,
-                        self.visit_statement(&stmt, &mut first_scope)?,
+                        cb,
                     ))
                 };
-                Ok(vec![STStatement::While(*l, Box::new(cond), mbstmt)])
+                code_block.common_statements.push(STStatement::While(*l, Box::new(cond), mbstmt));
+                Ok(())
             }
             Statement::RepeatUntil(_, _, _) => todo!(),
-            Statement::VarDecl(l, t) => self.visit_vardelc(t, l, outer),
-            Statement::Empty() => Ok(vec![STStatement::Empty()]),
-            Statement::Defer(_, _) => todo!(),
+            Statement::VarDecl(l, t) => self.visit_vardelc(t, l, outer, code_block),
+            Statement::Empty() => Ok(()),
+            Statement::Defer(l, d) => {
+                let mut cb = CodeBlock::new();
+                self.visit_statement(&d, outer, &mut cb)?;
+                code_block.defer_statements.push(STStatement::CodeBlock(l.clone(), cb));
+                Ok(())
+            },
         }
     }
     fn visit_vardelc(
@@ -391,11 +414,11 @@ impl SemanticTree {
         vd: &ast::VarDecl,
         l: &Loc,
         scope: &mut Scope,
-    ) -> Result<Vec<STStatement>, SemTreeBuildErrors> {
+        code_block: &mut CodeBlock,
+    ) -> Result<(), SemTreeBuildErrors> {
         match vd {
             ast::VarDecl::Multiple(s, ty) => {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
-                let mut lvs = vec![];
                 for i in s {
                     let lv = scope.add_variable(&Id(i.clone()), ty.clone());
                     let t = STStatement::VarDecl(
@@ -406,36 +429,38 @@ impl SemanticTree {
                             init_expr: None,
                         },
                     );
-                    lvs.push(t)
+                    code_block.common_statements.push(t);
                 }
-                Ok(lvs)
+                Ok(())
             }
             ast::VarDecl::ExplicitType(s, ty, e) => {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
                 let converted_expr = Self::insert_impl_conversion(expr, &ty)?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
-                Ok(vec![STStatement::VarDecl(
+                code_block.common_statements.push(STStatement::VarDecl(
                     *l,
                     VarDecl {
                         id: lv,
                         ty,
                         init_expr: Some(converted_expr),
                     },
-                )])
+                ));
+                Ok(())                
             }
             ast::VarDecl::ImplicitType(s, e) => {
                 //let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
                 let lv = scope.add_variable(&Id(s.clone()), expr.ret_type.clone());
-                Ok(vec![STStatement::VarDecl(
+                code_block.common_statements.push(STStatement::VarDecl(
                     *l,
                     VarDecl {
                         id: lv,
                         ty: expr.ret_type.clone(),
                         init_expr: Some(self.visit_expression(e, scope)?),
                     },
-                )])
+                ));
+                Ok(())
             }
         }
     }
@@ -1101,7 +1126,7 @@ pub struct Function {
     pub function_name: Id,
     pub function_args: Vec<(Id, SLPType)>,
     pub return_arg: SLPType,
-    pub body: Vec<STStatement>,
+    pub body: CodeBlock,
     pub temporary_variables: HashMap<LocalVariable, SLPType>,
     pub loc: Loc,
 }
@@ -1113,8 +1138,19 @@ pub struct ExternFunction {
     pub loc: Loc,
 }
 #[derive(Debug, Clone)]
+pub struct CodeBlock {
+    pub common_statements: Vec<STStatement>,
+    //Adds in direct order, calls in reverse order
+    pub defer_statements: Vec<STStatement>, 
+}
+impl CodeBlock {
+    pub fn new() -> Self {
+        Self { common_statements: Default::default(), defer_statements: Default::default() }
+    }
+}
+#[derive(Debug, Clone)]
 pub enum STStatement {
-    CodeBlock(Loc, Vec<STStatement>),
+    CodeBlock(Loc, CodeBlock),
     Print(Loc, Box<STExpr>),
     FunctionCall(Loc, FunctionCall),
     //RHS, LHS

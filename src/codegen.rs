@@ -12,8 +12,7 @@ use inkwell::{
 
 use crate::{
     semtree::{
-        BoolBinOp, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable, RhsKind, STExpr,
-        STStatement, SemanticTree, VarDecl,
+        BoolBinOp, CodeBlock, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable, RhsKind, STExpr, STStatement, SemanticTree, VarDecl
     },
     symbols::{ContextSymbolResolver, FunctionDecl, Id, Symbols},
     types::{SLPPrimitiveType, SLPType},
@@ -169,9 +168,9 @@ impl<'a> Codegen<'a> {
             hm.insert(LocalVariable(id.0.clone()), stackalloc);
         }
         //Allocate stack space for variables in the program
-        let variables = f
-            .body
-            .iter()
+        let variables = f.body
+            .common_statements
+            .iter().chain(f.body.defer_statements.iter())
             .map(|x| self.get_variables_list(x).into_iter())
             .flatten();
         for v in variables {
@@ -188,8 +187,8 @@ impl<'a> Codegen<'a> {
     }
     fn get_variables_list<'b>(&self, stmt: &'b STStatement) -> Vec<&'b VarDecl> {
         match stmt {
-            STStatement::CodeBlock(_, b) => b
-                .iter()
+            STStatement::CodeBlock(_, b) => b.common_statements
+                .iter().chain(b.defer_statements.iter())
                 .map(|x| self.get_variables_list(x))
                 .flatten()
                 .collect(),
@@ -270,8 +269,20 @@ impl<'a> Codegen<'a> {
         localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
         syms: &HashMap<Id, FunctionValue<'a>>,
     ) {
-        for i in &f.body {
+        self.visit_codeblock(&f.body, func, localvar_stackalloc, syms)
+    }
+    fn visit_codeblock<'b>(&self,
+        cb: &'b CodeBlock,
+        func: &FunctionValue,
+        localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
+        syms: &HashMap<Id, FunctionValue<'a>>,
+    ) {
+        for i in &cb.common_statements {
             self.visit_statement(i, func, localvar_stackalloc, syms)
+        }
+        for j in cb.defer_statements.iter().rev() {
+            self.visit_statement(j, func, localvar_stackalloc, syms)
+
         }
     }
     fn visit_statement<'b>(
@@ -283,16 +294,7 @@ impl<'a> Codegen<'a> {
     ) {
         match stmt {
             STStatement::CodeBlock(_l, stmts) => {
-                //let codeblock_begin = self.ctx.context.append_basic_block(*func, "codeblock_begin");
-                //self.builder.build_unconditional_branch(codeblock_begin);
-
-                //let codeblock_end = self.ctx.context.append_basic_block(*func, "codeblock_end");
-                //self.builder.position_at_end(codeblock_begin);
-                for i in stmts {
-                    self.visit_statement(i, func, localvar_stackalloc, syms)
-                }
-                //self.builder.build_unconditional_branch(codeblock_end);
-                //self.builder.position_at_end(codeblock_end);
+                self.visit_codeblock(stmts, func, localvar_stackalloc, syms)
             }
             STStatement::Print(_, _) => todo!(),
             STStatement::FunctionCall(_, fc) => {

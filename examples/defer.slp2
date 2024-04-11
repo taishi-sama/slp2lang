@@ -1,18 +1,29 @@
+uses std_char;
 
-
-procedure t() 
+procedure print_defer() 
 begin
-
+    std_char::putchar('A');
+    std_char::putchar('f');
+    std_char::putchar('t');
+    std_char::putchar('e');
+    std_char::putchar('r');
+    std_char::putchar('\n');
 end;
 
+procedure print_before() 
 begin
-    if 1 > 0 then 
-        defer if 3 > 0 then
-                t() 
-                else t()
-    else 
-        defer if 2 > 0 then
-                t() 
-                else t();
+    std_char::putchar('B');
+    std_char::putchar('e');
+    std_char::putchar('f');
+    std_char::putchar('o');
+    std_char::putchar('r');
+    std_char::putchar('e');
+    std_char::putchar('\n');
+end;
 
+
+begin
+    defer print_defer();
+    print_before();
+    Result := 0;
 end.
