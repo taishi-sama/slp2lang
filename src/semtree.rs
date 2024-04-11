@@ -405,6 +405,7 @@ impl SemanticTree {
                 let mut cb = CodeBlock::new();
                 self.visit_statement(&d, outer, &mut cb)?;
                 code_block.defer_statements.push(STStatement::CodeBlock(l.clone(), cb));
+                code_block.common_statements.push(STStatement::DeferHint(l.clone(), code_block.defer_statements.len() - 1));
                 Ok(())
             },
         }
@@ -800,7 +801,7 @@ impl SemanticTree {
                         .unwrap()
                         .clone(),
                     loc: l.clone(),
-                    kind: RhsKind::Defer(visit_array_index),
+                    kind: RhsKind::Deref(visit_array_index),
                 })
             }
             Expr::OpUnDeref(_, _) => todo!(),
@@ -1160,6 +1161,8 @@ pub enum STStatement {
     RepeatUntil(Loc, Box<STExpr>, Box<STStatement>),
     //Expand single declaration in multiple varDecl
     VarDecl(Loc, VarDecl),
+    //Tells codegen number of last declared defer statement
+    DeferHint(Loc, usize),
     Empty(),
 }
 #[derive(Debug, Clone)]
@@ -1188,7 +1191,7 @@ pub struct RhsExpr {
 #[derive(Debug, Clone)]
 pub enum RhsKind {
     LocalVariable(LocalVariable),
-    Defer(STExpr),
+    Deref(STExpr),
     //Assumes only zero-indexed arrays
 }
 

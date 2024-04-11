@@ -208,6 +208,7 @@ impl<'a> Codegen<'a> {
             STStatement::RepeatUntil(_, _, s) => self.get_variables_list(s),
             STStatement::VarDecl(_l, d) => vec![d],
             STStatement::Empty() => vec![],
+            STStatement::DeferHint(_, _) => vec![],
         }
     }
     pub fn slp_type_to_llvm(&self, ty: &SLPType) -> BasicTypeEnum<'a> {
@@ -316,7 +317,7 @@ impl<'a> Codegen<'a> {
                         let var = localvar_stackalloc[lv];
                         self.builder.build_store(var, expr);
                     }
-                    RhsKind::Defer(ptr_expr) => {
+                    RhsKind::Deref(ptr_expr) => {
                         let ptr = self.visit_expression(ptr_expr, localvar_stackalloc, syms);
                         let ptr_val = ptr.into_pointer_value();
                         self.builder.build_store(ptr_val, expr);
@@ -388,6 +389,7 @@ impl<'a> Codegen<'a> {
                 }
             }
             STStatement::Empty() => (),
+            STStatement::DeferHint(_, _) => (),
         }
     }
     fn visit_expression<'b>(

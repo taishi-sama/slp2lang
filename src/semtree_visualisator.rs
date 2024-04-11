@@ -75,6 +75,7 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::RepeatUntil(_, _, _) => todo!(),
         STStatement::VarDecl(_, l) => vardecl(l),
         STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
+        STStatement::DeferHint(_, num) => StringTreeNode::new(format!("Location of {num}'th defer statement in this code block")),
     }
 }
 fn vardecl(vd: &VarDecl) -> StringTreeNode {
@@ -88,7 +89,7 @@ pub fn rhs(expression: &RhsExpr) -> StringTreeNode {
         crate::semtree::RhsKind::LocalVariable(v) => {
             StringTreeNode::new("Variable: ".to_string() + &v.0)
         }
-        crate::semtree::RhsKind::Defer(dt) => {
+        crate::semtree::RhsKind::Deref(dt) => {
             StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter())
         }
     }
