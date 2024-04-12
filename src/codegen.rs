@@ -232,7 +232,7 @@ impl<'a> Codegen<'a> {
                 .slp_type_to_llvm(ty)
                 .array_type(size.clone().try_into().unwrap())
                 .into(),
-            SLPType::Struct(_) => todo!(),
+            SLPType::Struct(_, _) => todo!(),
         }
     }
     pub fn slp_primitive_type_to_llvm(&self, ty: &SLPPrimitiveType) -> BasicTypeEnum<'a> {

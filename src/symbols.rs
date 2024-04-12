@@ -1,7 +1,7 @@
-use std::{collections::HashMap, mem, sync::Arc};
+use std::{collections::{HashMap, HashSet}, mem, ops::Deref, rc::Rc, sync::Arc};
 
 use crate::{
-    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type},
+    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, RecordField, Type},
     compiler::{Compiler, FileId},
     errors::SemTreeBuildErrors,
     types::{SLPPrimitiveType, SLPType, StructType},
@@ -67,9 +67,21 @@ impl ContextSymbolResolver {
 #[derive(Debug, Clone)]
 pub struct TypeResolverGenerator<'a, 'b> {
     pub compiler: &'b Compiler,
-    pub queue_to_resolve: HashMap<(FileId, Id), &'a Type>,
-    pub next_round_resolve: HashMap<(FileId, Id), &'a Type>,
+    queue_to_resolve: HashMap<(FileId, Id), ResolveTarget<'a>>,
+    next_round_resolve: HashMap<(FileId, Id), ResolveTarget<'a>>,
+    pub declared_structs: HashSet<(FileId, Id)>,
     pub resolved: HashMap<(FileId, Id), SLPTypeDecl>,
+}
+#[derive(Debug, Clone)]
+enum ResolveTarget<'a> {
+    TypeAlias(&'a Type),
+    StructDecl(PartialyResolvedRecord<'a>) 
+}
+#[derive(Debug, Clone, Default)]
+struct PartialyResolvedRecord<'a> {
+    pub resolved: HashMap<Id, SLPType>,
+    pub to_be_resolved: HashMap<Id, &'a Type>,
+    pub field_order: Rc<Vec<Id>>,
 }
 impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
     pub fn new(compiler: &'b Compiler) -> Self {
@@ -78,6 +90,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
             queue_to_resolve: Default::default(),
             next_round_resolve: Default::default(),
             resolved: Default::default(),
+            declared_structs: Default::default(),
         }
     }
     pub fn fill(&mut self, pf: &'a ProgramFile, file: FileId) {
@@ -86,9 +99,17 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                 for ty_decl in &section.decls {
                     match ty_decl {
                         crate::ast::TypeDeclElement::TypeAlias(_l, name, ty) => {
-                            self.queue_to_resolve.insert((file, Id(name.clone())), ty);
+                            self.queue_to_resolve.insert((file, Id(name.clone())), ResolveTarget::TypeAlias(ty));
                         }
-                        crate::ast::TypeDeclElement::RecordDeclare(_, _, _) => todo!(),
+                        crate::ast::TypeDeclElement::RecordDeclare(_l, name, fields) => {
+                            let mut prr = PartialyResolvedRecord::default();
+                            for i in fields {
+                                Rc::get_mut(&mut prr.field_order).unwrap().push(Id(i.id.clone()));
+                                assert!(prr.to_be_resolved.insert(Id(i.id.clone()), &i.ty.ty).is_none());
+                            }
+                            
+                            self.queue_to_resolve.insert((file, Id(name.clone())), ResolveTarget::StructDecl(prr));
+                        },
                     }
                 }
             }
@@ -102,20 +123,52 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
         };
         let mut count = self.queue_to_resolve.len();
         while self.queue_to_resolve.len() > 0 {
-            for ((fid, id), ty) in &self.queue_to_resolve {
-                if let Ok(t) = resolver.from_ast_type(ty, fid) {
-                    resolver
-                        .internal
-                        .insert((fid.clone(), id.clone()), SLPTypeDecl::TypeAlias(t));
-                } else {
-                    self.next_round_resolve
-                        .insert((fid.clone(), id.clone()), &ty);
+            for ((fid, id), rt) in &mut self.queue_to_resolve {
+                match rt {
+                    ResolveTarget::TypeAlias(ty) => {
+                        if let Ok(t) = resolver.from_ast_type(ty, fid) {
+                            resolver
+                                .internal
+                                .insert((fid.clone(), id.clone()), SLPTypeDecl::TypeAlias(t));
+                        } else {
+                            self.next_round_resolve
+                                .insert((fid.clone(), id.clone()), ResolveTarget::TypeAlias(ty));
+                        }
+                    },
+                    ResolveTarget::StructDecl(rs) => {
+                        let mut new_res = mem::take(&mut rs.resolved);
+                        let mut new_to_be_resolved: HashMap<Id, &'a Type> = HashMap::new();
+                        let field_order = rs.field_order.clone();
+                        for (id, ty) in &rs.to_be_resolved {
+                            if let Ok(t) = resolver.from_ast_type(ty, fid) {
+                                println!("Field {} is resolved", id.0);
+                                new_res.insert(id.clone(), t);
+                            }
+                            else {
+                                println!("Field {} is not resolved", id.0);
+                                new_to_be_resolved.insert(id.clone(), *ty);
+                            }
+                        }
+                        let prr = PartialyResolvedRecord { resolved: new_res, to_be_resolved: new_to_be_resolved, field_order };
+                        if !prr.to_be_resolved.is_empty() {
+                            self.next_round_resolve.insert((fid.clone(), id.clone()), ResolveTarget::StructDecl(prr));
+                        }
+                        else {
+                            let mut fields = vec![];
+                            for i in prr.field_order.as_ref() {
+                                fields.push((i.clone(), prr.resolved[i].clone()))
+                            }
+                            let st = StructType { name: id.clone(), fields };
+                            resolver.internal.insert((fid.clone(), id.clone()), SLPTypeDecl::StructDecl(st));
+                        }
+                    },
                 }
+                
             }
             mem::swap(&mut self.queue_to_resolve, &mut self.next_round_resolve);
             self.next_round_resolve.clear();
             if count <= self.queue_to_resolve.len() {
-                panic!()
+                panic!("{count} <= {}", self.queue_to_resolve.len())
             }
             count = self.queue_to_resolve.len();
         }

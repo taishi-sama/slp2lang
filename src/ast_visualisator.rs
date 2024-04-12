@@ -3,8 +3,7 @@ use std::{iter, vec};
 use text_trees::StringTreeNode;
 
 use crate::ast::{
-    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, Statement, Type,
-    TypeDeclElement, TypeDeclSectionBody, Usings, VarDecl,
+    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, RecordField, Statement, Type, TypeDeclElement, TypeDeclSectionBody, Usings, VarDecl
 };
 
 pub fn get_program_tree(pf: &ProgramFile) -> StringTreeNode {
@@ -54,8 +53,12 @@ pub fn type_decl_element(e: &TypeDeclElement) -> StringTreeNode {
         TypeDeclElement::TypeAlias(_, n, t) => {
             StringTreeNode::with_child_nodes(format!("{} = ", n), iter::once(types(t)))
         }
-        TypeDeclElement::RecordDeclare(_, _, _) => todo!(),
+        TypeDeclElement::RecordDeclare(_, n, fields) => StringTreeNode::with_child_nodes(format!("{} = ", n), fields.iter().map(record_field)),
     }
+}
+
+pub fn record_field(rf: &RecordField) -> StringTreeNode {
+    StringTreeNode::with_child_nodes(format!("{}", rf.id), vec![types(&rf.ty.ty)].into_iter())
 }
 
 pub fn arg_decl(a: &ArgDecl) -> StringTreeNode {
@@ -231,7 +234,10 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             "BinDot".to_string(),
             vec![expressions(x), StringTreeNode::new(format!("{}", y))].into_iter(),
         ),
-        Expr::OpNew(_, _, _) => todo!(),
+        Expr::OpNew(_, x, t) => StringTreeNode::with_child_nodes(
+            "New".to_string(),
+            iter::once(StringTreeNode::new(format!("{:?}", x))).chain(t.iter().map(expressions)),
+        ),
         Expr::OpBinIndex(_, x, y) => StringTreeNode::with_child_nodes(
             "BinIndex".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),

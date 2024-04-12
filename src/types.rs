@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::{compiler::FileId, symbols::Id};
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SLPType {
@@ -12,7 +14,7 @@ pub enum SLPType {
         index_offset: i64,
         ty: Box<SLPType>,
     },
-    Struct(Arc<StructType>),
+    Struct(FileId, Id),
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum SLPPrimitiveType {
@@ -99,8 +101,8 @@ impl SLPPrimitiveType {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructType {
-    pub name: String,
-    pub fields: Vec<(String, SLPType)>,
+    pub name: Id,
+    pub fields: Vec<(Id, SLPType)>,
 }
 
 impl SLPType {
@@ -114,7 +116,7 @@ impl SLPType {
                 index_offset: _,
                 ty: _,
             } => None,
-            SLPType::Struct(_) => None,
+            SLPType::Struct(_, _) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
         }
     }
@@ -128,7 +130,7 @@ impl SLPType {
                 index_offset: _,
                 ty: _,
             } => None,
-            SLPType::Struct(_) => None,
+            SLPType::Struct(_, _) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
         }
     }
@@ -142,7 +144,7 @@ impl SLPType {
                 index_offset: _,
                 ty,
             } => Some(ty.as_ref()),
-            SLPType::Struct(_) => None,
+            SLPType::Struct(_, _) => None,
             SLPType::AutoderefPointer(_) => None,
         }
     }

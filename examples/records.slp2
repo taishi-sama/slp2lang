@@ -2,3 +2,7 @@ type Hello = record
     Id: int32;
     Age: int32;
 end;
+
+begin
+    var t := new Hello(10, 20);
+end.
