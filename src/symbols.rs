@@ -206,7 +206,7 @@ impl TypeSymbolResolver {
                             if let Some(ty) = self.internal.get(&id) {
                                 return match ty {
                                     SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
-                                    SLPTypeDecl::StructDecl(_) => todo!(),
+                                    SLPTypeDecl::StructDecl(_) => Ok(SLPType::Struct(id.0, id.1)),
                                 };
                             } else {
                                 return Err(SemTreeBuildErrors::TypeConversionError);

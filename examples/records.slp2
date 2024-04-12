@@ -2,6 +2,9 @@ type Hello = record
     Id: int32;
     Age: int32;
 end;
+type Test = record 
+    Id: Hello;
+end;
 
 begin
     var t := new Hello(10, 20);
