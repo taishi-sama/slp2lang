@@ -8,4 +8,5 @@ end;
 
 begin
     var t := new Hello(10, 20);
+    Result := 0;
 end.

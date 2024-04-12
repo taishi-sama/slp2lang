@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{compiler::FileId, symbols::Id};
 
 
@@ -14,7 +12,7 @@ pub enum SLPType {
         index_offset: i64,
         ty: Box<SLPType>,
     },
-    Struct(FileId, Id),
+    Struct(String, Id),
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum SLPPrimitiveType {

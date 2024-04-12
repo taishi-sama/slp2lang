@@ -30,6 +30,7 @@ pub struct FileId(pub u32);
 pub struct Compiler {
     includes: Vec<PathBuf>,
     pub filename_to_id: Arc<HashMap<String, FileId>>,
+    pub id_to_filename: Arc<HashMap<FileId, String>>,
     id_to_filepath: HashMap<FileId, PathBuf>,
     asts: HashMap<FileId, Arc<ProgramFile>>,
     pub deps: Arc<HashMap<FileId, Vec<FileId>>>,
@@ -45,6 +46,7 @@ impl Compiler {
             queue_on_check: Default::default(),
             includes,
             id_to_filepath: Default::default(),
+            id_to_filename: Default::default(),
         }
     }
     pub fn start_compilation(&mut self, initial_file: PathBuf) -> anyhow::Result<()> {
@@ -173,7 +175,10 @@ impl Compiler {
             let counter = self.filename_to_id.len() as u32;
             Arc::get_mut(&mut self.filename_to_id)
                 .unwrap()
-                .insert(p, FileId(counter));
+                .insert(p.clone(), FileId(counter));
+            Arc::get_mut(&mut self.id_to_filename)
+                .unwrap()
+                .insert(FileId(counter), p);
             self.id_to_filepath
                 .insert(FileId(counter), path.to_path_buf());
             (FileId(counter), true)

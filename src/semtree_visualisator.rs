@@ -186,5 +186,7 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
             "Ref of local variable ".to_owned(),
             vec![StringTreeNode::new("Variable: ".to_string() + &lv.0)].into_iter(),
         ),
+        ExprKind::ConstructRecordFromArgList(x) => StringTreeNode::with_child_nodes(
+            format!("New of type: {:?}", expression.ret_type), x.iter().map(expr)),
     }
 }

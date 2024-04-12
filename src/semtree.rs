@@ -9,11 +9,13 @@ use crate::{
     ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
     compiler::FileId,
     errors::SemTreeBuildErrors,
-    symbols::{ContextSymbolResolver, Id, Symbols, TypeSymbolResolver},
+    symbols::{ContextSymbolResolver, Id, SLPTypeDecl, Symbols, TypeSymbolResolver},
     types::{SLPPrimitiveType, SLPType},
 };
 #[derive(Debug, Clone)]
 pub struct SemanticTree {
+    pub mentioned_symbols: HashSet<(FileId, Id)>,
+    
     pub semtree_name: Id,
     pub fileid: FileId,
     //Replace when supporting compilation of many files
@@ -41,6 +43,7 @@ impl SemanticTree {
             semtree_name: name,
             types_resolver: ty_res,
             fileid,
+            mentioned_symbols: Default::default(),
         };
         st.visit_program_file(pf)?;
 
@@ -218,6 +221,9 @@ impl SemanticTree {
             match t {
                 Some((id, func)) => match func {
                     crate::symbols::FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
+                        if args.len() != input.len() {
+                            panic!("Argument count ({}) should be equal to parameter count ({})", args.len(), input.len())
+                        }
                         let mut reconst_exprs = vec![];
                         for (inp_type, expr) in input.iter().zip(args.into_iter()) {
                             let res = Self::insert_impl_conversion(expr, inp_type)?;
@@ -922,8 +928,37 @@ impl SemanticTree {
                 self.resolve_typecast(&td.ty, expr, l.clone())?
             }
             Expr::OpMethodCall(_, _, _) => todo!(),
-            Expr::OpNew(_, _, _) => todo!(),
+            Expr::OpNew(l, t, args) => self.visit_new(l.clone(), t, args, scope)?,
         })
+    }
+    fn visit_new(
+        &mut self,
+        loc: Loc,
+        ty: &ast::Type,
+        args: &Vec<Expr>,
+        scope: &Scope,
+    ) -> Result<STExpr, SemTreeBuildErrors> {
+        let mut args_p = vec![]; 
+        for a in args {
+            args_p.push(self.visit_expression(a, scope)?)
+        }
+        let t = self.types_resolver.from_ast_type(ty, &self.fileid)?;
+        if let SLPType::Struct(fid, id) = &t {
+            let st = self.types_resolver.get_struct(fid, id)?.unwrap();
+            if args_p.len() != st.fields.len() {
+                panic!("Argument count ({}) should be equal to fields count ({})", args_p.len(), st.fields.len())
+            }
+            let mut reconst_exprs = vec![];
+            for (inp_type, expr) in st.fields.iter().map(|x|&x.1).zip(args_p.into_iter()) {
+                let res = Self::insert_impl_conversion(expr, inp_type)?;
+                reconst_exprs.push(res);
+            }
+            Ok(STExpr{ ret_type: t, loc, kind: ExprKind::ConstructRecordFromArgList(reconst_exprs) })
+            
+        }
+        else {
+            todo!()
+        }
     }
     fn visit_int_bin_op(
         &mut self,
@@ -1219,6 +1254,7 @@ pub enum ExprKind {
     GetElementRefToReffedArray(Box<STExpr>, Box<STExpr>),
     Deref(Box<STExpr>),
     GetLocalVariableRef(LocalVariable),
+    ConstructRecordFromArgList(Vec<STExpr>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);

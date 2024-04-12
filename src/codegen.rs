@@ -5,7 +5,7 @@ use inkwell::{
     context::Context,
     module::{Linkage, Module},
     targets::TargetMachine,
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    types::{AnyType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
@@ -14,7 +14,7 @@ use crate::{
     semtree::{
         BoolBinOp, CodeBlock, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable, RhsKind, STExpr, STStatement, SemanticTree, VarDecl
     },
-    symbols::{ContextSymbolResolver, FunctionDecl, Id, Symbols},
+    symbols::{ContextSymbolResolver, FunctionDecl, Id, Symbols, TypeSymbolResolver},
     types::{SLPPrimitiveType, SLPType},
 };
 
@@ -49,12 +49,35 @@ impl<'a> Codegen<'a> {
             target_machine: target,
         }
     }
+    pub fn register_structs<'b>(&self, tyr: &TypeSymbolResolver) {
+        for ((fid, id), decl) in &tyr.internal {
+            match decl {
+                crate::symbols::SLPTypeDecl::TypeAlias(_) => (),
+                crate::symbols::SLPTypeDecl::StructDecl(_) => {
+                    let d =  &tyr.reverse_filename_translation[fid];
+                    let canonical_name = format!("{}${}", d, &id.0);
+                    self.ctx.context.opaque_struct_type(&canonical_name);
+                },
+            }
+        }
+        for ((fid, id), decl) in &tyr.internal {
+            match decl {
+                crate::symbols::SLPTypeDecl::TypeAlias(_) => (),
+                crate::symbols::SLPTypeDecl::StructDecl(st) => {
+                    let d =  &tyr.reverse_filename_translation[fid];
+                    let canonical_name = format!("{}${}", d, &id.0);
+                    let body: Vec<_> = st.fields.iter().map(|x|&x.1).map(|x|self.slp_type_to_llvm(&x)).collect();
+                    self.ctx.context.get_struct_type(&canonical_name).unwrap().set_body(&body, false);
+                },
+            }
+        }
+    }
     pub fn compile_semtree<'b>(&self, semtree: &'b SemanticTree) {
         let syms = self.declare_symbols(&semtree.symbols);
 
         for f in &semtree.root.funcs {
             //println!("{:?}", f);
-            let id = semtree.symbols.main_file_symbols.canonical(
+            let id = semtree.symbols.main_file_symbols.canonical_functions(
                 &f.function_name,
                 &semtree.symbols.main_file_symbols.func_decls[&f.function_name],
             );
@@ -86,7 +109,7 @@ impl<'a> Codegen<'a> {
             match s {
                 FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
-                    let name = sym.canonical(id, s);
+                    let name = sym.canonical_functions(id, s);
                     let func = self.module.add_function(
                         &name.0,
                         ty,
@@ -100,7 +123,7 @@ impl<'a> Codegen<'a> {
                 }
                 FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
-                    let name = sym.canonical(id, s);
+                    let name = sym.canonical_functions(id, s);
                     let func = self.module.add_function(
                         &name.0,
                         ty,
@@ -232,7 +255,7 @@ impl<'a> Codegen<'a> {
                 .slp_type_to_llvm(ty)
                 .array_type(size.clone().try_into().unwrap())
                 .into(),
-            SLPType::Struct(_, _) => todo!(),
+            SLPType::Struct(fid, n) => self.ctx.context.get_struct_type(&format!("{fid}${}", n.0)).unwrap().into(),
         }
     }
     pub fn slp_primitive_type_to_llvm(&self, ty: &SLPPrimitiveType) -> BasicTypeEnum<'a> {
@@ -662,6 +685,16 @@ impl<'a> Codegen<'a> {
                 let ptr = localvar_stackalloc[r].clone();
                 ptr.into()
             }
+            ExprKind::ConstructRecordFromArgList(args) => {
+                let mut t = vec![];
+                for i in args {
+                    let e = self.visit_expression(i, localvar_stackalloc, syms);
+                    t.push(e);
+                }
+                let ty = self.slp_type_to_llvm(&expr.ret_type);
+                let sty = ty.into_struct_type();
+                sty.const_named_struct(&t).into()
+            },
         }
     }
     pub fn slp_func_to_llvm_func(
@@ -669,6 +702,7 @@ impl<'a> Codegen<'a> {
         args: &[(crate::symbols::Id, SLPType)],
         ret: &SLPType,
     ) -> FunctionType<'a> {
+
         let args_list: Vec<BasicMetadataTypeEnum<'a>> = args
             .iter()
             .map(|x| self.slp_type_to_llvm(&x.1).into())
@@ -679,6 +713,7 @@ impl<'a> Codegen<'a> {
             }
             y => self.slp_type_to_llvm(y).fn_type(&args_list, false),
         }
+
     }
     pub fn slp_sem_to_llvm_func(&self, args: &[SLPType], ret: &SLPType) -> FunctionType<'a> {
         let args_list: Vec<BasicMetadataTypeEnum<'a>> = args

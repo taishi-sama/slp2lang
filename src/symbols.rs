@@ -34,7 +34,7 @@ impl ContextSymbolResolver {
             let id = Id(id.name.clone());
             if let Some(sym) = self.main_file_symbols.func_decls.get(&id) {
                 return Ok(Some((
-                    self.main_file_symbols.canonical(&id, sym),
+                    self.main_file_symbols.canonical_functions(&id, sym),
                     sym.clone(),
                 )));
             }
@@ -45,7 +45,7 @@ impl ContextSymbolResolver {
             let res = self.deps_symbols.iter().find(|x| x.filename == id.path[0]);
             if let Some(syms) = res {
                 if let Some(sym) = syms.func_decls.get(&i) {
-                    return Ok(Some((syms.canonical(&i, sym), sym.clone())));
+                    return Ok(Some((syms.canonical_functions(&i, sym), sym.clone())));
                 }
                 return Ok(None);
             } else {
@@ -119,7 +119,8 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
         let mut resolver = TypeSymbolResolver {
             internal: self.resolved,
             deps: self.compiler.deps.clone(),
-            translation: self.compiler.filename_to_id.clone(),
+            filename_translation: self.compiler.filename_to_id.clone(),
+            reverse_filename_translation: self.compiler.id_to_filename.clone(),
         };
         let mut count = self.queue_to_resolve.len();
         while self.queue_to_resolve.len() > 0 {
@@ -179,9 +180,23 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
 pub struct TypeSymbolResolver {
     pub internal: HashMap<(FileId, Id), SLPTypeDecl>,
     pub deps: Arc<HashMap<FileId, Vec<FileId>>>,
-    pub translation: Arc<HashMap<String, FileId>>,
+    pub filename_translation: Arc<HashMap<String, FileId>>,
+    pub reverse_filename_translation: Arc<HashMap<FileId, String>>
 }
 impl TypeSymbolResolver {
+    pub fn canonical_structures_name(&self, fid: &FileId, id: &Id) -> Id {
+        todo!()
+    }
+    pub fn get_struct(&self, fid: &String, id: &Id) -> Result<Option<&StructType>, SemTreeBuildErrors> {
+        let f_n = self.filename_translation.as_ref().get(fid).unwrap();
+        let t = &self.internal[&(f_n.clone(), id.clone())];
+        if let SLPTypeDecl::StructDecl(sd) = t {
+            Ok(Some(sd))
+        }
+        else {
+            Ok(None)
+        }
+    }
     pub fn from_ast_type(&self, ty: &Type, file: &FileId) -> Result<SLPType, SemTreeBuildErrors> {
         match ty {
             Type::Primitive(t) => {
@@ -203,10 +218,11 @@ impl TypeSymbolResolver {
                         "char" => SLPPrimitiveType::Char,
                         _ => {
                             let id = (file.clone(), Id(t.name.clone()));
+                            let fname = self.reverse_filename_translation.as_ref().get(&id.0).unwrap();
                             if let Some(ty) = self.internal.get(&id) {
                                 return match ty {
                                     SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
-                                    SLPTypeDecl::StructDecl(_) => Ok(SLPType::Struct(id.0, id.1)),
+                                    SLPTypeDecl::StructDecl(_) => Ok(SLPType::Struct(fname.clone(), id.1)),
                                 };
                             } else {
                                 return Err(SemTreeBuildErrors::TypeConversionError);
@@ -214,7 +230,7 @@ impl TypeSymbolResolver {
                         }
                     }))
                 } else if t.path.len() == 1 {
-                    let target_fid = self.translation.get(&t.path[0]).unwrap();
+                    let target_fid = self.filename_translation.get(&t.path[0]).unwrap();
                     if self.deps.get(file).unwrap().contains(target_fid) {
                         let tmp = (target_fid.clone(), Id(t.name.clone()));
                         let ty = self.internal.get(&tmp);
@@ -252,7 +268,6 @@ pub struct Symbols {
     pub fileid: FileId,
     pub decls_order: Vec<Id>,
     pub func_decls: HashMap<Id, FunctionDecl>,
-    pub type_decls: HashMap<Id, SLPTypeDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -261,7 +276,8 @@ pub enum SLPTypeDecl {
     StructDecl(StructType),
 }
 impl Symbols {
-    pub fn canonical(&self, name: &Id, symbol: &FunctionDecl) -> Id {
+
+    pub fn canonical_functions(&self, name: &Id, symbol: &FunctionDecl) -> Id {
         if name.0 == "main" {
             name.clone()
         } else {
@@ -340,7 +356,6 @@ impl Symbols {
             filename: filename.to_string(),
             decls_order,
             func_decls: decls,
-            type_decls: Default::default(),
             fileid: fid,
         })
     }
