@@ -1,7 +1,7 @@
-use std::{collections::{HashMap, HashSet}, mem, ops::Deref, rc::Rc, sync::Arc};
+use std::{collections::{HashMap, HashSet}, mem, rc::Rc, sync::Arc};
 
 use crate::{
-    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, RecordField, Type},
+    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type},
     compiler::{Compiler, FileId},
     errors::SemTreeBuildErrors,
     types::{SLPPrimitiveType, SLPType, StructType},
