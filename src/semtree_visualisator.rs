@@ -165,20 +165,10 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
                 },
         ),
         ExprKind::CharLiteral(c) => StringTreeNode::new(format!("CharLiteral = \"{}\"", c)),
-        ExprKind::GetElementRefToLocalVariableArray(arr, index) => {
-            StringTreeNode::with_child_nodes(
-                "Indexation in local variable ".to_owned(),
-                vec![
-                    StringTreeNode::new("Variable: ".to_string() + &arr.0),
-                    expr(index),
-                ]
-                .into_iter(),
-            )
-        }
         ExprKind::Deref(dt) => {
             StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter())
         }
-        ExprKind::GetElementRefToReffedArray(arr, index) => StringTreeNode::with_child_nodes(
+        ExprKind::GetElementRefInReffedArray(arr, index) => StringTreeNode::with_child_nodes(
             "Indexation in referenced array ".to_owned(),
             vec![expr(arr), expr(index)].into_iter(),
         ),
@@ -188,5 +178,8 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ),
         ExprKind::ConstructRecordFromArgList(x) => StringTreeNode::with_child_nodes(
             format!("New of type: {:?}", expression.ret_type), x.iter().map(expr)),
+        ExprKind::GetElementRefInReffedRecord(e, field_num) => StringTreeNode::with_child_nodes(
+            format!("Taking ref of {field_num} field in referenced array "),
+            vec![expr(e)].into_iter()),
     }
 }

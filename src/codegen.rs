@@ -5,7 +5,7 @@ use inkwell::{
     context::Context,
     module::{Linkage, Module},
     targets::TargetMachine,
-    types::{AnyType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
@@ -650,25 +650,13 @@ impl<'a> Codegen<'a> {
                     crate::semtree::BoolUnaryOp::Not => self.builder.build_not(inp, "").into(),
                 }
             }
-            ExprKind::GetElementRefToLocalVariableArray(r, l) => {
-                let ptr = localvar_stackalloc[r].clone();
-                let index = self.visit_expression(&l, localvar_stackalloc, syms);
-                let pointee_type =
-                    self.slp_type_to_llvm(expr.ret_type.get_underlying_autoderef_type().unwrap());
-                unsafe {
-                    //Pray to compiler gods
-                    self.builder
-                        .build_gep(pointee_type, ptr, &vec![index.into_int_value()], "")
-                        .into()
-                }
-            }
             ExprKind::Deref(d) => {
                 let tmp = self.visit_expression(&d, localvar_stackalloc, syms);
                 let ptr = tmp.into_pointer_value();
                 let pointee_type = self.slp_type_to_llvm(&expr.ret_type);
                 self.builder.build_load(pointee_type, ptr, "")
             }
-            ExprKind::GetElementRefToReffedArray(ref_array, index) => {
+            ExprKind::GetElementRefInReffedArray(ref_array, index) => {
                 let indexable = self.visit_expression(ref_array, localvar_stackalloc, syms);
                 let ptr = indexable.into_pointer_value();
                 let index = self.visit_expression(&index, localvar_stackalloc, syms);
@@ -693,7 +681,23 @@ impl<'a> Codegen<'a> {
                 }
                 let ty = self.slp_type_to_llvm(&expr.ret_type);
                 let sty = ty.into_struct_type();
-                sty.const_named_struct(&t).into()
+                let mut f = sty.get_undef();
+                for (i, val) in t.into_iter().enumerate() {
+                    let t = self.builder.build_insert_value(f, val, i as u32, &format!("struct_build_{i}"));
+                    let t = t.unwrap();
+                    f = t.into_struct_value();
+                };
+                f.into()
+            },
+            ExprKind::GetElementRefInReffedRecord(x, y) => {
+                let pointee_type =
+                    self.slp_type_to_llvm(&x.ret_type.get_underlying_autoderef_type().unwrap());
+                let structure = self.visit_expression(x, localvar_stackalloc, syms);
+                let ptr = structure.into_pointer_value();
+                println!("{}", ptr.to_string());
+                println!("{}", pointee_type.to_string());
+
+                self.builder.build_struct_gep(pointee_type, ptr, *y, "").unwrap().into()
             },
         }
     }

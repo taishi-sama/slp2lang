@@ -9,7 +9,7 @@ use crate::{
     ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement},
     compiler::FileId,
     errors::SemTreeBuildErrors,
-    symbols::{ContextSymbolResolver, Id, SLPTypeDecl, Symbols, TypeSymbolResolver},
+    symbols::{ContextSymbolResolver, Id, Symbols, TypeSymbolResolver},
     types::{SLPPrimitiveType, SLPType},
 };
 #[derive(Debug, Clone)]
@@ -153,6 +153,14 @@ impl SemanticTree {
             Ok(res)
         } else {
             todo!()
+        }
+    }
+    ///Take autoreference from expression if it haven't AutoderefPointer type, return this expression otherwice.
+    fn autoref_or_pass(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
+        if let SLPType::AutoderefPointer(_) = &expr.ret_type {
+            Ok(expr)
+        } else {
+            Self::try_get_autoref(expr)
         }
     }
     fn insert_autoderef_or_pass(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
@@ -734,28 +742,8 @@ impl SemanticTree {
         loc: Loc,
     ) -> Result<STExpr, SemTreeBuildErrors> {
         let indexable_expr = self.visit_expression(indexable, scope)?;
-        if let SLPType::FixedArray {
-            size,
-            index_offset,
-            ty,
-        } = &indexable_expr.ret_type
-        {
-            if let ExprKind::LocalVariable(lv) = &indexable_expr.kind {
-                let index_expr =
-                    self.visit_indexation_expression(index, *index_offset, *size, scope)?;
-                let res = STExpr {
-                    ret_type: SLPType::AutoderefPointer(ty.clone()),
-                    loc,
-                    kind: ExprKind::GetElementRefToLocalVariableArray(
-                        lv.clone(),
-                        Box::new(index_expr),
-                    ),
-                };
-                Ok(res)
-            } else {
-                todo!("Implement putting array into local temporary variable")
-            }
-        } else if let SLPType::AutoderefPointer(internal_ty) = &indexable_expr.ret_type {
+        let indexable_expr_ref = Self::autoref_or_pass(indexable_expr)?;
+        if let SLPType::AutoderefPointer(internal_ty) = &indexable_expr_ref.ret_type {
             if let SLPType::FixedArray {
                 size,
                 index_offset,
@@ -767,8 +755,8 @@ impl SemanticTree {
                 let res = STExpr {
                     ret_type: SLPType::AutoderefPointer(ty.clone()),
                     loc,
-                    kind: ExprKind::GetElementRefToReffedArray(
-                        Box::new(indexable_expr),
+                    kind: ExprKind::GetElementRefInReffedArray(
+                        Box::new(indexable_expr_ref),
                         Box::new(index_expr),
                     ),
                 };
@@ -777,7 +765,7 @@ impl SemanticTree {
                 todo!()
             }
         } else {
-            todo!()
+            unreachable!()
         }
     }
     fn visit_rhs_expression(
@@ -785,59 +773,13 @@ impl SemanticTree {
         expr: &Expr,
         scope: &Scope,
     ) -> Result<RhsExpr, SemTreeBuildErrors> {
-        match expr {
-            Expr::Ident(l, i) => {
-                let id = Id(i.name.clone());
-                if let Some((lv, ty)) = scope.get_variable(&id) {
-                    Ok(RhsExpr {
-                        required_type: ty,
-                        loc: *l,
-                        kind: RhsKind::LocalVariable(lv),
-                    })
-                } else {
-                    todo!()
-                }
-            }
-            Expr::OpBinIndex(l, i, index) => {
-                let visit_array_index = self.visit_array_index(&i, &index, scope, l.clone())?;
-                Ok(RhsExpr {
-                    required_type: visit_array_index
-                        .ret_type
-                        .get_underlying_pointer_type()
-                        .unwrap()
-                        .clone(),
-                    loc: l.clone(),
-                    kind: RhsKind::Deref(visit_array_index),
-                })
-            }
-            Expr::OpUnDeref(_, _) => todo!(),
-            Expr::Constant(_, _) => todo!(),
-            Expr::OpBinPlus(_, _, _) => todo!(),
-            Expr::OpBinMinus(_, _, _) => todo!(),
-            Expr::OpBinAsterisk(_, _, _) => todo!(),
-            Expr::OpBinSlash(_, _, _) => todo!(),
-            Expr::OpBinDiv(_, _, _) => todo!(),
-            Expr::OpBinMod(_, _, _) => todo!(),
-            Expr::OpUnPlus(_, _) => todo!(),
-            Expr::OpUnMinus(_, _) => todo!(),
-            Expr::OpBinAnd(_, _, _) => todo!(),
-            Expr::OpBinOr(_, _, _) => todo!(),
-            Expr::OpBinXor(_, _, _) => todo!(),
-            Expr::OpUnNot(_, _) => todo!(),
-            Expr::OpBinShl(_, _, _) => todo!(),
-            Expr::OpBinShr(_, _, _) => todo!(),
-            Expr::OpBinLesser(_, _, _) => todo!(),
-            Expr::OpBinGreater(_, _, _) => todo!(),
-            Expr::OpBinLesserEq(_, _, _) => todo!(),
-            Expr::OpBinGreaterEq(_, _, _) => todo!(),
-            Expr::OpBinEq(_, _, _) => todo!(),
-            Expr::OpBinNotEq(_, _, _) => todo!(),
-            Expr::OpUnGetRef(_, _) => todo!(),
-            Expr::OpFunctionCall(_, _) => todo!(),
-            Expr::OpUnAs(_, _, _) => todo!(),
-            Expr::OpMethodCall(_, _, _) => todo!(),
-            Expr::OpNew(_, _, _) => todo!(),
-        }
+        let expr = self.visit_expression(expr, scope)?;
+        let try_take_autoref = Self::autoref_or_pass(expr)?;
+        Ok(RhsExpr {
+            required_type: try_take_autoref.ret_type.get_underlying_autoderef_type().unwrap().clone(),
+            loc: try_take_autoref.loc.clone(),
+            kind: RhsKind::Deref(try_take_autoref),
+        })
     }
     fn visit_expression(
         &mut self,
@@ -927,9 +869,26 @@ impl SemanticTree {
                 let expr = self.visit_expression(&e, scope)?;
                 self.resolve_typecast(&td.ty, expr, l.clone())?
             }
-            Expr::OpMethodCall(_, _, _) => todo!(),
+            Expr::OpMethodCall(l, stmt, field) => {
+                //TODO Path resolving
+                self.visit_method_call(l, &stmt, &field, scope)?
+            },
             Expr::OpNew(l, t, args) => self.visit_new(l.clone(), t, args, scope)?,
         })
+    }
+    fn visit_method_call(&mut self, l: &Loc, expr: &Expr, field: &str, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
+        let body = self.visit_expression(expr, scope)?;
+        let autoderef = Self::autoref_or_pass(body)?;
+        if let SLPType::Struct(name, id) = &autoderef.ret_type.get_underlying_autoderef_type().unwrap() {
+            let structdecl = self.types_resolver.get_struct(name, id)?.unwrap();
+            let t = structdecl.fields.iter().enumerate().find(|(_, a)|a.0.0 == field);
+            if let Some((index, (name, ty))) = t {
+                Ok(STExpr{ ret_type: SLPType::AutoderefPointer(Box::new(ty.clone())), loc: *l, kind: ExprKind::GetElementRefInReffedRecord(Box::new(autoderef), index as u32) })
+            } else {todo!()}
+        }
+        else {
+            todo!()
+        }
     }
     fn visit_new(
         &mut self,
@@ -1250,10 +1209,12 @@ pub enum ExprKind {
     PrimitiveIntComparation(Box<STExpr>, Box<STExpr>, ComparationKind),
     BoolBinOp(Box<STExpr>, Box<STExpr>, BoolBinOp),
     BoolUnaryOp(Box<STExpr>, BoolUnaryOp),
-    GetElementRefToLocalVariableArray(LocalVariable, Box<STExpr>),
-    GetElementRefToReffedArray(Box<STExpr>, Box<STExpr>),
+    GetElementRefInReffedArray(Box<STExpr>, Box<STExpr>),
+    ///Expression and field number
+    GetElementRefInReffedRecord(Box<STExpr>, u32),
     Deref(Box<STExpr>),
     GetLocalVariableRef(LocalVariable),
+    
     ConstructRecordFromArgList(Vec<STExpr>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
