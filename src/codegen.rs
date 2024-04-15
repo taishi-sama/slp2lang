@@ -11,11 +11,9 @@ use inkwell::{
 };
 
 use crate::{
-    semtree::{
+    compiler::FileId, semtree::{
         BoolBinOp, CodeBlock, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable, RhsKind, STExpr, STStatement, SemanticTree, VarDecl
-    },
-    symbols::{ContextSymbolResolver, FunctionDecl, Id, Symbols, TypeSymbolResolver},
-    types::{SLPPrimitiveType, SLPType},
+    }, symbols::{FunctionDecl, Id, GlobalSymbolResolver}, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -49,8 +47,8 @@ impl<'a> Codegen<'a> {
             target_machine: target,
         }
     }
-    pub fn register_structs<'b>(&self, tyr: &TypeSymbolResolver) {
-        for ((fid, id), decl) in &tyr.internal {
+    pub fn register_structs<'b>(&self, tyr: &GlobalSymbolResolver) {
+        for ((fid, id), decl) in &tyr.types {
             match decl {
                 crate::symbols::SLPTypeDecl::TypeAlias(_) => (),
                 crate::symbols::SLPTypeDecl::StructDecl(_) => {
@@ -60,7 +58,7 @@ impl<'a> Codegen<'a> {
                 },
             }
         }
-        for ((fid, id), decl) in &tyr.internal {
+        for ((fid, id), decl) in &tyr.types {
             match decl {
                 crate::symbols::SLPTypeDecl::TypeAlias(_) => (),
                 crate::symbols::SLPTypeDecl::StructDecl(st) => {
@@ -73,13 +71,13 @@ impl<'a> Codegen<'a> {
         }
     }
     pub fn compile_semtree<'b>(&self, semtree: &'b SemanticTree) {
-        let syms = self.declare_symbols(&semtree.symbols);
+        let syms = self.declare_symbols(semtree);
 
         for f in &semtree.root.funcs {
             //println!("{:?}", f);
-            let id = semtree.symbols.main_file_symbols.canonical_functions(
+            let id = semtree.types_resolver.canonical_functions(
+                &semtree.fileid,
                 &f.function_name,
-                &semtree.symbols.main_file_symbols.func_decls[&f.function_name],
             );
             let t = syms.get(&id).unwrap();
             self.compile_function(&f, t, &syms);
@@ -88,28 +86,30 @@ impl<'a> Codegen<'a> {
 
     pub fn declare_symbols<'b>(
         &self,
-        ctx: &'b ContextSymbolResolver,
+        semtree: &'b SemanticTree,
     ) -> HashMap<Id, FunctionValue<'a>> {
-        let t = self.declare_symbol(&ctx.main_file_symbols, false);
-        let q: Vec<_> = ctx
-            .deps_symbols
-            .iter()
-            .map(|x| self.declare_symbol(&x, true))
-            .flatten()
-            .collect();
-        t.into_iter().chain(q).collect()
+        let mut hm = HashMap::new();
+        for dep in &semtree.types_resolver.deps[&semtree.fileid] {
+            let t = self.declare_symbol(dep, &semtree.types_resolver, true);
+            hm.extend(t);
+        }
+        let t = self.declare_symbol(&semtree.fileid, &semtree.types_resolver, false);
+        hm.extend(t);
+        hm
     }
     pub fn declare_symbol<'b>(
         &self,
-        sym: &'b Symbols,
+        fid: &FileId,
+        tyr: &GlobalSymbolResolver,
         are_external: bool,
     ) -> Vec<(Id, FunctionValue<'a>)> {
         let mut v = vec![];
-        for (id, s) in &sym.func_decls {
+        for ids in &tyr.function_declare_order[fid] {
+            let s = tyr.functions.get(&(fid.clone(), ids.clone())).unwrap();
             match s {
                 FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
-                    let name = sym.canonical_functions(id, s);
+                    let name = tyr.canonical_functions(fid, ids);
                     let func = self.module.add_function(
                         &name.0,
                         ty,
@@ -123,7 +123,7 @@ impl<'a> Codegen<'a> {
                 }
                 FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
                     let ty = self.slp_sem_to_llvm_func(&input, output);
-                    let name = sym.canonical_functions(id, s);
+                    let name = tyr.canonical_functions(fid, ids);
                     let func = self.module.add_function(
                         &name.0,
                         ty,
@@ -694,8 +694,6 @@ impl<'a> Codegen<'a> {
                     self.slp_type_to_llvm(&x.ret_type.get_underlying_autoderef_type().unwrap());
                 let structure = self.visit_expression(x, localvar_stackalloc, syms);
                 let ptr = structure.into_pointer_value();
-                println!("{}", ptr.to_string());
-                println!("{}", pointee_type.to_string());
 
                 self.builder.build_struct_gep(pointee_type, ptr, *y, "").unwrap().into()
             },
@@ -719,10 +717,10 @@ impl<'a> Codegen<'a> {
         }
 
     }
-    pub fn slp_sem_to_llvm_func(&self, args: &[SLPType], ret: &SLPType) -> FunctionType<'a> {
+    pub fn slp_sem_to_llvm_func(&self, args: &[(Id, SLPType)], ret: &SLPType) -> FunctionType<'a> {
         let args_list: Vec<BasicMetadataTypeEnum<'a>> = args
             .iter()
-            .map(|x| self.slp_type_to_llvm(&x).into())
+            .map(|x| self.slp_type_to_llvm(&x.1).into())
             .collect();
         match ret {
             SLPType::PrimitiveType(SLPPrimitiveType::Void) => {

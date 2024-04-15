@@ -21,7 +21,7 @@ use crate::{
     ast_visualisator,
     semtree::SemanticTree,
     semtree_visualisator,
-    symbols::{ContextSymbolResolver, Id, Symbols, TypeResolverGenerator},
+    symbols::{Id, TypeResolverGenerator},
 };
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -68,47 +68,39 @@ impl Compiler {
         for (ids, _deps) in self.deps.iter() {
             t.fill(&self.asts[ids], ids.clone())
         }
-        let type_resolver = t.resolve();
-        let type_resolver_arc = Arc::new(type_resolver);
-        let mut syms: HashMap<FileId, Symbols> = HashMap::new();
+        let mut type_resolver = t.resolve();
+
 
         for (ids, _deps) in self.deps.iter() {
-            let p = Self::path_into_string(&self.id_to_filepath[ids]);
-            let rs = Symbols::new(&p, &self.asts[ids], ids.clone(), &type_resolver_arc)?;
-            //let ars = Arc::new(rs);
-            syms.insert(*ids, rs);
+            type_resolver.fill_function_decl(&self.asts[ids], ids)?
         }
-        let syms: HashMap<_, _> = syms.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
+        let type_resolver_arc = Arc::new(type_resolver);
 
         let mut semtrees = vec![];
         for (ids, deps) in self.deps.iter() {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);
 
             println!("Compiling {}", self.id_to_filepath[ids].to_string_lossy());
-            let ctx = ContextSymbolResolver::new(
-                syms[ids].clone(),
-                deps.iter().map(|x| syms[x].clone()).collect(),
-            );
+
             let semtree = SemanticTree::new(
                 &self.asts[ids],
-                ctx,
                 Id(p),
                 ids.clone(),
                 type_resolver_arc.clone(),
             );
             let semtree_unwrap = semtree.unwrap();
 
-            if semtree_unwrap
-                .symbols
-                .main_file_symbols
-                .func_decls
-                .contains_key(&Id("main".to_string()))
-            {
-                println!(
-                    "{}",
-                    semtree_visualisator::get_program_root(&semtree_unwrap.root)
-                );
-            }
+            //if semtree_unwrap
+            //    .symbols
+            //    .main_file_symbols
+            //    .func_decls
+            //    .contains_key(&Id("main".to_string()))
+            //{
+            //    println!(
+            //        "{}",
+            //        semtree_visualisator::get_program_root(&semtree_unwrap.root)
+            //    );
+            //}
 
             semtrees.push(semtree_unwrap);
         }

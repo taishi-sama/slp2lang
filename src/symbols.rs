@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, mem, rc::Rc, sync::Arc};
+use std::{collections::{HashMap, HashSet}, fs::File, mem, rc::Rc, sync::Arc};
 
 use crate::{
     ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type},
@@ -14,56 +14,7 @@ pub struct Id(pub String);
 
 //Declarations before any typechecking or name resolving, to make typechecks or name resolvings possible
 
-#[derive(Debug, Clone)]
-pub struct ContextSymbolResolver {
-    pub main_file_symbols: Arc<Symbols>,
-    pub deps_symbols: Vec<Arc<Symbols>>,
-}
-impl ContextSymbolResolver {
-    pub fn new(main_file_symbols: Arc<Symbols>, deps_symbols: Vec<Arc<Symbols>>) -> Self {
-        ContextSymbolResolver {
-            main_file_symbols,
-            deps_symbols,
-        }
-    }
-    pub fn resolve(
-        &self,
-        id: &Identificator,
-    ) -> Result<Option<(Id, FunctionDecl)>, SemTreeBuildErrors> {
-        if id.path.is_empty() {
-            let id = Id(id.name.clone());
-            if let Some(sym) = self.main_file_symbols.func_decls.get(&id) {
-                return Ok(Some((
-                    self.main_file_symbols.canonical_functions(&id, sym),
-                    sym.clone(),
-                )));
-            }
-            return Ok(None);
-        } else if id.path.len() == 1 {
-            let i = Id(id.name.clone());
-            //println!("{:?}", self.deps_symbols);
-            let res = self.deps_symbols.iter().find(|x| x.filename == id.path[0]);
-            if let Some(syms) = res {
-                if let Some(sym) = syms.func_decls.get(&i) {
-                    return Ok(Some((syms.canonical_functions(&i, sym), sym.clone())));
-                }
-                return Ok(None);
-            } else {
-                todo!("Can't find symbol {:?}", id)
-            }
-        } else {
-            todo!()
-        }
-    }
 
-    //fn canonical_name_of_id(id: &Identificator) -> String {
-    //    let mut t = id.path.iter().fold(String::new(), |x, y| x + "$" + y);
-    //    if t.is_empty() {
-    //        t += "$";
-    //    }
-    //    t
-    //}
-}
 #[derive(Debug, Clone)]
 pub struct TypeResolverGenerator<'a, 'b> {
     pub compiler: &'b Compiler,
@@ -115,12 +66,14 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
             }
         }
     }
-    pub fn resolve(mut self) -> TypeSymbolResolver {
-        let mut resolver = TypeSymbolResolver {
-            internal: self.resolved,
+    pub fn resolve(mut self) -> GlobalSymbolResolver {
+        let mut resolver = GlobalSymbolResolver {
+            types: self.resolved,
             deps: self.compiler.deps.clone(),
             filename_translation: self.compiler.filename_to_id.clone(),
             reverse_filename_translation: self.compiler.id_to_filename.clone(),
+            functions: Default::default(),
+            function_declare_order: Default::default(),
         };
         let mut count = self.queue_to_resolve.len();
         while self.queue_to_resolve.len() > 0 {
@@ -129,7 +82,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                     ResolveTarget::TypeAlias(ty) => {
                         if let Ok(t) = resolver.from_ast_type(ty, fid) {
                             resolver
-                                .internal
+                                .types
                                 .insert((fid.clone(), id.clone()), SLPTypeDecl::TypeAlias(t));
                         } else {
                             self.next_round_resolve
@@ -160,7 +113,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                                 fields.push((i.clone(), prr.resolved[i].clone()))
                             }
                             let st = StructType { name: id.clone(), fields };
-                            resolver.internal.insert((fid.clone(), id.clone()), SLPTypeDecl::StructDecl(st));
+                            resolver.types.insert((fid.clone(), id.clone()), SLPTypeDecl::StructDecl(st));
                         }
                     },
                 }
@@ -177,24 +130,126 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
     }
 }
 #[derive(Debug, Clone)]
-pub struct TypeSymbolResolver {
-    pub internal: HashMap<(FileId, Id), SLPTypeDecl>,
+pub struct GlobalSymbolResolver {
+    pub types: HashMap<(FileId, Id), SLPTypeDecl>,
+    pub function_declare_order: HashMap<FileId, Vec<Id>>,
+    pub functions: HashMap<(FileId, Id), FunctionDecl>,
     pub deps: Arc<HashMap<FileId, Vec<FileId>>>,
     pub filename_translation: Arc<HashMap<String, FileId>>,
     pub reverse_filename_translation: Arc<HashMap<FileId, String>>
 }
-impl TypeSymbolResolver {
+impl GlobalSymbolResolver {
+    pub fn canonical_functions(&self, fid: &FileId, id: &Id) -> Id {
+        let fn_type = self.functions.get(&(fid.clone(), id.clone())).unwrap();
+        if id.0 == "main" {
+            id.clone()
+        } else {
+            match fn_type {
+                FunctionDecl::FunctionDecl { .. } => Id(format!("{}${}", self.reverse_filename_translation[fid], id.0)),
+                FunctionDecl::ExternFunctionDecl { .. } => Id(format!("{}", id.0)),
+            }
+        }
+    }
+    pub fn fill_function_decl(&mut self, pf: &ProgramFile, fid: &FileId) -> Result<(), SemTreeBuildErrors> {
+        let mut decls = HashMap::new();
+        for dec in &pf.declarations {
+            match dec {
+                crate::ast::Declaration::Function(f) => {
+                    let i = Id(f.function_name.to_string());
+                    self.function_declare_order.entry(fid.clone()).and_modify(|x|x.push(i.clone())).or_insert(vec![i.clone()]);
+                    decls.insert(
+                        (fid.clone(), i),
+                        FunctionDecl::FunctionDecl {
+                            loc: f.loc,
+                            input: self.convert_typedecls(&fid, &f.function_args)?,
+                            output: self.from_ast_type(&f.return_arg.ty, &fid)?,
+                        },
+                    );
+                }
+                crate::ast::Declaration::ExternFunction(f) => {
+                    let i = Id(f.function_name.to_string());
+                    self.function_declare_order.entry(fid.clone()).and_modify(|x|x.push(i.clone())).or_insert(vec![i.clone()]);
+                    decls.insert(
+                        (fid.clone(), i),
+                        FunctionDecl::ExternFunctionDecl {
+                            loc: f.loc,
+                            input: self.convert_typedecls(&fid, &f.function_args)?,
+                            output: self.from_ast_type(&f.return_arg.ty, &fid)?,
+                        },
+                    );
+                }
+                crate::ast::Declaration::TypeDeclSection(_) => {
+                    //TODO
+                }
+            }
+        }
+        self.functions.extend(decls);
+        Ok(())
+    }
+    
+    fn convert_typedecls(&self,
+        fid: &FileId,
+        v: &[ArgDecl]
+    ) -> Result<Vec<(Id, SLPType)>, SemTreeBuildErrors> {
+        //v.iter()
+        //    .map(|x| x.names.iter().map(|_| res.from_ast_type(&x.ty.ty, fid)))
+        //    .flatten()
+        //    .collect()
+        let mut vardecls = vec![];
+        for vardecl in v {
+            let mut ty = self.from_ast_type(&vardecl.ty.ty, fid)?;
+            if vardecl.var_param {
+                ty = SLPType::AutoderefPointer(Box::new(ty));
+            }
+            for decl in &vardecl.names {
+                vardecls.push((Id(decl.clone()), ty.clone()))
+            }
+        }
+        Ok(vardecls)
+    }
     pub fn canonical_structures_name(&self, fid: &FileId, id: &Id) -> Id {
         todo!()
     }
     pub fn get_struct(&self, fid: &String, id: &Id) -> Result<Option<&StructType>, SemTreeBuildErrors> {
         let f_n = self.filename_translation.as_ref().get(fid).unwrap();
-        let t = &self.internal[&(f_n.clone(), id.clone())];
+        let t = &self.types[&(f_n.clone(), id.clone())];
         if let SLPTypeDecl::StructDecl(sd) = t {
             Ok(Some(sd))
         }
         else {
             Ok(None)
+        }
+    }
+    pub fn resolve_funccall(&self, fid: &FileId, id: &Identificator) -> Result<Option<(Id, FunctionDecl)>, SemTreeBuildErrors>  {
+        if id.path.is_empty() {
+            let id = Id(id.name.clone());
+            if let Some(sym) = self.functions.get(&(fid.clone(), id.clone())) {
+                return Ok(Some((
+                    self.canonical_functions(fid,&id),
+                    sym.clone(),
+                )));
+            }
+            return Ok(None);
+        } else if id.path.len() == 1 {
+            let i = Id(id.name.clone());
+            //println!("{:?}", self.deps_symbols);
+            let target_fid = self.filename_translation.get(&id.path[0]).unwrap();
+            if self.deps.get(fid).unwrap().contains(target_fid) {
+                if let Some(sym) = self.functions.get(&(fid.clone(), i.clone())) {
+                    return Ok(Some((
+                        self.canonical_functions(fid, &i),
+                        sym.clone(),
+                    )));
+                }
+                else {
+                    return Ok(None);
+                }
+            }
+            else {
+                todo!("Report that file is not in usages list")
+            }
+        } else {
+            todo!()
         }
     }
     pub fn from_ast_type(&self, ty: &Type, file: &FileId) -> Result<SLPType, SemTreeBuildErrors> {
@@ -219,7 +274,7 @@ impl TypeSymbolResolver {
                         _ => {
                             let id = (file.clone(), Id(t.name.clone()));
                             let fname = self.reverse_filename_translation.as_ref().get(&id.0).unwrap();
-                            if let Some(ty) = self.internal.get(&id) {
+                            if let Some(ty) = self.types.get(&id) {
                                 return match ty {
                                     SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
                                     SLPTypeDecl::StructDecl(_) => Ok(SLPType::Struct(fname.clone(), id.1)),
@@ -233,7 +288,7 @@ impl TypeSymbolResolver {
                     let target_fid = self.filename_translation.get(&t.path[0]).unwrap();
                     if self.deps.get(file).unwrap().contains(target_fid) {
                         let tmp = (target_fid.clone(), Id(t.name.clone()));
-                        let ty = self.internal.get(&tmp);
+                        let ty = self.types.get(&tmp);
                         if ty.is_none() {
                             println!("{:?}({}) not found", tmp, &t.path[0]);
                             return Err(SemTreeBuildErrors::TypeConversionError);
@@ -262,115 +317,24 @@ impl TypeSymbolResolver {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Symbols {
-    pub filename: String,
-    pub fileid: FileId,
-    pub decls_order: Vec<Id>,
-    pub func_decls: HashMap<Id, FunctionDecl>,
-}
 
 #[derive(Debug, Clone)]
 pub enum SLPTypeDecl {
     TypeAlias(SLPType),
     StructDecl(StructType),
 }
-impl Symbols {
 
-    pub fn canonical_functions(&self, name: &Id, symbol: &FunctionDecl) -> Id {
-        if name.0 == "main" {
-            name.clone()
-        } else {
-            match symbol {
-                FunctionDecl::FunctionDecl { .. } => Id(format!("{}${}", self.filename, name.0)),
-                FunctionDecl::ExternFunctionDecl { .. } => Id(format!("{}", name.0)),
-            }
-        }
-    }
-    pub fn convert_typedecls(
-        fid: &FileId,
-        v: &[ArgDecl],
-        res: &TypeSymbolResolver,
-    ) -> Result<Vec<(Id, SLPType)>, SemTreeBuildErrors> {
-        //v.iter()
-        //    .map(|x| x.names.iter().map(|_| res.from_ast_type(&x.ty.ty, fid)))
-        //    .flatten()
-        //    .collect()
-        let mut vardecls = vec![];
-        for vardecl in v {
-            let mut ty = res.from_ast_type(&vardecl.ty.ty, fid)?;
-            if vardecl.var_param {
-                ty = SLPType::AutoderefPointer(Box::new(ty));
-            }
-            for decl in &vardecl.names {
-                vardecls.push((Id(decl.clone()), ty.clone()))
-            }
-        }
-        Ok(vardecls)
-    }
-
-    pub fn new(
-        filename: &str,
-        pf: &ProgramFile,
-        fid: FileId,
-        res: &TypeSymbolResolver,
-    ) -> Result<Symbols, SemTreeBuildErrors> {
-        let mut decls_order = vec![];
-        let mut decls = HashMap::new();
-        for dec in &pf.declarations {
-            match dec {
-                crate::ast::Declaration::Function(f) => {
-                    decls_order.push(Id(f.function_name.to_string()));
-                    decls.insert(
-                        Id(f.function_name.to_string()),
-                        FunctionDecl::FunctionDecl {
-                            loc: f.loc,
-                            input: Self::convert_typedecls(&fid, &f.function_args, res)?
-                                .into_iter()
-                                .map(|x| x.1)
-                                .collect(),
-                            output: res.from_ast_type(&f.return_arg.ty, &fid)?,
-                        },
-                    );
-                }
-                crate::ast::Declaration::ExternFunction(f) => {
-                    decls_order.push(Id(f.function_name.to_string()));
-                    decls.insert(
-                        Id(f.function_name.to_string()),
-                        FunctionDecl::ExternFunctionDecl {
-                            loc: f.loc,
-                            input: Self::convert_typedecls(&fid, &f.function_args, res)?
-                                .into_iter()
-                                .map(|x| x.1)
-                                .collect(),
-                            output: res.from_ast_type(&f.return_arg.ty, &fid)?,
-                        },
-                    );
-                }
-                crate::ast::Declaration::TypeDeclSection(_) => {
-                    //TODO
-                }
-            }
-        }
-        Ok(Symbols {
-            filename: filename.to_string(),
-            decls_order,
-            func_decls: decls,
-            fileid: fid,
-        })
-    }
-}
 #[derive(Debug, Clone)]
 pub enum FunctionDecl {
     //There no difference in extern and not extern functions for typechecking or name resolving
     FunctionDecl {
         loc: Loc,
-        input: Vec<SLPType>,
+        input: Vec<(Id, SLPType)>,
         output: SLPType,
     },
     ExternFunctionDecl {
         loc: Loc,
-        input: Vec<SLPType>,
+        input: Vec<(Id, SLPType)>,
         output: SLPType,
     },
 }
