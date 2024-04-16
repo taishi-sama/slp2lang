@@ -72,8 +72,10 @@ impl Compiler {
 
 
         for (ids, _deps) in self.deps.iter() {
+            println!("Resolving {}", type_resolver.reverse_filename_translation[ids]);
             type_resolver.fill_function_decl(&self.asts[ids], ids)?
         }
+        println!("Function declarations resolved");
         let type_resolver_arc = Arc::new(type_resolver);
 
         let mut semtrees = vec![];

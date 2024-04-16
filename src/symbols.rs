@@ -235,9 +235,9 @@ impl GlobalSymbolResolver {
             //println!("{:?}", self.deps_symbols);
             let target_fid = self.filename_translation.get(&id.path[0]).unwrap();
             if self.deps.get(fid).unwrap().contains(target_fid) {
-                if let Some(sym) = self.functions.get(&(fid.clone(), i.clone())) {
+                if let Some(sym) = self.functions.get(&(target_fid.clone(), i.clone())) {
                     return Ok(Some((
-                        self.canonical_functions(fid, &i),
+                        self.canonical_functions(target_fid, &i),
                         sym.clone(),
                     )));
                 }

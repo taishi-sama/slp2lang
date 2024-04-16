@@ -104,7 +104,8 @@ impl<'a> Codegen<'a> {
         are_external: bool,
     ) -> Vec<(Id, FunctionValue<'a>)> {
         let mut v = vec![];
-        for ids in &tyr.function_declare_order[fid] {
+        if let Some(t) = &tyr.function_declare_order.get(fid) {
+        for ids in t.iter() {
             let s = tyr.functions.get(&(fid.clone(), ids.clone())).unwrap();
             match s {
                 FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
@@ -133,6 +134,7 @@ impl<'a> Codegen<'a> {
                 }
             }
         }
+    }
         v
     }
 

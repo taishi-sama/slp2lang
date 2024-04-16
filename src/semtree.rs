@@ -177,7 +177,7 @@ impl SemanticTree {
             Ok(expr)
         }
     }
-    fn insert_impl_conversion(expr: STExpr, to: &SLPType) -> Result<STExpr, SemTreeBuildErrors> {
+    fn insert_impl_conversion(expr: STExpr, to: &SLPType, loc: Loc) -> Result<STExpr, SemTreeBuildErrors> {
         let from = &expr.ret_type;
         if from == to {
             Ok(expr)
@@ -207,9 +207,10 @@ impl SemanticTree {
             }
         } else {
             todo!(
-                "Implement implicit conversion hierarcy: {:?} to {:?}",
+                "Implement implicit conversion hierarcy: {:?} to {:?} at {}",
                 from,
-                to
+                to,
+                loc
             )
         }
 
@@ -236,7 +237,7 @@ impl SemanticTree {
                         }
                         let mut reconst_exprs = vec![];
                         for (inp_type, expr) in input.iter().zip(args.into_iter()) {
-                            let res = Self::insert_impl_conversion(expr, &inp_type.1)?;
+                            let res = Self::insert_impl_conversion(expr, &inp_type.1, loc)?;
                             reconst_exprs.push(res);
                         }
                         return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall {
@@ -248,7 +249,7 @@ impl SemanticTree {
                     crate::symbols::FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
                         let mut reconst_exprs = vec![];
                         for (inp_type, expr) in input.iter().zip(args.into_iter()) {
-                            let res = Self::insert_impl_conversion(expr, &inp_type.1)?;
+                            let res = Self::insert_impl_conversion(expr, &inp_type.1, _loc)?;
                             reconst_exprs.push(res);
                         }
                         return Ok(FunctionCallResolveResult::FunctionCall(FunctionCall {
@@ -357,7 +358,7 @@ impl SemanticTree {
             Statement::Assignment(l, target, from) => {
                 let target = self.visit_rhs_expression(&target, &outer)?;
                 let from = self.visit_expression(&from, &outer)?;
-                let from = Self::insert_impl_conversion(from, &target.required_type)?;
+                let from = Self::insert_impl_conversion(from, &target.required_type, l.clone())?;
                 code_block.common_statements.push(STStatement::Assignment(
                     *l,
                     Box::new(target),
@@ -370,6 +371,7 @@ impl SemanticTree {
                 let cond = Self::insert_impl_conversion(
                     cond,
                     &SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                    l.clone()
                 )?;
                 let mbstmt = {
                     let mut first_scope = Scope::new_with_outer(outer);
@@ -401,6 +403,7 @@ impl SemanticTree {
                 let cond = Self::insert_impl_conversion(
                     cond,
                     &SLPType::PrimitiveType(SLPPrimitiveType::Bool),
+                    l.clone()
                 )?;
                 let mbstmt = {
                     let mut first_scope = Scope::new_with_outer(outer);
@@ -453,7 +456,7 @@ impl SemanticTree {
             ast::VarDecl::ExplicitType(s, ty, e) => {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
-                let converted_expr = Self::insert_impl_conversion(expr, &ty)?;
+                let converted_expr = Self::insert_impl_conversion(expr, &ty, l.clone())?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
                 code_block.common_statements.push(STStatement::VarDecl(
                     *l,
@@ -911,7 +914,7 @@ impl SemanticTree {
             }
             let mut reconst_exprs = vec![];
             for (inp_type, expr) in st.fields.iter().map(|x|&x.1).zip(args_p.into_iter()) {
-                let res = Self::insert_impl_conversion(expr, inp_type)?;
+                let res = Self::insert_impl_conversion(expr, inp_type, loc)?;
                 reconst_exprs.push(res);
             }
             Ok(STExpr{ ret_type: t, loc, kind: ExprKind::ConstructRecordFromArgList(reconst_exprs) })
