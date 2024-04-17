@@ -100,6 +100,7 @@ TypeDeclSection: TypeDeclSectionBody = {
 TypeDeclElement: TypeDeclElement = {
     <a:TypeAliasElement> => a,
     <a:RecordDeclElement> => a,
+    <a:ClassDeclElement> => a,
 
 }
 TypeAliasElement: TypeDeclElement = {
@@ -107,7 +108,10 @@ TypeAliasElement: TypeDeclElement = {
 }
 
 RecordDeclElement: TypeDeclElement = {
-    <tl:@L> <id: SoloId> "=" Record <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr), id, rf),
+    <tl:@L> <id: SoloId> "=" Record <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr), id, rf, RecordType::Record),
+}
+ClassDeclElement: TypeDeclElement = {
+    <tl:@L> <id: SoloId> "=" Class <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr), id, rf, RecordType::Class),
 }
 
 RecordField: RecordField = {

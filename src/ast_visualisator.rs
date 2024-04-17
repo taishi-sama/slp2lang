@@ -53,7 +53,11 @@ pub fn type_decl_element(e: &TypeDeclElement) -> StringTreeNode {
         TypeDeclElement::TypeAlias(_, n, t) => {
             StringTreeNode::with_child_nodes(format!("{} = ", n), iter::once(types(t)))
         }
-        TypeDeclElement::RecordDeclare(_, n, fields) => StringTreeNode::with_child_nodes(format!("{} = ", n), fields.iter().map(record_field)),
+        TypeDeclElement::RecordDeclare(_, n, fields, ty) => StringTreeNode::with_child_nodes(format!("{n} = {}", 
+        match ty {
+            crate::ast::RecordType::Record => "record",
+            crate::ast::RecordType::Class => "class",
+        } ), fields.iter().map(record_field)),
     }
 }
 

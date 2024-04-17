@@ -1,13 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use inkwell::{
-    builder::Builder,
-    context::Context,
-    module::{Linkage, Module},
-    targets::TargetMachine,
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
-    IntPredicate,
+    builder::Builder, context::Context, module::{Linkage, Module}, targets::TargetMachine, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue}, AddressSpace, IntPredicate
 };
 
 use crate::{
@@ -236,6 +230,14 @@ impl<'a> Codegen<'a> {
             STStatement::DeferHint(_, _) => vec![],
         }
     }
+    pub fn get_pointer_sized_int(&self) -> IntType {
+        let t = self.target_machine.get_target_data().get_pointer_byte_size(None);
+        match t {
+            4 => self.ctx.context.i32_type(),
+            8 => self.ctx.context.i64_type(),
+            a @ _  => unimplemented!("WTH, pointer size expected to be only 32 bit or 64 bit {a}"),
+        }
+    }
     pub fn slp_type_to_llvm(&self, ty: &SLPType) -> BasicTypeEnum<'a> {
         match ty {
             SLPType::PrimitiveType(p) => self.slp_primitive_type_to_llvm(p),
@@ -248,7 +250,11 @@ impl<'a> Codegen<'a> {
                 .ptr_type(Default::default())
                 .into(),
 
-            SLPType::DynArray(_) => todo!(),
+            SLPType::DynArray(b) => {
+                let arr_lenght = self.get_pointer_sized_int().into();
+                let arr_ty = self.slp_type_to_llvm(&b).into_pointer_type().into();
+                self.ctx.context.struct_type(&[arr_lenght, arr_ty], false).into()
+            },
             SLPType::FixedArray {
                 size,
                 index_offset: _index_offset,
@@ -257,7 +263,12 @@ impl<'a> Codegen<'a> {
                 .slp_type_to_llvm(ty)
                 .array_type(size.clone().try_into().unwrap())
                 .into(),
-            SLPType::Struct(fid, n) => self.ctx.context.get_struct_type(&format!("{fid}${}", n.0)).unwrap().into(),
+            SLPType::Struct(fid, n, _) => self.ctx.context.get_struct_type(&format!("{fid}${}", n.0)).unwrap().into(),
+            SLPType::RefCounter(b) => {
+                let rc_counter = self.get_pointer_sized_int().as_basic_type_enum().into_pointer_type().into();
+                let rc_ty = self.slp_type_to_llvm(&b).ptr_type(AddressSpace::default()).into();
+                self.ctx.context.struct_type(&[rc_counter, rc_ty], false).into()
+            },
         }
     }
     pub fn slp_primitive_type_to_llvm(&self, ty: &SLPPrimitiveType) -> BasicTypeEnum<'a> {
@@ -286,6 +297,7 @@ impl<'a> Codegen<'a> {
             SLPPrimitiveType::Float32 => self.ctx.context.f32_type().into(),
             SLPPrimitiveType::Float64 => self.ctx.context.f32_type().into(),
             SLPPrimitiveType::Char => self.ctx.context.i32_type().into(),
+            SLPPrimitiveType::StringLiteral(_) => todo!(),
         }
     }
     fn generate_main_body_of_function<'b>(

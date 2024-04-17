@@ -30,6 +30,7 @@ enum ResolveTarget<'a> {
 }
 #[derive(Debug, Clone, Default)]
 struct PartialyResolvedRecord<'a> {
+    pub is_class: bool,
     pub resolved: HashMap<Id, SLPType>,
     pub to_be_resolved: HashMap<Id, &'a Type>,
     pub field_order: Rc<Vec<Id>>,
@@ -52,8 +53,12 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                         crate::ast::TypeDeclElement::TypeAlias(_l, name, ty) => {
                             self.queue_to_resolve.insert((file, Id(name.clone())), ResolveTarget::TypeAlias(ty));
                         }
-                        crate::ast::TypeDeclElement::RecordDeclare(_l, name, fields) => {
+                        crate::ast::TypeDeclElement::RecordDeclare(_l, name, fields, rec_ty) => {
                             let mut prr = PartialyResolvedRecord::default();
+                            prr.is_class = match rec_ty {
+                                crate::ast::RecordType::Record => false,
+                                crate::ast::RecordType::Class => true,
+                            };
                             for i in fields {
                                 Rc::get_mut(&mut prr.field_order).unwrap().push(Id(i.id.clone()));
                                 assert!(prr.to_be_resolved.insert(Id(i.id.clone()), &i.ty.ty).is_none());
@@ -103,16 +108,20 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                                 new_to_be_resolved.insert(id.clone(), *ty);
                             }
                         }
-                        let prr = PartialyResolvedRecord { resolved: new_res, to_be_resolved: new_to_be_resolved, field_order };
+                        let prr = PartialyResolvedRecord { resolved: new_res, to_be_resolved: new_to_be_resolved, field_order, is_class: rs.is_class };
                         if !prr.to_be_resolved.is_empty() {
                             self.next_round_resolve.insert((fid.clone(), id.clone()), ResolveTarget::StructDecl(prr));
                         }
                         else {
                             let mut fields = vec![];
+                            let mut is_copiable = true;
                             for i in prr.field_order.as_ref() {
-                                fields.push((i.clone(), prr.resolved[i].clone()))
+                                let field_ty = prr.resolved[i].clone();
+                                is_copiable = is_copiable && field_ty.is_trivially_copiable();
+
+                                fields.push((i.clone(), field_ty))
                             }
-                            let st = StructType { name: id.clone(), fields };
+                            let st = StructType { name: id.clone(), fields, is_class: prr.is_class, is_copiable };
                             resolver.types.insert((fid.clone(), id.clone()), SLPTypeDecl::StructDecl(st));
                         }
                     },
@@ -214,6 +223,7 @@ impl GlobalSymbolResolver {
         let f_n = self.filename_translation.as_ref().get(fid).unwrap();
         let t = &self.types[&(f_n.clone(), id.clone())];
         if let SLPTypeDecl::StructDecl(sd) = t {
+
             Ok(Some(sd))
         }
         else {
@@ -277,7 +287,11 @@ impl GlobalSymbolResolver {
                             if let Some(ty) = self.types.get(&id) {
                                 return match ty {
                                     SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
-                                    SLPTypeDecl::StructDecl(_) => Ok(SLPType::Struct(fname.clone(), id.1)),
+                                    SLPTypeDecl::StructDecl(d) => if d.is_class {
+                                        Ok(SLPType::RefCounter(Box::new(SLPType::Struct(fname.clone(), id.1, d.is_copiable))))
+                                    } else {
+                                        Ok(SLPType::Struct(fname.clone(), id.1, d.is_copiable))
+                                    },
                                 };
                             } else {
                                 return Err(SemTreeBuildErrors::TypeConversionError);

@@ -1,0 +1,16 @@
+type Hello = class 
+    Id: int32;
+    Age: int32;
+end;
+type Test = record 
+    Id: Hello;
+end;
+
+begin
+    var q := 1;
+    while q < 20 do 
+        q := q + 1; //To make q non-constant
+    var t := new Hello(q, 20);
+    t.Id := 0;
+    Result := t.Id;
+end.

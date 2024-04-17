@@ -168,11 +168,14 @@ impl SemanticTree {
     fn insert_autoderef_or_pass(expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
         if let Some(ty) = expr.ret_type.get_underlying_autoderef_type() {
             let target = ty.clone();
-            Ok(STExpr {
-                ret_type: target,
-                loc: expr.loc.clone(),
-                kind: ExprKind::Deref(Box::new(expr)),
-            })
+            if target.is_trivially_copiable() {
+                Ok(STExpr {
+                    ret_type: target,
+                    loc: expr.loc.clone(),
+                    kind: ExprKind::Deref(Box::new(expr)),
+                })
+            }
+            else {todo!()}
         } else {
             Ok(expr)
         }
@@ -717,6 +720,7 @@ impl SemanticTree {
                     SLPPrimitiveType::Char => todo!(),
                     SLPPrimitiveType::Bool => todo!(),
                     SLPPrimitiveType::Void => todo!(),
+                    SLPPrimitiveType::StringLiteral(_) => todo!(),
                 },
                 _ => todo!(),
             };
@@ -884,7 +888,7 @@ impl SemanticTree {
     fn visit_method_call(&mut self, l: &Loc, expr: &Expr, field: &str, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
         let body = self.visit_expression(expr, scope)?;
         let autoderef = Self::autoref_or_pass(body)?;
-        if let SLPType::Struct(name, id) = &autoderef.ret_type.get_underlying_autoderef_type().unwrap() {
+        if let SLPType::Struct(name, id, _) = &autoderef.ret_type.get_underlying_autoderef_type().unwrap() {
             let structdecl = self.types_resolver.get_struct(name, id)?.unwrap();
             let t = structdecl.fields.iter().enumerate().find(|(_, a)|a.0.0 == field);
             if let Some((index, (name, ty))) = t {
@@ -907,7 +911,7 @@ impl SemanticTree {
             args_p.push(self.visit_expression(a, scope)?)
         }
         let t = self.types_resolver.from_ast_type(ty, &self.fileid)?;
-        if let SLPType::Struct(fid, id) = &t {
+        if let SLPType::Struct(fid, id, _) = &t {
             let st = self.types_resolver.get_struct(fid, id)?.unwrap();
             if args_p.len() != st.fields.len() {
                 panic!("Argument count ({}) should be equal to fields count ({})", args_p.len(), st.fields.len())

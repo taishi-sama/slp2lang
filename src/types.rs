@@ -12,7 +12,9 @@ pub enum SLPType {
         index_offset: i64,
         ty: Box<SLPType>,
     },
-    Struct(String, Id),
+    ///Bool indicates that struct is trivially copiable
+    Struct(String, Id, bool), 
+    RefCounter(Box<SLPType>),
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum SLPPrimitiveType {
@@ -29,6 +31,7 @@ pub enum SLPPrimitiveType {
     Float32,
     Float64,
     String,
+    StringLiteral(u32),
     Char,
     Bool,
     Void,
@@ -53,6 +56,7 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::Void => false,
             SLPPrimitiveType::Float32 => false,
             SLPPrimitiveType::Float64 => false,
+            SLPPrimitiveType::StringLiteral(_) => false,
         }
     }
     //Size in bytes
@@ -74,6 +78,7 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::Bool => None,
             SLPPrimitiveType::Void => None,
             SLPPrimitiveType::Char => Some(4),
+            SLPPrimitiveType::StringLiteral(_) => None,
         }
     }
     pub fn is_unsigned_int(&self) -> bool {
@@ -99,11 +104,42 @@ impl SLPPrimitiveType {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructType {
+    pub is_class: bool,
+    pub is_copiable: bool,
     pub name: Id,
     pub fields: Vec<(Id, SLPType)>,
 }
 
 impl SLPType {
+    pub fn is_trivially_copiable(&self) -> bool {
+        match self {
+            SLPType::PrimitiveType(x) => match x {
+                SLPPrimitiveType::Int8 => true,
+                SLPPrimitiveType::Int16 => true,
+                SLPPrimitiveType::Int32 => true,
+                SLPPrimitiveType::Int64 => true,
+                SLPPrimitiveType::Uint8 => true,
+                SLPPrimitiveType::Uint16 => true,
+                SLPPrimitiveType::Uint32 => true,
+                SLPPrimitiveType::Uint64 => true,
+                SLPPrimitiveType::ISize => true,
+                SLPPrimitiveType::USize => true,
+                SLPPrimitiveType::Float32 => true,
+                SLPPrimitiveType::Float64 => true,
+                SLPPrimitiveType::String => todo!(),
+                SLPPrimitiveType::StringLiteral(_) => todo!(),
+                SLPPrimitiveType::Char => true,
+                SLPPrimitiveType::Bool => true,
+                SLPPrimitiveType::Void => todo!(),
+            },
+            SLPType::Pointer(x) => true,
+            SLPType::AutoderefPointer(x) => true,
+            SLPType::DynArray(_) => false,
+            SLPType::FixedArray { size, index_offset, ty } => ty.is_trivially_copiable(),
+            SLPType::Struct(_, _, t) => *t,
+            SLPType::RefCounter(_) => false,
+        }
+    }
     pub fn get_underlying_pointer_type(&self) -> Option<&SLPType> {
         match self {
             SLPType::PrimitiveType(_) => None,
@@ -114,8 +150,9 @@ impl SLPType {
                 index_offset: _,
                 ty: _,
             } => None,
-            SLPType::Struct(_, _) => None,
+            SLPType::Struct(_, _, _) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
+            SLPType::RefCounter(_) => todo!(),
         }
     }
     pub fn get_underlying_autoderef_type(&self) -> Option<&SLPType> {
@@ -128,8 +165,9 @@ impl SLPType {
                 index_offset: _,
                 ty: _,
             } => None,
-            SLPType::Struct(_, _) => None,
+            SLPType::Struct(_, _, _) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
+            SLPType::RefCounter(_) => todo!(),
         }
     }
     pub fn get_underlying_array_type(&self) -> Option<&SLPType> {
@@ -142,8 +180,9 @@ impl SLPType {
                 index_offset: _,
                 ty,
             } => Some(ty.as_ref()),
-            SLPType::Struct(_, _) => None,
+            SLPType::Struct(_, _, _) => None,
             SLPType::AutoderefPointer(_) => None,
+            SLPType::RefCounter(_) => todo!(),
         }
     }
     pub fn is_static_sized_array(&self) -> bool {
