@@ -2,7 +2,7 @@ uses ctypes;
 type
     c_int_here = ctypes::c_int;
 
-function identity(i: int32) : c_int_here 
+function identity(i: int32) : c_int_here;
 begin
     Result := i;
 end;

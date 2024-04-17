@@ -1,6 +1,6 @@
 uses cstd, ctypes;
 
-procedure putchar(c: char) 
+procedure putchar(c: char);
 begin
     var ch := int32(c);
     if ch >= 0i32 then 

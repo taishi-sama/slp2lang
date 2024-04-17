@@ -1,6 +1,6 @@
 uses std_char;
 
-procedure print_defer() 
+procedure print_defer();
 begin
     std_char::putchar('A');
     std_char::putchar('f');
@@ -10,7 +10,7 @@ begin
     std_char::putchar('\n');
 end;
 
-procedure print_before() 
+procedure print_before();
 begin
     std_char::putchar('B');
     std_char::putchar('e');
@@ -24,6 +24,7 @@ end;
 
 begin
     defer print_defer();
+
     print_before();
     Result := 0;
 end.

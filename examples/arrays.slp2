@@ -1,6 +1,6 @@
 uses std_char;
 
-function t(): array [0..12] of char
+function t(): array [0..12] of char;
 begin
     var arr : array [0..12] of char;
     arr[0] := 'H';

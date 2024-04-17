@@ -3,7 +3,7 @@ uses std_char;
 type
     arr = array [1..10] of int32;
 
-procedure update(var a: arr) 
+procedure update(var a: arr);
 begin
     var i := 1; 
     while i <= 10 do

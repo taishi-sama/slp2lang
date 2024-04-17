@@ -1,10 +1,10 @@
 uses cstd, ctypes;
 
-function writechar(c: int8): ctypes::c_int
+function writechar(c: int8): ctypes::c_int;
 begin
     Result:= cstd::putchar(c);
 end; 
-function getchar():int32 
+function getchar():int32;
 begin
     Result := cstd::getchar();
 end;

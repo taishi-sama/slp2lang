@@ -115,10 +115,10 @@ RecordField: RecordField = {
 }
 
 ProcedureDecl: FunctionBody = {
-    <tl:@L> Procedure <f:SoloId> "(" <fa:ArgsList> ")" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
+    <tl:@L> Procedure <f:SoloId> "(" <fa:ArgsList> ")" ";" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
 };
 FunctionDecl: FunctionBody = {
-    <tl:@L> Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: ret}
+    <tl:@L> Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: ret}
 }
 ExternalFunctionDecl: ExternFunctionBody = {
     <tl:@L> External Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";"<tr:@R> => ExternFunctionBody{loc:Loc::new(tl, tr), function_name: f, function_args: fa, return_arg: ret}
