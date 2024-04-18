@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fs::File, mem, rc::Rc, sync::Arc};
+use std::{collections::{HashMap, HashSet}, mem, rc::Rc, sync::Arc};
 
 use crate::{
     ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type},

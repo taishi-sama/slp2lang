@@ -1,7 +1,7 @@
 use crate::{compiler::FileId, symbols::Id};
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SLPType {
     PrimitiveType(SLPPrimitiveType),
     Pointer(Box<SLPType>),
@@ -16,7 +16,7 @@ pub enum SLPType {
     Struct(String, Id, bool), 
     RefCounter(Box<SLPType>),
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SLPPrimitiveType {
     Int8,
     Int16,
@@ -101,6 +101,7 @@ impl SLPPrimitiveType {
             false
         }
     }
+
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructType {
@@ -111,6 +112,35 @@ pub struct StructType {
 }
 
 impl SLPType {
+    pub fn normalized_name(&self) -> Id {
+        match &self {
+            SLPType::PrimitiveType(ty) => match ty {
+                SLPPrimitiveType::Int8 => Id("int8".to_string()),
+                SLPPrimitiveType::Int16 => Id("int16".to_string()),
+                SLPPrimitiveType::Int32 => Id("int32".to_string()),
+                SLPPrimitiveType::Int64 => Id("int64".to_string()),
+                SLPPrimitiveType::Uint8 => Id("uint8".to_string()),
+                SLPPrimitiveType::Uint16 => Id("uint16".to_string()),
+                SLPPrimitiveType::Uint32 => Id("uint32".to_string()),
+                SLPPrimitiveType::Uint64 => Id("uint64".to_string()),
+                SLPPrimitiveType::ISize => Id("isize".to_string()),
+                SLPPrimitiveType::USize => Id("usize".to_string()),
+                SLPPrimitiveType::Float32 => Id("float32".to_string()),
+                SLPPrimitiveType::Float64 => Id("float64".to_string()),
+                SLPPrimitiveType::String => Id("string".to_string()),
+                SLPPrimitiveType::StringLiteral(l) => Id(format!("strlit{}", l)),
+                SLPPrimitiveType::Char => Id(format!("char")),
+                SLPPrimitiveType::Bool => Id(format!("bool")),
+                SLPPrimitiveType::Void => todo!(),
+            },
+            SLPType::Pointer(t) => Id(format!("ptr@{}", t.normalized_name().0)),
+            SLPType::AutoderefPointer(t) => Id(format!("autoref@{}", t.normalized_name().0)),
+            SLPType::DynArray(t) => Id(format!("dinarray@{}", t.normalized_name().0)),
+            SLPType::FixedArray { size, index_offset, ty } => Id(format!("fixsizearray{size}_{index_offset}@{}", ty.normalized_name().0)),
+            SLPType::Struct(s, t, _) => Id(format!("struct_{}_{}",s, &t.0)),
+            SLPType::RefCounter(t) => Id(format!("rc@{}", t.normalized_name().0)),
+        }
+    } 
     pub fn is_trivially_copiable(&self) -> bool {
         match self {
             SLPType::PrimitiveType(x) => match x {

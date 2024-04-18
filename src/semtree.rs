@@ -175,7 +175,13 @@ impl SemanticTree {
                     kind: ExprKind::Deref(Box::new(expr)),
                 })
             }
-            else {todo!()}
+            else {
+                todo!();
+                Ok(STExpr {
+                ret_type: target,
+                loc: expr.loc.clone(),
+                kind: ExprKind::Clone(Box::new(expr)),
+            })}
         } else {
             Ok(expr)
         }
@@ -234,7 +240,7 @@ impl SemanticTree {
             let t = self.types_resolver.resolve_funccall(&self.fileid, id)?;
             match t {
                 Some((id, func)) => match func {
-                    crate::symbols::FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
+                    FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
                         if args.len() != input.len() {
                             panic!("Argument count ({}) should be equal to parameter count ({})", args.len(), input.len())
                         }
@@ -249,7 +255,7 @@ impl SemanticTree {
                             ret_type: output.clone(),
                         }));
                     }
-                    crate::symbols::FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
+                    FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
                         let mut reconst_exprs = vec![];
                         for (inp_type, expr) in input.iter().zip(args.into_iter()) {
                             let res = Self::insert_impl_conversion(expr, &inp_type.1, _loc)?;
@@ -359,12 +365,18 @@ impl SemanticTree {
                 }
             }
             Statement::Assignment(l, target, from) => {
-                let target = self.visit_rhs_expression(&target, &outer)?;
                 let from = self.visit_expression(&from, &outer)?;
+
+                let target = self.visit_rhs_expression(&target, &outer)?;
+
                 let from = Self::insert_impl_conversion(from, &target.required_type, l.clone())?;
+                let middle_drop = if target.required_type.is_trivially_copiable() {None} else {todo!()};
+
+
                 code_block.common_statements.push(STStatement::Assignment(
                     *l,
                     Box::new(target),
+                    middle_drop,
                     Box::new(from),
                 ));
                 Ok(())
@@ -449,7 +461,7 @@ impl SemanticTree {
                         VarDecl {
                             id: lv,
                             ty: ty.clone(),
-                            init_expr: None,
+                            init_expr: STExpr { ret_type: ty.clone(), loc: l.clone(), kind: ExprKind::Default },
                         },
                     );
                     code_block.common_statements.push(t);
@@ -466,7 +478,7 @@ impl SemanticTree {
                     VarDecl {
                         id: lv,
                         ty,
-                        init_expr: Some(converted_expr),
+                        init_expr: converted_expr,
                     },
                 ));
                 Ok(())                
@@ -480,7 +492,7 @@ impl SemanticTree {
                     VarDecl {
                         id: lv,
                         ty: expr.ret_type.clone(),
-                        init_expr: Some(self.visit_expression(e, scope)?),
+                        init_expr: self.visit_expression(e, scope)?,
                     },
                 ));
                 Ok(())
@@ -1157,8 +1169,9 @@ pub enum STStatement {
     CodeBlock(Loc, CodeBlock),
     Print(Loc, Box<STExpr>),
     FunctionCall(Loc, FunctionCall),
-    //RHS, LHS
-    Assignment(Loc, Box<RhsExpr>, Box<STExpr>),
+    BuildInCall(BuildInCall),
+    ///RHS, Drop expression, LHS
+    Assignment(Loc, Box<RhsExpr>, Option<Box<STStatement>>, Box<STExpr>),
     If(Loc, Box<STExpr>, Box<STStatement>, Option<Box<STStatement>>),
     While(Loc, Box<STExpr>, Box<STStatement>),
     RepeatUntil(Loc, Box<STExpr>, Box<STStatement>),
@@ -1172,10 +1185,16 @@ pub enum STStatement {
 pub struct VarDecl {
     pub id: LocalVariable,
     pub ty: SLPType,
-    pub init_expr: Option<STExpr>,
+    pub init_expr: STExpr,
 }
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
+    pub func: Id,
+    pub args: Vec<STExpr>,
+    pub ret_type: SLPType,
+}
+#[derive(Debug, Clone)]
+pub struct BuildInCall {
     pub func: Id,
     pub args: Vec<STExpr>,
     pub ret_type: SLPType,
@@ -1213,6 +1232,10 @@ pub enum ExprKind {
     BoolLiteral(bool),
     CharLiteral(char),
     FunctionCall(FunctionCall),
+    BuildInCall(BuildInCall),
+
+    Default,
+
     PrimitiveIntBinOp(Box<STExpr>, Box<STExpr>, IntBinOp),
     PrimitiveIntUnaryOp(Box<STExpr>, IntUnaryOp),
     PrimitiveIntComparation(Box<STExpr>, Box<STExpr>, ComparationKind),
@@ -1222,9 +1245,10 @@ pub enum ExprKind {
     ///Expression and field number
     GetElementRefInReffedRecord(Box<STExpr>, u32),
     Deref(Box<STExpr>),
+    Clone(Box<STExpr>),
     GetLocalVariableRef(LocalVariable),
-    
     ConstructRecordFromArgList(Vec<STExpr>),
+    IsNull(Box<STExpr>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);

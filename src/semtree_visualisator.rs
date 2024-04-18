@@ -63,7 +63,7 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
             fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
             fc.args.iter().map(expr),
         ),
-        STStatement::Assignment(_, x, y) => StringTreeNode::with_child_nodes(
+        STStatement::Assignment(_, x, z, y) => StringTreeNode::with_child_nodes(
             "Assign".to_string(),
             vec![rhs(x), expr(y)].into_iter(),
         ),
@@ -76,12 +76,13 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::VarDecl(_, l) => vardecl(l),
         STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
         STStatement::DeferHint(_, num) => StringTreeNode::new(format!("Location of {num}'th defer statement in this code block")),
+        STStatement::BuildInCall(_) => todo!(),
     }
 }
 fn vardecl(vd: &VarDecl) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
         format!("var {}: {:?}", vd.id.0, vd.ty),
-        vd.init_expr.as_ref().map(expr).into_iter(),
+        vec![expr(&vd.init_expr)].into_iter(),
     )
 }
 pub fn rhs(expression: &RhsExpr) -> StringTreeNode {
@@ -181,5 +182,9 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::GetElementRefInReffedRecord(e, field_num) => StringTreeNode::with_child_nodes(
             format!("Taking ref of {field_num} field in referenced array "),
             vec![expr(e)].into_iter()),
+        ExprKind::Clone(_) => todo!(),
+        ExprKind::BuildInCall(_) => todo!(),
+        ExprKind::Default => todo!(),
+        ExprKind::IsNull(_) => todo!(),
     }
 }

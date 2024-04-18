@@ -24,6 +24,7 @@ pub mod semtree;
 pub mod semtree_visualisator;
 pub mod symbols;
 pub mod types;
+pub mod buildins;
 
 lalrpop_mod!(pub grammar);
 fn main() {

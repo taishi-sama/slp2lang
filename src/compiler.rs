@@ -8,10 +8,7 @@
 // Link resulting .obj file into executable
 
 use std::{
-    collections::{HashMap, VecDeque},
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
+    collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, str::FromStr, sync::Arc
 };
 
 use anyhow::Ok;
@@ -23,7 +20,7 @@ use crate::{
     semtree_visualisator,
     symbols::{Id, TypeResolverGenerator},
 };
-
+const COMPILER_BUILDINS_MODULE_FID: FileId = FileId(0);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileId(pub u32);
 #[derive(Debug, Clone)]
@@ -54,7 +51,7 @@ impl Compiler {
         let ast = crate::grammar::ProgramBlockParser::new()
             .parse(&text)
             .unwrap();
-
+        self.add_fid_as("$build-in$", COMPILER_BUILDINS_MODULE_FID);
         let fid = self.path_to_fileid_mut(&initial_file);
         let pf = Arc::new(ast);
         println!("{}", ast_visualisator::get_program_tree(&pf));
@@ -160,13 +157,25 @@ impl Compiler {
     fn path_into_string(path: &Path) -> String {
         path.file_stem().unwrap().to_string_lossy().into_owned()
     }
+    fn add_fid_as(&mut self, str: &str, fid: FileId) {
+        let counter = self.filename_to_id.len() as u32 + 1;
+        Arc::get_mut(&mut self.filename_to_id)
+                .unwrap()
+                .insert(str.to_string(), FileId(counter));
+        Arc::get_mut(&mut self.id_to_filename)
+                .unwrap()
+                .insert(FileId(counter), str.to_string());
+        self.id_to_filepath
+                .insert(FileId(counter), PathBuf::from_str(str).unwrap());
+        
+    } 
     fn path_to_fileid_mut(&mut self, path: &Path) -> (FileId, bool) {
         //Properly do hierarchy
         let p = Self::path_into_string(path);
         if let Some(f) = self.filename_to_id.get(&p) {
             (f.clone(), false)
         } else {
-            let counter = self.filename_to_id.len() as u32;
+            let counter = self.filename_to_id.len() as u32 + 1;
             Arc::get_mut(&mut self.filename_to_id)
                 .unwrap()
                 .insert(p.clone(), FileId(counter));
