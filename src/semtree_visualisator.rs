@@ -113,6 +113,7 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
                     NumberLiteral::I16(i) => i.to_string(),
                     NumberLiteral::U8(i) => i.to_string(),
                     NumberLiteral::I8(i) => i.to_string(),
+                    NumberLiteral::ISize(i) => i.to_string(),
                 },
         ),
         ExprKind::FunctionCall(fc) => StringTreeNode::with_child_nodes(
@@ -186,5 +187,7 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::BuildInCall(_) => todo!(),
         ExprKind::Default => todo!(),
         ExprKind::IsNull(_) => todo!(),
+        ExprKind::RefCountDecrease(_) => todo!(),
+        ExprKind::RefCountIncrease(_) => todo!(),
     }
 }

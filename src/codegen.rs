@@ -232,7 +232,7 @@ impl<'a> Codegen<'a> {
             STStatement::BuildInCall(_) => todo!(),
         }
     }
-    pub fn get_pointer_sized_int(&self) -> IntType {
+    pub fn get_pointer_sized_int(&self) -> IntType<'a> {
         let t = self.target_machine.get_target_data().get_pointer_byte_size(None);
         match t {
             4 => self.ctx.context.i32_type(),
@@ -356,6 +356,31 @@ impl<'a> Codegen<'a> {
 
             },
             SLPType::RefCounter(rc) => self.slp_type_to_llvm(ty).const_zero(),
+        }
+    }
+    fn build_is_null<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>, tyr: &GlobalSymbolResolver) -> BasicValueEnum<'a> {
+        let t = self.visit_expression(expr, localvar_stackalloc, syms, tyr);
+
+        match &expr.ret_type {
+            SLPType::PrimitiveType(_) => todo!(),
+            SLPType::Pointer(ptr) => self.builder.build_is_null(t.into_pointer_value(), "is_null").into(),
+            SLPType::AutoderefPointer(_) => todo!(),
+            SLPType::DynArray(_) => {
+                //let t: PointerValue<'a> = unsafe { self.builder.build_gep(, t.into_pointer_value(), 0, "rc_nullcheck_1") };
+                //let q = self.builder.build_struct_gep(self.get_pointer_sized_int().as_basic_type_enum(), t.into_pointer_value(), 0, "").unwrap();
+                let stct = t.into_struct_value();
+                let q = self.builder.build_extract_value(stct, 1, "is_null").unwrap();
+                self.builder.build_is_null(q.into_pointer_value(), "is_null").into()
+            },
+            SLPType::FixedArray { size, index_offset, ty } => todo!(),
+            SLPType::Struct(_, _, _) => todo!(),
+            SLPType::RefCounter(_) => {
+                //let t: PointerValue<'a> = unsafe { self.builder.build_gep(, t.into_pointer_value(), 0, "rc_nullcheck_1") };
+                //let q = self.builder.build_struct_gep(self.get_pointer_sized_int().as_basic_type_enum(), t.into_pointer_value(), 0, "").unwrap();
+                let stct = t.into_struct_value();
+                let q = self.builder.build_extract_value(stct, 0, "is_null").unwrap();
+                self.builder.build_is_null(q.into_pointer_value(), "is_null").into()
+            },
         }
     }
     fn generate_main_body_of_function<'b>(
@@ -588,6 +613,9 @@ impl<'a> Codegen<'a> {
                 crate::semtree::NumberLiteral::U8(i) => {
                     BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as u64, false))
                 }
+                crate::semtree::NumberLiteral::ISize(i) => {
+                    self.get_pointer_sized_int().const_int(*i as u64, true).into()
+                },
             },
             ExprKind::FloatLiteral(_) => todo!(),
             ExprKind::CharLiteral(c) => BasicValueEnum::IntValue(
@@ -777,19 +805,10 @@ impl<'a> Codegen<'a> {
             ExprKind::BuildInCall(_) => todo!(),
             ExprKind::Default => self.build_default(&expr.ret_type, tyr),
             ExprKind::IsNull(expr) => {
-                let t = self.visit_expression(expr, localvar_stackalloc, syms, tyr);
-
-                // match &expr.ret_type {
-                //     SLPType::PrimitiveType(_) => todo!(),
-                //     SLPType::Pointer(ptr) => self.builder.build_is_null(t.into_pointer_value().into(), "is_null"),
-                //     SLPType::AutoderefPointer(_) => todo!(),
-                //     SLPType::DynArray(_) => todo!(),
-                //     SLPType::FixedArray { size, index_offset, ty } => todo!(),
-                //     SLPType::Struct(_, _, _) => todo!(),
-                //     SLPType::RefCounter(_) => todo!(),
-                // }
-                todo!()
+                self.build_is_null(expr, localvar_stackalloc, syms, tyr)
             },
+            ExprKind::RefCountDecrease(_) => todo!(),
+            ExprKind::RefCountIncrease(_) => todo!(),
         }
     }
     pub fn slp_func_to_llvm_func(

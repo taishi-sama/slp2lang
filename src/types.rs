@@ -112,6 +112,19 @@ pub struct StructType {
 }
 
 impl SLPType {
+    pub fn bool() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::Bool)
+    }
+    pub fn isize() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::ISize)
+    }
+    pub fn deref_or_pass(&self) -> Self {
+        if let SLPType::AutoderefPointer(_) = self {
+            self.clone()
+        } else {
+            SLPType::AutoderefPointer(Box::new(self.clone()))
+        }
+    }
     pub fn normalized_name(&self) -> Id {
         match &self {
             SLPType::PrimitiveType(ty) => match ty {

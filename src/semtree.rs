@@ -1179,6 +1179,7 @@ pub enum STStatement {
     VarDecl(Loc, VarDecl),
     //Tells codegen number of last declared defer statement
     DeferHint(Loc, usize),
+    //Ex
     Empty(),
 }
 #[derive(Debug, Clone)]
@@ -1223,6 +1224,11 @@ pub struct STExpr {
     pub loc: Loc,
     pub kind: ExprKind,
 }
+impl STExpr {
+    pub fn new(ret_type: SLPType, loc: Loc, kind: ExprKind) -> Self {
+        STExpr { ret_type, loc, kind }
+    }
+}
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     LocalVariable(LocalVariable),
@@ -1248,7 +1254,12 @@ pub enum ExprKind {
     Clone(Box<STExpr>),
     GetLocalVariableRef(LocalVariable),
     ConstructRecordFromArgList(Vec<STExpr>),
+    ///Checks pointer, dynamic array or reference counter to be null(default-initialized) or not. Expects type by value, so deref before passing. 
     IsNull(Box<STExpr>),
+    ///Expect reference on refcounter, returns true if refcount reaches zero,
+    RefCountDecrease(Box<STExpr>),
+    RefCountIncrease(Box<STExpr>)
+
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalVariable(pub String);
@@ -1262,6 +1273,7 @@ pub enum NumberLiteral {
     U32(u32),
     U16(u16),
     U8(u8),
+    ISize(i64),
 }
 #[derive(Debug, Clone)]
 pub enum FloatLiteral {
