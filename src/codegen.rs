@@ -571,8 +571,8 @@ impl<'a> Codegen<'a> {
                             "UnsignedIntTruncate",
                         )
                         .into(),
-                    crate::semtree::TypeConversionKind::SignedToUnsigned => todo!(),
-                    crate::semtree::TypeConversionKind::UnsignedToSigned => todo!(),
+                    crate::semtree::TypeConversionKind::SignedToUnsigned => inp,
+                    crate::semtree::TypeConversionKind::UnsignedToSigned => inp,
                     crate::semtree::TypeConversionKind::SignedToUnsignedExtend => todo!(),
                     crate::semtree::TypeConversionKind::UnsignedToSignedExtend => todo!(),
                     crate::semtree::TypeConversionKind::SignedToUnsignedTruncate => todo!(),
