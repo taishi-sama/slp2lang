@@ -118,7 +118,10 @@ impl SLPType {
     pub fn isize() -> Self {
         SLPType::PrimitiveType(SLPPrimitiveType::ISize)
     }
-    pub fn deref_or_pass(&self) -> Self {
+    pub fn void() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::Void)
+    }
+    pub fn wrap_autoderef_or_pass(&self) -> Self {
         if let SLPType::AutoderefPointer(_) = self {
             self.clone()
         } else {

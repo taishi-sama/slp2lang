@@ -76,7 +76,9 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::VarDecl(_, l) => vardecl(l),
         STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
         STStatement::DeferHint(_, num) => StringTreeNode::new(format!("Location of {num}'th defer statement in this code block")),
-        STStatement::BuildInCall(_) => todo!(),
+        STStatement::BuildInCall(_, _) => todo!(),
+        STStatement::MemoryAlloc(_, _) => todo!(),
+        STStatement::MemoryFree(_, _) => todo!(),
     }
 }
 fn vardecl(vd: &VarDecl) -> StringTreeNode {
@@ -87,9 +89,7 @@ fn vardecl(vd: &VarDecl) -> StringTreeNode {
 }
 pub fn rhs(expression: &RhsExpr) -> StringTreeNode {
     match &expression.kind {
-        crate::semtree::RhsKind::LocalVariable(v) => {
-            StringTreeNode::new("Variable: ".to_string() + &v.0)
-        }
+
         crate::semtree::RhsKind::Deref(dt) => {
             StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter())
         }
@@ -189,5 +189,6 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::IsNull(_) => todo!(),
         ExprKind::RefCountDecrease(_) => todo!(),
         ExprKind::RefCountIncrease(_) => todo!(),
+        ExprKind::GetElementBehindReffedReferenceCounter(_) => todo!(),
     }
 }

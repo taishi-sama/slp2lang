@@ -229,7 +229,9 @@ impl<'a> Codegen<'a> {
             STStatement::VarDecl(_l, d) => vec![d],
             STStatement::Empty() => vec![],
             STStatement::DeferHint(_, _) => vec![],
-            STStatement::BuildInCall(_) => todo!(),
+            STStatement::BuildInCall(_, _) => todo!(),
+            STStatement::MemoryAlloc(_, _) => todo!(),
+            STStatement::MemoryFree(_, _) => todo!(),
         }
     }
     pub fn get_pointer_sized_int(&self) -> IntType<'a> {
@@ -433,13 +435,13 @@ impl<'a> Codegen<'a> {
                     .collect();
                 self.builder.build_call(fnct, &vls2, "");
             }
-            STStatement::Assignment(_l, target, expr, to) => {
+            STStatement::Assignment(_l, target, drop, to) => {
                 let expr = self.visit_expression(&to, localvar_stackalloc, syms, tyr);
+                if let Some(d) = drop {
+                    todo!()
+                }
                 match &target.as_ref().kind {
-                    RhsKind::LocalVariable(lv) => {
-                        let var = localvar_stackalloc[lv];
-                        self.builder.build_store(var, expr);
-                    }
+
                     RhsKind::Deref(ptr_expr) => {
                         let ptr = self.visit_expression(ptr_expr, localvar_stackalloc, syms, tyr);
                         let ptr_val = ptr.into_pointer_value();
@@ -511,7 +513,9 @@ impl<'a> Codegen<'a> {
             }
             STStatement::Empty() => (),
             STStatement::DeferHint(_, _) => (),
-            STStatement::BuildInCall(_) => todo!(),
+            STStatement::BuildInCall(_, _) => todo!(),
+            STStatement::MemoryAlloc(_, _) => todo!(),
+            STStatement::MemoryFree(_, _) => todo!(),
         }
     }
 
@@ -809,6 +813,7 @@ impl<'a> Codegen<'a> {
             },
             ExprKind::RefCountDecrease(_) => todo!(),
             ExprKind::RefCountIncrease(_) => todo!(),
+            ExprKind::GetElementBehindReffedReferenceCounter(_) => todo!(),
         }
     }
     pub fn slp_func_to_llvm_func(

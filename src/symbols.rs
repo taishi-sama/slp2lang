@@ -1,10 +1,7 @@
-use std::{collections::{HashMap, HashSet}, mem, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::{HashMap, HashSet}, mem, rc::Rc, sync::Arc};
 
 use crate::{
-    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type},
-    compiler::{Compiler, FileId},
-    errors::SemTreeBuildErrors,
-    types::{SLPPrimitiveType, SLPType, StructType},
+    ast::{ArgDecl, Declaration, Identificator, Loc, ProgramFile, Type}, buildins::BuildInModule, compiler::{Compiler, FileId}, errors::SemTreeBuildErrors, types::{SLPPrimitiveType, SLPType, StructType}
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -145,7 +142,7 @@ pub struct GlobalSymbolResolver {
     pub functions: HashMap<(FileId, Id), FunctionDecl>,
     pub deps: Arc<HashMap<FileId, Vec<FileId>>>,
     pub filename_translation: Arc<HashMap<String, FileId>>,
-    pub reverse_filename_translation: Arc<HashMap<FileId, String>>
+    pub reverse_filename_translation: Arc<HashMap<FileId, String>>,
 }
 impl GlobalSymbolResolver {
     pub fn canonical_functions(&self, fid: &FileId, id: &Id) -> Id {

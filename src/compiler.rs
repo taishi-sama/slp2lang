@@ -8,17 +8,13 @@
 // Link resulting .obj file into executable
 
 use std::{
-    collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, str::FromStr, sync::Arc
+    cell::RefCell, collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, str::FromStr, sync::Arc
 };
 
 use anyhow::Ok;
 
 use crate::{
-    ast::{self, ProgramFile},
-    ast_visualisator,
-    semtree::SemanticTree,
-    semtree_visualisator,
-    symbols::{Id, TypeResolverGenerator},
+    ast::{self, ProgramFile}, ast_visualisator, buildins::BuildInModule, semtree::SemanticTree, semtree_visualisator, symbols::{Id, TypeResolverGenerator}
 };
 const COMPILER_BUILDINS_MODULE_FID: FileId = FileId(0);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -74,7 +70,7 @@ impl Compiler {
         }
         println!("Function declarations resolved");
         let type_resolver_arc = Arc::new(type_resolver);
-
+        let buildins = Arc::new(RefCell::new(BuildInModule::new(type_resolver_arc.clone())));
         let mut semtrees = vec![];
         for (ids, deps) in self.deps.iter() {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);
@@ -86,6 +82,7 @@ impl Compiler {
                 Id(p),
                 ids.clone(),
                 type_resolver_arc.clone(),
+                buildins.clone()
             );
             let semtree_unwrap = semtree.unwrap();
 
