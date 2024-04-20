@@ -13,6 +13,9 @@ impl BuildInModule {
     pub fn new(tyr: Arc<GlobalSymbolResolver>) -> Self {
         Self { types_resolver: tyr, drops: Default::default(), clones: Default::default(), buildins: Default::default() }
     }
+    pub fn canonical_functions(id: &Id) -> Id {
+        Id(format!("_slp2_buildins${}", id.0))
+    }
     pub fn register_or_get_drop(&mut self, ty: &SLPType) -> Option<Id> {
         if let Some(x) = self.drops.get(ty) {
             Some(x.clone())

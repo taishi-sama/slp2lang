@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+
 use crate::{
     ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement}, buildins::BuildInModule, compiler::FileId, errors::SemTreeBuildErrors, symbols::{FunctionDecl, GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}
 };
@@ -837,10 +838,18 @@ impl SemanticTree {
             Expr::Ident(l, i) => {
                 let id = Id(i.name.clone());
                 if let Some((lv, ty)) = scope.get_variable(&id) {
-                    STExpr {
-                        ret_type: ty,
-                        loc: *l,
-                        kind: ExprKind::LocalVariable(lv),
+                    if ty.is_trivially_copiable() {
+                        STExpr {
+                            ret_type: ty,
+                            loc: *l,
+                            kind: ExprKind::LocalVariable(lv),
+                        }
+                    } else {
+                        STExpr {
+                            ret_type: ty.wrap_autoderef_or_pass(),
+                            loc: *l,
+                            kind: ExprKind::GetLocalVariableRef(lv)
+                        }
                     }
                 } else {
                     todo!()
@@ -914,11 +923,21 @@ impl SemanticTree {
     fn visit_method_call(&mut self, l: &Loc, expr: &Expr, field: &str, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
         let body = self.visit_expression(expr, scope)?;
         let autoderef = Self::autoref_or_pass(body)?;
-        if let SLPType::Struct(name, id, _) = &autoderef.ret_type.get_underlying_autoderef_type().unwrap() {
+        if let SLPType::RefCounter(internal) = autoderef.ret_type.get_underlying_autoderef_type().unwrap() {
+            let expr = STExpr::new(internal.wrap_autoderef_or_pass(), l.clone(), ExprKind::GetElementBehindReffedReferenceCounter(Box::new(autoderef)));
+            self.generate_structure_method_call(l, field, expr)
+        } else if let SLPType::Struct(_, _, _) = autoderef.ret_type.get_underlying_autoderef_type().unwrap() {
+            self.generate_structure_method_call(l, field, autoderef)
+        } else {
+            todo!()
+        }
+    }
+    fn generate_structure_method_call(&mut self, l: &Loc, method_name: &str, reffed_struct_expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
+        if let SLPType::Struct(name, id, _) = &reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap() {
             let structdecl = self.types_resolver.get_struct(name, id)?.unwrap();
-            let t = structdecl.fields.iter().enumerate().find(|(_, a)|a.0.0 == field);
+            let t = structdecl.fields.iter().enumerate().find(|(_, a)|a.0.0 == method_name);
             if let Some((index, (name, ty))) = t {
-                Ok(STExpr{ ret_type: SLPType::AutoderefPointer(Box::new(ty.clone())), loc: *l, kind: ExprKind::GetElementRefInReffedRecord(Box::new(autoderef), index as u32) })
+                Ok(STExpr{ ret_type: SLPType::AutoderefPointer(Box::new(ty.clone())), loc: *l, kind: ExprKind::GetElementRefInReffedRecord(Box::new(reffed_struct_expr), index as u32) })
             } else {todo!()}
         }
         else {
@@ -951,7 +970,26 @@ impl SemanticTree {
             Ok(STExpr{ ret_type: t, loc, kind: ExprKind::ConstructRecordFromArgList(reconst_exprs) })
             
         }
-        else {
+        else if let SLPType::RefCounter(rc) = &t {
+            let internal_content: STExpr;
+            if let SLPType::Struct(fid, id, _) = rc.as_ref() {
+                let tyr = Arc::clone(&self.types_resolver);
+                let st = tyr.get_struct(fid, id)?.unwrap();
+                if args_p.len() != st.fields.len() {
+                    panic!("Argument count ({}) should be equal to fields count ({})", args_p.len(), st.fields.len())
+                }
+                let mut reconst_exprs = vec![];
+                for (inp_type, expr) in st.fields.iter().map(|x|&x.1).zip(args_p.into_iter()) {
+                    let res = self.insert_impl_conversion(expr, inp_type, loc)?;
+                    reconst_exprs.push(res);
+                }
+                internal_content = STExpr{ ret_type: *rc.clone(), loc, kind: ExprKind::ConstructRecordFromArgList(reconst_exprs) };
+            } else if let SLPType::DynArray(da) = rc.as_ref() {
+                todo!()
+            } else {todo!()}
+            Ok(STExpr{ ret_type: t.clone(), loc, kind: ExprKind::ConstructRefcounterFromInternalContent(Box::new(internal_content)) })
+            
+        } else {
             todo!()
         }
     }
@@ -1276,6 +1314,8 @@ pub enum ExprKind {
     Clone(Box<STExpr>),
     GetLocalVariableRef(LocalVariable),
     ConstructRecordFromArgList(Vec<STExpr>),
+    ///Expect intenal content by value,
+    ConstructRefcounterFromInternalContent(Box<STExpr>),
     ///Checks pointer, dynamic array or reference counter to be null(default-initialized) or not. Expects type by value, so deref before passing. 
     IsNull(Box<STExpr>),
     ///Expect reference on refcounter, returns true if refcount reaches zero,

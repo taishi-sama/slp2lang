@@ -5,9 +5,9 @@ use inkwell::{
 };
 
 use crate::{
-    compiler::FileId, semtree::{
+    buildins::BuildInModule, compiler::FileId, semtree::{
         BoolBinOp, CodeBlock, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable, RhsKind, STExpr, STStatement, SemanticTree, VarDecl
-    }, symbols::{FunctionDecl, Id, GlobalSymbolResolver}, types::{SLPPrimitiveType, SLPType}
+    }, symbols::{FunctionDecl, GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -65,8 +65,9 @@ impl<'a> Codegen<'a> {
         }
     }
     pub fn compile_semtree<'b>(&self, semtree: &'b SemanticTree) {
-        let syms = self.declare_symbols(semtree);
-
+        let mut syms = self.declare_symbols(semtree);
+        let buildins = self.declare_buildins(&semtree.buildins.borrow());
+        syms.extend(buildins);
         for f in &semtree.root.funcs {
             //println!("{:?}", f);
             let id = semtree.types_resolver.canonical_functions(
@@ -77,7 +78,29 @@ impl<'a> Codegen<'a> {
             self.compile_function(&f, t, &syms, &semtree.types_resolver);
         }
     }
-
+    pub fn compile_buildins<'b>(&self, tyr: &GlobalSymbolResolver, buildins: &BuildInModule) {
+        let syms = self.declare_buildins(buildins);
+        for (id, f) in &buildins.buildins {
+            //println!("{:?}", f);
+            let id = BuildInModule::canonical_functions(id);
+            let t = syms.get(&id).unwrap();
+            self.compile_function(&f, t, &syms, tyr);
+        }
+    }
+    pub fn declare_buildins<'b>(&self, buildins: &BuildInModule) -> HashMap<Id, FunctionValue<'a>> {
+        let mut hm = HashMap::new();
+        for (id, function) in &buildins.buildins {
+            let ty = self.slp_sem_to_llvm_func(&function.function_args, &function.return_arg);
+            let name = BuildInModule::canonical_functions(id);
+            let func = self.module.add_function(
+        &name.0,
+            ty,
+            Some(Linkage::External)
+            );
+            hm.insert(name, func);
+        }
+        hm
+    }
     pub fn declare_symbols<'b>(
         &self,
         semtree: &'b SemanticTree,
@@ -229,9 +252,9 @@ impl<'a> Codegen<'a> {
             STStatement::VarDecl(_l, d) => vec![d],
             STStatement::Empty() => vec![],
             STStatement::DeferHint(_, _) => vec![],
-            STStatement::BuildInCall(_, _) => todo!(),
-            STStatement::MemoryAlloc(_, _) => todo!(),
-            STStatement::MemoryFree(_, _) => todo!(),
+            STStatement::BuildInCall(_, _) => vec![],
+            STStatement::MemoryAlloc(_, _) => vec![],
+            STStatement::MemoryFree(_, _) => vec![],
         }
     }
     pub fn get_pointer_sized_int(&self) -> IntType<'a> {
@@ -269,7 +292,7 @@ impl<'a> Codegen<'a> {
                 .into(),
             SLPType::Struct(fid, n, _) => self.ctx.context.get_struct_type(&format!("{fid}${}", n.0)).unwrap().into(),
             SLPType::RefCounter(b) => {
-                let rc_counter = self.get_pointer_sized_int().as_basic_type_enum().into_pointer_type().into();
+                let rc_counter = self.get_pointer_sized_int().as_basic_type_enum().ptr_type(Default::default()).into();
                 let rc_ty = self.slp_type_to_llvm(&b).ptr_type(AddressSpace::default()).into();
                 self.ctx.context.struct_type(&[rc_counter, rc_ty], false).into()
             },
@@ -438,7 +461,7 @@ impl<'a> Codegen<'a> {
             STStatement::Assignment(_l, target, drop, to) => {
                 let expr = self.visit_expression(&to, localvar_stackalloc, syms, tyr);
                 if let Some(d) = drop {
-                    todo!()
+                    self.visit_statement(&d, func, localvar_stackalloc, syms, tyr)
                 }
                 match &target.as_ref().kind {
 
@@ -814,6 +837,7 @@ impl<'a> Codegen<'a> {
             ExprKind::RefCountDecrease(_) => todo!(),
             ExprKind::RefCountIncrease(_) => todo!(),
             ExprKind::GetElementBehindReffedReferenceCounter(_) => todo!(),
+            ExprKind::ConstructRefcounterFromInternalContent(e) => {todo!()},
         }
     }
     pub fn slp_func_to_llvm_func(

@@ -190,5 +190,6 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::RefCountDecrease(_) => todo!(),
         ExprKind::RefCountIncrease(_) => todo!(),
         ExprKind::GetElementBehindReffedReferenceCounter(_) => todo!(),
+        ExprKind::ConstructRefcounterFromInternalContent(_) => todo!(),
     }
 }

@@ -213,7 +213,7 @@ impl SLPType {
             } => None,
             SLPType::Struct(_, _, _) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
-            SLPType::RefCounter(_) => todo!(),
+            SLPType::RefCounter(_) => None,
         }
     }
     pub fn get_underlying_array_type(&self) -> Option<&SLPType> {
