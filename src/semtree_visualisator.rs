@@ -79,7 +79,10 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::VarDecl(_, l) => vardecl(l),
         STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
         STStatement::DeferHint(_, num) => StringTreeNode::new(format!("Location of {num}'th defer statement in this code block")),
-        STStatement::BuildInCall(_, _) => todo!(),
+        STStatement::BuildInCall(_, fc) => StringTreeNode::with_child_nodes(
+            fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
+            fc.args.iter().map(expr),
+        ),
         STStatement::MemoryFree(_, e) => StringTreeNode::with_child_nodes(
             "MemoryFree ".to_string(),
             vec![expr(e)].into_iter()),
@@ -188,7 +191,10 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
             format!("Taking ref of {field_num} field in referenced array "),
             vec![expr(e)].into_iter()),
         ExprKind::Clone(_) => todo!(),
-        ExprKind::BuildInCall(_) => todo!(),
+        ExprKind::BuildInCall(fc) => StringTreeNode::with_child_nodes(
+            fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
+            fc.args.iter().map(expr),
+        ),
         ExprKind::Default => todo!(),
         ExprKind::IsNull(e) => StringTreeNode::with_child_nodes(
             format!("IsNull"),
@@ -199,7 +205,9 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::RefCountIncrease(e) => StringTreeNode::with_child_nodes(
             format!("RefCountIncrease"),
             vec![expr(e)].into_iter()),
-        ExprKind::GetElementBehindReffedReferenceCounter(_) => todo!(),
+        ExprKind::GetElementBehindReffedReferenceCounter(e) => StringTreeNode::with_child_nodes(
+            format!("Taking ref of element behind referenced refcounter "),
+            vec![expr(e)].into_iter()),
         ExprKind::ConstructRefcounterFromInternalContent(_) => todo!(),
         ExprKind::FunctionArg(n) => StringTreeNode::new(format!("n-th function arg: {n}")),
     }

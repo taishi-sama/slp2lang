@@ -184,7 +184,7 @@ impl SemanticTree {
                 Ok(STExpr {
                 ret_type: target.clone(),
                 loc: expr.loc.clone(),
-                kind: ExprKind::BuildInCall(BuildInCall{ func: buildin_clone.unwrap(), args: vec![expr], ret_type: target}),
+                kind: ExprKind::BuildInCall(BuildInCall{ func: buildin_clone?.unwrap(), args: vec![expr], ret_type: target}),
             })}
         } else {
             Ok(expr)
@@ -371,7 +371,7 @@ impl SemanticTree {
 
                 let from = self.insert_impl_conversion(from, &target.required_type, l.clone())?;
                 let middle_drop = if target.required_type.is_trivially_copiable() {None} else {
-                    let drop = self.buildins.borrow_mut().register_or_get_drop(&target.required_type).unwrap();
+                    let drop = self.buildins.borrow_mut().register_or_get_drop(&target.required_type)?.unwrap();
                     let RhsKind::Deref(d) = &target.kind; 
                     Some(Box::new(STStatement::BuildInCall(l.clone(), BuildInCall { func: drop, args: vec![d.clone()], ret_type: SLPType::void() })))
                 };
@@ -494,7 +494,7 @@ impl SemanticTree {
             },
         ));
         if !ty.is_trivially_copiable() && insert_autoclean {
-            let drop_id = buildins.borrow_mut().register_or_get_drop(&ty);
+            let drop_id = buildins.borrow_mut().register_or_get_drop(&ty)?;
             Self::insert_defer(loc, code_block, STStatement::BuildInCall(loc.clone(), BuildInCall { func: drop_id.unwrap(), 
                 args: vec![STExpr::new(ty.wrap_autoderef_or_pass(), loc, ExprKind::GetLocalVariableRef(variable_name.clone()))], 
                 ret_type: SLPType::void() }))?;

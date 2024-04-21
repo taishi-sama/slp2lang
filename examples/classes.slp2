@@ -9,13 +9,21 @@ type Hello = class
     f: int32;
     g: int32;
 end;
-
+type World = class
+    a: Hello;
+end;
 
 procedure modify(a: Hello);
 begin
     a.a := 1;
 end;
-
+function extract(a: World): Hello;
+begin
+    var n := new Hello(11, 22, 33, 44, 55, 66, 77);
+    var temp := a.a;
+    a.a := n;
+    Result := temp;
+end;
 begin
 
     var a := 6314;
@@ -37,6 +45,13 @@ begin
     std_char::put_int32(local_rc.g);
 
     local_rc := new Hello(g, f, e, d, c, b, a);
+    var new_local_rc := new World(local_rc);
+
+    var extr := extract(new_local_rc);
+    std_char::putchar('\n');
+
+    std_char::put_int32(new_local_rc.a.a);
+
     std_char::putchar('\n');
     var new_local_rc := local_rc;
     modify(local_rc);
