@@ -29,7 +29,7 @@ pub mod buildins;
 lalrpop_mod!(pub grammar);
 
 
-const ENABLE_ASAN: bool = true;
+const ENABLE_ASAN: bool = false;
 
 fn main() {
     if args().count() < 2 {
