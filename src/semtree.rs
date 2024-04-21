@@ -937,6 +937,7 @@ impl SemanticTree {
             let structdecl = self.types_resolver.get_struct(name, id)?.unwrap();
             let t = structdecl.fields.iter().enumerate().find(|(_, a)|a.0.0 == method_name);
             if let Some((index, (name, ty))) = t {
+                println!("index: {index}, name: {}", name.0);
                 Ok(STExpr{ ret_type: SLPType::AutoderefPointer(Box::new(ty.clone())), loc: *l, kind: ExprKind::GetElementRefInReffedRecord(Box::new(reffed_struct_expr), index as u32) })
             } else {todo!()}
         }
@@ -1236,9 +1237,7 @@ pub enum STStatement {
     VarDecl(Loc, VarDecl),
     ///Tells codegen number of last declared defer statement
     DeferHint(Loc, usize),
-    ///
-    MemoryAlloc(Loc, SLPType),
-    ///
+    ///Expect refcounter or dyn array array by value
     MemoryFree(Loc, Box<STExpr>),
     Empty(),
 }

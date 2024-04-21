@@ -58,7 +58,23 @@ pub fn new_compile(file: &str, output_filename: &str) {
     let mut comp = Compiler::new(vec!["./".to_owned().into(), "./std".to_owned().into()]);
     comp.start_compilation(file.into()).unwrap();
     let res = comp.continue_compilation().unwrap();
-    let mut modules = vec![];
+    
+    let buildins_module = {
+        let cdgn: Codegen = Codegen::new(&cctx, "_buildins_", target_machine.clone());
+        let t = res.first().unwrap();
+        let buildins = t.buildins.clone();
+        let tyr = t.types_resolver.clone();
+        let internal = buildins.borrow();
+        for (id, func) in &internal.buildins {
+            println!("{}: {}", &id.0, semtree_visualisator::function(func))
+        }
+        cdgn.register_structs(&tyr);
+        cdgn.compile_buildins(&tyr, &internal);
+        cdgn
+    };
+    
+    let mut modules = vec![buildins_module];
+    
     for i in &res {
         let cdgn: Codegen = Codegen::new(&cctx, &i.semtree_name.0, target_machine.clone());
         cdgn.register_structs(i.types_resolver.as_ref());
@@ -95,10 +111,16 @@ pub fn new_compile(file: &str, output_filename: &str) {
         main_module.module.link_in_module(m.module).unwrap();
     }
     target_machine.get_target_data();
+    //main_module
+    //    .module
+    //    .run_passes("mem2reg", &target_machine, PassBuilderOptions::create())
+    //    .unwrap();
+    //println!("{}", main_module.module.print_to_string().to_string_lossy());
     main_module
         .module
-        .run_passes("mem2reg", &target_machine, PassBuilderOptions::create())
+        .run_passes("asan", &target_machine, PassBuilderOptions::create())
         .unwrap();
+    
     println!("{}", main_module.module.print_to_string().to_string_lossy());
     let p = Path::new(output_filename);
 

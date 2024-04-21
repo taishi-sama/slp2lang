@@ -198,7 +198,7 @@ impl SLPType {
             } => None,
             SLPType::Struct(_, _, _) => None,
             SLPType::AutoderefPointer(ty) => Some(&ty),
-            SLPType::RefCounter(_) => todo!(),
+            SLPType::RefCounter(_) => None,
         }
     }
     pub fn get_underlying_autoderef_type(&self) -> Option<&SLPType> {
@@ -228,7 +228,22 @@ impl SLPType {
             } => Some(ty.as_ref()),
             SLPType::Struct(_, _, _) => None,
             SLPType::AutoderefPointer(_) => None,
-            SLPType::RefCounter(_) => todo!(),
+            SLPType::RefCounter(_) => None,
+        }
+    }
+    pub fn get_underlying_refcounter_type(&self) -> Option<&SLPType> {
+        match self {
+            SLPType::PrimitiveType(_) => None,
+            SLPType::Pointer(_) => None,
+            SLPType::DynArray(_) => None,
+            SLPType::FixedArray {
+                size: _,
+                index_offset: _,
+                ty,
+            } => None,
+            SLPType::Struct(_, _, _) => None,
+            SLPType::AutoderefPointer(_) => None,
+            SLPType::RefCounter(rc) => Some(&rc),
         }
     }
     pub fn is_static_sized_array(&self) -> bool {

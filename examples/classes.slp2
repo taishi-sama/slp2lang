@@ -1,16 +1,34 @@
+uses std_char;
+
 type Hello = class 
-    Id: int32;
-    Age: int32;
-end;
-type Test = record 
-    Id: Hello;
+    a: int32;
+    b: int32;
+    c: int32;
+    d: int32;
+    e: int32;
+    f: int32;
+    g: int32;
 end;
 
+
 begin
-    var q := 1;
-    while q < 20 do 
-        q := q + 1; //To make q non-constant
-    var t := new Hello(q, 20);
-    t.Id := 0;
-    Result := t.Id;
+
+    var a := 6314;
+    var b := 1241241;
+    var c := 99515;
+    var d := 14124142;
+    var e := 12112;
+    var f := 1121;
+    var g := 1211;
+
+    var local_rc := new Hello(a, b, c, d, e, f, g);
+
+    std_char::put_int32(local_rc.a);
+    std_char::put_int32(local_rc.b);
+    std_char::put_int32(local_rc.c);
+    std_char::put_int32(local_rc.d);
+    std_char::put_int32(local_rc.e);
+    std_char::put_int32(local_rc.f);
+    std_char::put_int32(local_rc.g);
+    Result:= 0;
 end.

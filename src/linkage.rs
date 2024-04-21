@@ -4,7 +4,7 @@ use std::{
     process::Command,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LinkerBuilder {
     linker: PathBuf,
     system_dyn_linker: Option<PathBuf>,
@@ -14,6 +14,10 @@ pub struct LinkerBuilder {
 }
 
 impl LinkerBuilder {
+    pub fn add_linker_option(mut self, option: &str) -> Self {
+        self.linker_options.push(option.to_string());
+        self
+    }
     pub fn new_linux_x86_64<'a, 'b>() -> Self {
         Self {
             linker: "ld".into(),
@@ -38,6 +42,7 @@ impl LinkerBuilder {
         let output_object: PathBuf = o.to_path_buf();
 
         let mut comm = Command::new(self.linker.as_path());
+        comm.arg("-lasan");
         if let Some(sys_linker) = &self.system_dyn_linker {
             comm.arg("-dynamic-linker").arg(sys_linker);
         }

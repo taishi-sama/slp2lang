@@ -67,7 +67,10 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
             "Assign".to_string(),
             vec![rhs(x), expr(y)].into_iter(),
         ),
-        STStatement::If(_, _, _, _) => todo!(),
+        STStatement::If(l, condition, mb, ab) => StringTreeNode::with_child_nodes(
+            "If ".to_string(),
+            vec![expr(condition), statement(mb)].into_iter().chain(ab.as_ref().map(|x|statement(&x))),
+        ),
         STStatement::While(_, cond, block) => StringTreeNode::with_child_nodes(
             "While ".to_string(),
             vec![expr(cond), statement(block)].into_iter(),
@@ -77,8 +80,9 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
         STStatement::DeferHint(_, num) => StringTreeNode::new(format!("Location of {num}'th defer statement in this code block")),
         STStatement::BuildInCall(_, _) => todo!(),
-        STStatement::MemoryAlloc(_, _) => todo!(),
-        STStatement::MemoryFree(_, _) => todo!(),
+        STStatement::MemoryFree(_, e) => StringTreeNode::with_child_nodes(
+            "MemoryFree ".to_string(),
+            vec![expr(e)].into_iter()),
     }
 }
 fn vardecl(vd: &VarDecl) -> StringTreeNode {
@@ -186,8 +190,12 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::Clone(_) => todo!(),
         ExprKind::BuildInCall(_) => todo!(),
         ExprKind::Default => todo!(),
-        ExprKind::IsNull(_) => todo!(),
-        ExprKind::RefCountDecrease(_) => todo!(),
+        ExprKind::IsNull(e) => StringTreeNode::with_child_nodes(
+            format!("IsNull"),
+            vec![expr(e)].into_iter()),
+        ExprKind::RefCountDecrease(e) => StringTreeNode::with_child_nodes(
+            format!("RefCountDecrease"),
+            vec![expr(e)].into_iter()),
         ExprKind::RefCountIncrease(_) => todo!(),
         ExprKind::GetElementBehindReffedReferenceCounter(_) => todo!(),
         ExprKind::ConstructRefcounterFromInternalContent(_) => todo!(),

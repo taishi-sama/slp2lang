@@ -1,0 +1,31 @@
+uses std_char;
+
+type Hello = class 
+    a: int32;
+    b: int32;
+    c: int32;
+    d: int32;
+    e: int32;
+    f: int32;
+    g: int32;
+end;
+
+
+begin
+
+    var a := 6314;
+    var b := 1241241;
+    var c := 99515;
+    var d := 14124142;
+    var e := 12112;
+    var f := 1121;
+    var g := 1211;
+
+    var counter := 0;
+    while counter < 10000000 do 
+    begin
+        var local_rc := new Hello(a, b, c, d, e, f, g);
+        counter := counter + 1;
+    end;
+    Result:= 0;
+end.

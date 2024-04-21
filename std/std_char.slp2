@@ -16,11 +16,45 @@ begin
         end
         else if ch < 65536i32 then
         begin
+            cstd::putchar(int8('a'));
 
         end
         else if ch < 1114112i32 then
         begin
+            cstd::putchar(int8('b'));
 
         end;
+    end
+    else 
+        cstd::putchar(int8('c'));
+end;
+
+procedure put_int32(c: int32);
+begin
+    if c = 0 then
+    begin
+        putchar('0');
+        putchar('\n');
+    end 
+    else
+    begin
+        if c < 0 then 
+        begin
+            putchar('-');
+            c := 0-c;
+        end;
+        var a := 1;
+        while a < (c / 10) do
+            a := a * 10;
+        while c > 0 do
+        begin
+            var temp := c / a;
+            putchar(char(int32('0') + temp));
+            c := c - a * temp;
+            a := a / 10;
+        end;
+        putchar('\n');
     end;
+    
+    
 end;

@@ -40,6 +40,13 @@ impl BuildInModule {
                         internal_drop_codeblock.common_statements.push(
                             STStatement::BuildInCall(zero_zero_loc.clone(), BuildInCall{ func: id, args: vec![STExpr::new(rc.wrap_autoderef_or_pass(), zero_zero_loc, ExprKind::GetElementBehindReffedReferenceCounter(local_variable_ref.clone()))], ret_type: SLPType::void() }))
                     }
+                    internal_drop_codeblock.common_statements.push(
+                        STStatement::MemoryFree(zero_zero_loc.clone(), 
+                            Box::new(STExpr::new(ty.clone(), zero_zero_loc.clone(), ExprKind::Deref(
+                                local_variable_ref.clone()
+                            )))
+                        )
+                    );
                     code_block.common_statements.push(
                         STStatement::If(zero_zero_loc.clone(), 
                             Box::new(STExpr::new(SLPType::bool(), zero_zero_loc.clone(), ExprKind::IsNull(
