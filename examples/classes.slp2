@@ -11,6 +11,11 @@ type Hello = class
 end;
 
 
+procedure modify(a: Hello);
+begin
+    a.a := 1;
+end;
+
 begin
 
     var a := 6314;
@@ -30,5 +35,20 @@ begin
     std_char::put_int32(local_rc.e);
     std_char::put_int32(local_rc.f);
     std_char::put_int32(local_rc.g);
+
+    local_rc := new Hello(g, f, e, d, c, b, a);
+    std_char::putchar('\n');
+    var new_local_rc := local_rc;
+    modify(local_rc);
+    std_char::put_int32(local_rc.a);
+    std_char::put_int32(local_rc.b);
+    std_char::put_int32(local_rc.c);
+    std_char::put_int32(local_rc.d);
+    std_char::put_int32(local_rc.e);
+    std_char::put_int32(local_rc.f);
+    std_char::put_int32(local_rc.g);
+
     Result:= 0;
 end.
+
+

@@ -33,6 +33,7 @@ impl LinkerBuilder {
     }
     pub fn link_gnu_linker_flavor(
         &self,
+        link_asan: bool,
         main_linkable_object: impl AsRef<Path>,
         output_object: impl AsRef<Path>,
     ) -> Result<(), Error> {
@@ -42,7 +43,9 @@ impl LinkerBuilder {
         let output_object: PathBuf = o.to_path_buf();
 
         let mut comm = Command::new(self.linker.as_path());
-        comm.arg("-lasan");
+        if link_asan {
+            comm.arg("-lasan");
+        }
         if let Some(sys_linker) = &self.system_dyn_linker {
             comm.arg("-dynamic-linker").arg(sys_linker);
         }

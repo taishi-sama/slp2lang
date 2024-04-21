@@ -196,8 +196,11 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::RefCountDecrease(e) => StringTreeNode::with_child_nodes(
             format!("RefCountDecrease"),
             vec![expr(e)].into_iter()),
-        ExprKind::RefCountIncrease(_) => todo!(),
+        ExprKind::RefCountIncrease(e) => StringTreeNode::with_child_nodes(
+            format!("RefCountIncrease"),
+            vec![expr(e)].into_iter()),
         ExprKind::GetElementBehindReffedReferenceCounter(_) => todo!(),
         ExprKind::ConstructRefcounterFromInternalContent(_) => todo!(),
+        ExprKind::FunctionArg(n) => StringTreeNode::new(format!("n-th function arg: {n}")),
     }
 }

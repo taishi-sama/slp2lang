@@ -27,6 +27,10 @@ pub mod types;
 pub mod buildins;
 
 lalrpop_mod!(pub grammar);
+
+
+const ENABLE_ASAN: bool = true;
+
 fn main() {
     if args().count() < 2 {
         panic!("Provide at least 1 file in command line!")
@@ -111,16 +115,17 @@ pub fn new_compile(file: &str, output_filename: &str) {
         main_module.module.link_in_module(m.module).unwrap();
     }
     target_machine.get_target_data();
-    //main_module
-    //    .module
-    //    .run_passes("mem2reg", &target_machine, PassBuilderOptions::create())
-    //    .unwrap();
-    //println!("{}", main_module.module.print_to_string().to_string_lossy());
+    main_module
+        .module
+        .run_passes("mem2reg", &target_machine, PassBuilderOptions::create())
+        .unwrap();
+    println!("{}", main_module.module.print_to_string().to_string_lossy());
+    if ENABLE_ASAN {
     main_module
         .module
         .run_passes("asan", &target_machine, PassBuilderOptions::create())
         .unwrap();
-    
+    }
     println!("{}", main_module.module.print_to_string().to_string_lossy());
     let p = Path::new(output_filename);
 
@@ -141,7 +146,7 @@ pub fn new_compile(file: &str, output_filename: &str) {
         .unwrap();
     println!("Emit object file to {}", object_output.to_string_lossy());
     let linker =
-        LinkerBuilder::new_linux_x86_64().link_gnu_linker_flavor(&object_output, &executable_output);
+        LinkerBuilder::new_linux_x86_64().link_gnu_linker_flavor(ENABLE_ASAN, &object_output, &executable_output);
     linker.unwrap();
     println!(
         "Linkage complete... File available at {:}",

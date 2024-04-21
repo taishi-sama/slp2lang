@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{ast::Loc, semtree::{BuildInCall, CodeBlock, ExprKind, Function, LocalVariable, RhsExpr, STExpr, STStatement}, symbols::{GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}};
+use crate::{ast::Loc, semtree::{BuildInCall, CodeBlock, ExprKind, Function, LocalVariable, RhsExpr, STExpr, STStatement, VarDecl}, symbols::{GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}};
 
 #[derive(Debug, Clone)]
 pub struct BuildInModule {
@@ -29,10 +29,12 @@ impl BuildInModule {
                 let tyname = ty.normalized_name(); 
                 let mut code_block = CodeBlock::new();
                 let input_name = "input".to_string();
+                let local_variable_ref = Box::new(STExpr::new(ty.wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::LocalVariable(
+                    LocalVariable(input_name.clone())
+                )));
+                code_block.common_statements.push(STStatement::VarDecl(zero_zero_loc, VarDecl{ id: LocalVariable(input_name.clone()), ty: ty.wrap_autoderef_or_pass(), init_expr: STExpr::new(ty.wrap_autoderef_or_pass(), zero_zero_loc, ExprKind::FunctionArg(0)) }));
                 if let SLPType::RefCounter(rc) = ty {
-                    let local_variable_ref = Box::new(STExpr::new(ty.wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::LocalVariable(
-                        LocalVariable(input_name.clone())
-                    )));
+                    
 
                     let internal_drop = self.register_or_get_drop(&rc);
                     let mut internal_drop_codeblock = CodeBlock::new();
@@ -83,8 +85,28 @@ impl BuildInModule {
                 None
             } 
             else {
-                todo!()
+                let zero_zero_loc = Loc::new(0, 0);
+                assert!(ty.get_underlying_autoderef_type().is_none());
+                let tyname = ty.normalized_name(); 
+                let mut code_block = CodeBlock::new();
+                let input_name = "input".to_string();
+                let local_variable_ref = Box::new(STExpr::new(ty.wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::LocalVariable(
+                    LocalVariable(input_name.clone())
+                )));
+                code_block.common_statements.push(STStatement::VarDecl(zero_zero_loc, VarDecl{ id: LocalVariable(input_name.clone()), ty: ty.wrap_autoderef_or_pass(), init_expr: STExpr::new(ty.wrap_autoderef_or_pass(), zero_zero_loc, ExprKind::FunctionArg(0)) }));
+                let mut expr : STExpr = STExpr::new(ty.clone(), zero_zero_loc, ExprKind::Default);
+                if let SLPType::RefCounter(rc) = ty {
+                    expr = STExpr::new(ty.clone(), zero_zero_loc, ExprKind::RefCountIncrease(local_variable_ref.clone()));
+                }
+                code_block.common_statements.push(STStatement::VarDecl(zero_zero_loc, VarDecl{ id: LocalVariable("Result".to_string()), ty: ty.clone(), init_expr: expr }));
+
+                let func_id = Id(format!("clone@{}", &tyname.0));
+                let func = Function { function_name: func_id.clone(), function_args: vec![( Id(input_name.clone()), ty.wrap_autoderef_or_pass())], return_arg: ty.clone(), body: code_block, temporary_variables: Default::default(), loc:  zero_zero_loc.clone()};
+                self.buildins.insert(func_id.clone(), func);
+                self.clones.insert(ty.clone(), func_id.clone());
+                Some(func_id)
             }
         }
     }
+    
 }

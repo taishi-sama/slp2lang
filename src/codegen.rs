@@ -74,7 +74,7 @@ impl<'a> Codegen<'a> {
                 &semtree.fileid,
                 &f.function_name,
             );
-            let t = syms.get(&id).unwrap();
+            let t = syms.get(&id).unwrap().clone();
             self.compile_function(&f, t, &syms, &semtree.types_resolver);
         }
     }
@@ -84,7 +84,7 @@ impl<'a> Codegen<'a> {
             //println!("{:?}", f);
             let id = BuildInModule::canonical_functions(id);
             let t = syms.get(&id).unwrap();
-            self.compile_function(&f, t, &syms, tyr);
+            self.compile_function(&f, t.clone(), &syms, tyr);
         }
     }
     pub fn declare_buildins<'b>(&self, buildins: &BuildInModule) -> HashMap<Id, FunctionValue<'a>> {
@@ -158,7 +158,7 @@ impl<'a> Codegen<'a> {
     pub fn compile_function<'b>(
         &self,
         f: &'b Function,
-        func: &FunctionValue,
+        func: FunctionValue<'a>,
         syms: &HashMap<Id, FunctionValue<'a>>,
         tyr: &GlobalSymbolResolver,
     ) {
@@ -168,7 +168,7 @@ impl<'a> Codegen<'a> {
         //    f_t,
         //    Some(inkwell::module::Linkage::External),
         //);
-        let t = self.ctx.context.append_basic_block(*func, "entry");
+        let t = self.ctx.context.append_basic_block(func, "entry");
         self.builder.position_at_end(t);
         let mut prelude = self.generate_variable_prelude(&func, f);
         let ret = if !f.return_arg.is_void() {
@@ -180,10 +180,11 @@ impl<'a> Codegen<'a> {
             None
         };
 
-        let body = self.ctx.context.append_basic_block(*func, "body");
+        let body = self.ctx.context.append_basic_block(func, "body");
         self.builder.build_unconditional_branch(body);
         self.builder.position_at_end(body);
         self.generate_main_body_of_function(func, f, &prelude, syms, tyr);
+
         let ret_load = ret.map(|x| {
             self.builder
                 .build_load(self.slp_type_to_llvm(&f.return_arg), x, "")
@@ -199,17 +200,8 @@ impl<'a> Codegen<'a> {
     ) -> HashMap<LocalVariable, PointerValue<'a>> {
         let mut hm = HashMap::new();
 
-        let input: Vec<_> = func
-            .get_params()
-            .into_iter()
-            .zip(f.function_args.iter())
-            .collect();
-        //Allocate stack space for input variables
-        for (_val, (id, ty)) in &input {
-            let ty = self.slp_type_to_llvm(&ty);
-            let stackalloc = self.builder.build_alloca(ty, &id.0);
-            hm.insert(LocalVariable(id.0.clone()), stackalloc);
-        }
+
+        
         //Allocate stack space for variables in the program
         let variables = f.body
             .common_statements
@@ -220,11 +212,6 @@ impl<'a> Codegen<'a> {
             let ty = self.slp_type_to_llvm(&v.ty);
             let stackalloc = self.builder.build_alloca(ty, &v.id.0);
             hm.insert(LocalVariable(v.id.0.clone()), stackalloc);
-        }
-        //Generate store code for input variables
-        for (val, (id, _ty)) in &input {
-            self.builder
-                .build_store(hm[&LocalVariable(id.0.clone())], val.clone());
         }
         hm
     }
@@ -385,8 +372,8 @@ impl<'a> Codegen<'a> {
             SLPType::RefCounter(rc) => self.slp_type_to_llvm(ty).const_zero(),
         }
     }
-    fn build_is_null<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>, tyr: &GlobalSymbolResolver) -> BasicValueEnum<'a> {
-        let t = self.visit_expression(expr, localvar_stackalloc, syms, tyr);
+    fn build_is_null<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>, tyr: &GlobalSymbolResolver, func: FunctionValue<'a>) -> BasicValueEnum<'a> {
+        let t = self.visit_expression(expr, localvar_stackalloc, syms, tyr, func);
 
         match &expr.ret_type {
             SLPType::PrimitiveType(_) => todo!(),
@@ -412,7 +399,7 @@ impl<'a> Codegen<'a> {
     }
     fn generate_main_body_of_function<'b>(
         &self,
-        func: &FunctionValue,
+        func: FunctionValue<'a>,
         f: &'b Function,
         localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
         syms: &HashMap<Id, FunctionValue<'a>>,
@@ -422,7 +409,7 @@ impl<'a> Codegen<'a> {
     }
     fn visit_codeblock<'b>(&self,
         cb: &'b CodeBlock,
-        func: &FunctionValue,
+        func: FunctionValue<'a>,
         localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
         syms: &HashMap<Id, FunctionValue<'a>>,
         tyr: &GlobalSymbolResolver,
@@ -438,7 +425,7 @@ impl<'a> Codegen<'a> {
     fn visit_statement<'b>(
         &self,
         stmt: &'b STStatement,
-        func: &FunctionValue,
+        func: FunctionValue<'a>,
         localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
         syms: &HashMap<Id, FunctionValue<'a>>,
         tyr: &GlobalSymbolResolver,
@@ -451,7 +438,8 @@ impl<'a> Codegen<'a> {
             STStatement::FunctionCall(_, fc) => {
                 let mut vls = vec![];
                 for arg in &fc.args {
-                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr))
+                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr, func))
+                    
                 }
                 let fnct = syms[&fc.func];
                 let vls2: Vec<_> = vls
@@ -463,7 +451,7 @@ impl<'a> Codegen<'a> {
             STStatement::BuildInCall(_, fc) => {
                 let mut vls = vec![];
                 for arg in &fc.args {
-                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr))
+                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr, func))
                 }
 
                 let fnct = syms[&BuildInModule::canonical_functions(&fc.func)];
@@ -475,27 +463,27 @@ impl<'a> Codegen<'a> {
             },
 
             STStatement::Assignment(_l, target, drop, to) => {
-                let expr = self.visit_expression(&to, localvar_stackalloc, syms, tyr);
+                let expr = self.visit_expression(&to, localvar_stackalloc, syms, tyr, func);
                 if let Some(d) = drop {
                     self.visit_statement(&d, func, localvar_stackalloc, syms, tyr)
                 }
                 match &target.as_ref().kind {
 
                     RhsKind::Deref(ptr_expr) => {
-                        let ptr = self.visit_expression(ptr_expr, localvar_stackalloc, syms, tyr);
+                        let ptr = self.visit_expression(ptr_expr, localvar_stackalloc, syms, tyr, func);
                         let ptr_val = ptr.into_pointer_value();
                         self.builder.build_store(ptr_val, expr);
                     }
                 }
             }
             STStatement::If(_loc, cond, mb, ab) => {
-                let e = self.visit_expression(&cond, localvar_stackalloc, syms, tyr);
+                let e = self.visit_expression(&cond, localvar_stackalloc, syms, tyr, func);
                 let int = e.into_int_value();
 
                 if let Some(alt_b) = ab {
-                    let branch_main = self.ctx.context.append_basic_block(*func, "branch_main");
-                    let branch_alt = self.ctx.context.append_basic_block(*func, "branch_alt");
-                    let branch_exit = self.ctx.context.append_basic_block(*func, "branch_exit");
+                    let branch_main = self.ctx.context.append_basic_block(func, "branch_main");
+                    let branch_alt = self.ctx.context.append_basic_block(func, "branch_alt");
+                    let branch_exit = self.ctx.context.append_basic_block(func, "branch_exit");
 
                     self.builder
                         .build_conditional_branch(int, branch_main, branch_alt);
@@ -511,8 +499,8 @@ impl<'a> Codegen<'a> {
                         branch_exit.move_after(end).unwrap()
                     }
                 } else {
-                    let branch_main = self.ctx.context.append_basic_block(*func, "branch_main");
-                    let branch_exit = self.ctx.context.append_basic_block(*func, "branch_exit");
+                    let branch_main = self.ctx.context.append_basic_block(func, "branch_main");
+                    let branch_exit = self.ctx.context.append_basic_block(func, "branch_exit");
 
                     self.builder
                         .build_conditional_branch(int, branch_main, branch_exit);
@@ -527,13 +515,13 @@ impl<'a> Codegen<'a> {
                 }
             }
             STStatement::While(_, cond, body) => {
-                let while_cond = self.ctx.context.append_basic_block(*func, "while_cond");
+                let while_cond = self.ctx.context.append_basic_block(func, "while_cond");
                 self.builder.build_unconditional_branch(while_cond);
                 self.builder.position_at_end(while_cond);
-                let e = self.visit_expression(&cond, localvar_stackalloc, syms, tyr);
+                let e = self.visit_expression(&cond, localvar_stackalloc, syms, tyr, func);
                 let int = e.into_int_value();
-                let while_body = self.ctx.context.append_basic_block(*func, "while_body");
-                let while_exit = self.ctx.context.append_basic_block(*func, "while_exit");
+                let while_body = self.ctx.context.append_basic_block(func, "while_body");
+                let while_exit = self.ctx.context.append_basic_block(func, "while_exit");
                 self.builder
                     .build_conditional_branch(int, while_body, while_exit);
                 self.builder.position_at_end(while_body);
@@ -547,14 +535,14 @@ impl<'a> Codegen<'a> {
             }
             STStatement::RepeatUntil(_, _, _) => todo!(),
             STStatement::VarDecl(_l, vd) => {
-                let expr = self.visit_expression(&vd.init_expr, localvar_stackalloc, syms, tyr);
+                let expr = self.visit_expression(&vd.init_expr, localvar_stackalloc, syms, tyr, func);
                 self.builder.build_store(localvar_stackalloc[&vd.id], expr);
             }
             STStatement::Empty() => (),
             STStatement::DeferHint(_, _) => (),
             STStatement::MemoryFree(_, b) => {
                 if let SLPType::RefCounter(rs) = &b.ret_type {
-                    let expr = self.visit_expression(&b, localvar_stackalloc, syms, tyr).into_struct_value();
+                    let expr = self.visit_expression(&b, localvar_stackalloc, syms, tyr, func).into_struct_value();
                     //let pointee = self.slp_type_to_llvm(&b.ret_type);
                     self.builder.build_free(self.builder.build_extract_value(expr, 0, "counter_ptr").unwrap().into_pointer_value());
                     self.builder.build_free(self.builder.build_extract_value(expr, 1, "counter_ptr").unwrap().into_pointer_value());
@@ -573,6 +561,7 @@ impl<'a> Codegen<'a> {
         localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
         syms: &HashMap<Id, FunctionValue<'a>>,
         tyr: &GlobalSymbolResolver,
+        func: FunctionValue<'a>
     ) -> BasicValueEnum<'a> {
         let ty = self.slp_type_to_llvm(&expr.ret_type);
 
@@ -583,7 +572,7 @@ impl<'a> Codegen<'a> {
                 load
             }
             ExprKind::TypeCast(expr, kind) => {
-                let inp = self.visit_expression(expr, localvar_stackalloc, syms, tyr);
+                let inp = self.visit_expression(expr, localvar_stackalloc, syms, tyr, func);
                 let _source = self.slp_type_to_llvm(&expr.ret_type);
                 match kind {
                     crate::semtree::TypeConversionKind::Identity => inp,
@@ -679,7 +668,7 @@ impl<'a> Codegen<'a> {
             ExprKind::FunctionCall(fc) => {
                 let mut vls = vec![];
                 for arg in &fc.args {
-                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr))
+                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr, func))
                 }
                 let fnct = syms[&fc.func];
                 let vls2: Vec<_> = vls
@@ -689,6 +678,20 @@ impl<'a> Codegen<'a> {
                 let csr = self.builder.build_call(fnct, &vls2, "");
                 csr.try_as_basic_value().left().unwrap()
             }
+            ExprKind::BuildInCall(fc) => {
+                let mut vls = vec![];
+                for arg in &fc.args {
+                    vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr, func))
+                }
+                let fnct = syms[&BuildInModule::canonical_functions(&fc.func)];
+                let vls2: Vec<_> = vls
+                    .into_iter()
+                    .map(|x| -> BasicMetadataValueEnum<'a> { x.into() })
+                    .collect();
+                let csr = self.builder.build_call(fnct, &vls2, "");
+                csr.try_as_basic_value().left().unwrap()
+            }
+
             ExprKind::BoolLiteral(b) => inkwell::values::BasicValueEnum::IntValue(
                 self.ctx
                     .context
@@ -696,8 +699,8 @@ impl<'a> Codegen<'a> {
                     .const_int(if *b { 1 } else { 0 }, false),
             ),
             ExprKind::PrimitiveIntBinOp(l, r, k) => {
-                let lhs = self.visit_expression(l, localvar_stackalloc, syms, tyr);
-                let rhs = self.visit_expression(r, localvar_stackalloc, syms, tyr);
+                let lhs = self.visit_expression(l, localvar_stackalloc, syms, tyr, func);
+                let rhs = self.visit_expression(r, localvar_stackalloc, syms, tyr, func);
                 if !lhs.is_int_value() && !rhs.is_int_value() {
                     panic!("Wrong type!!!");
                 }
@@ -730,8 +733,8 @@ impl<'a> Codegen<'a> {
             }
             ExprKind::PrimitiveIntUnaryOp(_, _) => todo!(),
             ExprKind::PrimitiveIntComparation(l, r, k) => {
-                let lhs = self.visit_expression(l, localvar_stackalloc, syms, tyr);
-                let rhs = self.visit_expression(r, localvar_stackalloc, syms, tyr);
+                let lhs = self.visit_expression(l, localvar_stackalloc, syms, tyr, func);
+                let rhs = self.visit_expression(r, localvar_stackalloc, syms, tyr, func);
                 if !lhs.is_int_value() && !rhs.is_int_value() {
                     panic!("Wrong type!!!");
                 }
@@ -775,8 +778,8 @@ impl<'a> Codegen<'a> {
                     .into()
             }
             ExprKind::BoolBinOp(l, r, k) => {
-                let lhs = self.visit_expression(l, localvar_stackalloc, syms, tyr);
-                let rhs = self.visit_expression(r, localvar_stackalloc, syms, tyr);
+                let lhs = self.visit_expression(l, localvar_stackalloc, syms, tyr, func);
+                let rhs = self.visit_expression(r, localvar_stackalloc, syms, tyr, func);
                 if !lhs.is_int_value() && !rhs.is_int_value() {
                     panic!("Wrong type!!!");
                 }
@@ -797,7 +800,7 @@ impl<'a> Codegen<'a> {
                 }
             }
             ExprKind::BoolUnaryOp(l, k) => {
-                let inp = self.visit_expression(l, localvar_stackalloc, syms, tyr);
+                let inp = self.visit_expression(l, localvar_stackalloc, syms, tyr, func);
                 if !inp.is_int_value() {
                     panic!("Wrong type!!!");
                 }
@@ -807,15 +810,15 @@ impl<'a> Codegen<'a> {
                 }
             }
             ExprKind::Deref(d) => {
-                let tmp = self.visit_expression(&d, localvar_stackalloc, syms, tyr);
+                let tmp = self.visit_expression(&d, localvar_stackalloc, syms, tyr, func);
                 let ptr = tmp.into_pointer_value();
                 let pointee_type = self.slp_type_to_llvm(&expr.ret_type);
                 self.builder.build_load(pointee_type, ptr, "")
             }
             ExprKind::GetElementRefInReffedArray(ref_array, index) => {
-                let indexable = self.visit_expression(ref_array, localvar_stackalloc, syms, tyr);
+                let indexable = self.visit_expression(ref_array, localvar_stackalloc, syms, tyr, func);
                 let ptr = indexable.into_pointer_value();
-                let index = self.visit_expression(&index, localvar_stackalloc, syms, tyr);
+                let index = self.visit_expression(&index, localvar_stackalloc, syms, tyr, func);
                 let pointee_type =
                     self.slp_type_to_llvm(expr.ret_type.get_underlying_autoderef_type().unwrap());
                 unsafe {
@@ -832,7 +835,7 @@ impl<'a> Codegen<'a> {
             ExprKind::ConstructRecordFromArgList(args) => {
                 let mut t = vec![];
                 for i in args {
-                    let e = self.visit_expression(i, localvar_stackalloc, syms, tyr);
+                    let e = self.visit_expression(i, localvar_stackalloc, syms, tyr, func);
                     t.push(e);
                 }
                 let ty = self.slp_type_to_llvm(&expr.ret_type);
@@ -848,19 +851,18 @@ impl<'a> Codegen<'a> {
             ExprKind::GetElementRefInReffedRecord(x, y) => {
                 let pointee_type =
                     self.slp_type_to_llvm(&x.ret_type.get_underlying_autoderef_type().unwrap());
-                let structure = self.visit_expression(x, localvar_stackalloc, syms, tyr);
+                let structure = self.visit_expression(x, localvar_stackalloc, syms, tyr, func);
                 let ptr = structure.into_pointer_value();
 
                 self.builder.build_struct_gep(pointee_type, ptr, *y, "").unwrap().into()
             },
             ExprKind::Clone(_) => todo!(),
-            ExprKind::BuildInCall(_) => todo!(),
             ExprKind::Default => self.build_default(&expr.ret_type, tyr),
             ExprKind::IsNull(expr) => {
-                self.build_is_null(expr, localvar_stackalloc, syms, tyr)
+                self.build_is_null(expr, localvar_stackalloc, syms, tyr, func)
             },
             ExprKind::RefCountDecrease(rc_ref) => {
-                let refcounter = self.visit_expression(&rc_ref, localvar_stackalloc, syms, tyr);
+                let refcounter = self.visit_expression(&rc_ref, localvar_stackalloc, syms, tyr, func);
                 let refcounter_type = self.slp_type_to_llvm(&rc_ref.ret_type.get_underlying_autoderef_type().unwrap());
                 let counter_field = self.builder.build_struct_gep(refcounter_type, refcounter.into_pointer_value(), 0, "rc_ref").unwrap();
                 let counter = self.builder.build_load(self.get_pointer_sized_int().ptr_type(Default::default()), counter_field, "").into_pointer_value();
@@ -868,9 +870,17 @@ impl<'a> Codegen<'a> {
                 let prev = self.builder.build_atomicrmw(inkwell::AtomicRMWBinOp::Sub, counter, const_1, inkwell::AtomicOrdering::SequentiallyConsistent).unwrap();
                 self.builder.build_int_compare(IntPredicate::EQ, prev, const_1, "rc_compare").into()
             },
-            ExprKind::RefCountIncrease(_) => todo!(),
+            ExprKind::RefCountIncrease(rc_ref) => {
+                let refcounter = self.visit_expression(&rc_ref, localvar_stackalloc, syms, tyr, func);
+                let refcounter_type = self.slp_type_to_llvm(&rc_ref.ret_type.get_underlying_autoderef_type().unwrap());
+                let counter_field = self.builder.build_struct_gep(refcounter_type, refcounter.into_pointer_value(), 0, "rc_ref").unwrap();
+                let counter = self.builder.build_load(self.get_pointer_sized_int().ptr_type(Default::default()), counter_field, "").into_pointer_value();
+                let const_1 = self.get_pointer_sized_int().const_int(1, false);
+                let prev = self.builder.build_atomicrmw(inkwell::AtomicRMWBinOp::Add, counter, const_1, inkwell::AtomicOrdering::SequentiallyConsistent).unwrap();
+                self.builder.build_load(refcounter_type, refcounter.into_pointer_value(), "rc")
+            },
             ExprKind::GetElementBehindReffedReferenceCounter(e) => {
-                let ex = self.visit_expression(&e, localvar_stackalloc, syms, tyr);
+                let ex = self.visit_expression(&e, localvar_stackalloc, syms, tyr, func);
                 let pointee = self.slp_type_to_llvm(&e.ret_type.get_underlying_autoderef_type().unwrap());
                 let inside_ref = self.builder.build_struct_gep(pointee, ex.into_pointer_value(), 1, "rc_ref").unwrap();
                 let t = self.slp_type_to_llvm(&expr.ret_type);
@@ -878,7 +888,7 @@ impl<'a> Codegen<'a> {
                 
             },
             ExprKind::ConstructRefcounterFromInternalContent(e) => {
-                let ex = self.visit_expression(&e, localvar_stackalloc, syms, tyr);
+                let ex = self.visit_expression(&e, localvar_stackalloc, syms, tyr, func);
                 
                 let llvm_type = self.slp_type_to_llvm(&e.ret_type);
                 println!("~~~~~~{:#?}", e.ret_type);
@@ -899,6 +909,7 @@ impl<'a> Codegen<'a> {
                 let result_rc = self.builder.build_insert_value(raw_rc2, internal_content, 1, "intenal_content_insertion").unwrap();
                 result_rc.into_struct_value().into()
             },
+            ExprKind::FunctionArg(i) => {func.get_nth_param((*i).try_into().unwrap()).unwrap()},
         }
     }
     pub fn slp_func_to_llvm_func(

@@ -84,13 +84,17 @@ impl SemanticTree {
         let return_arg = output;
 
         let function_args: Vec<(Id, SLPType)> = input;
+        let mut codeblock = CodeBlock::new();
             
 
-        for (id, ty) in &function_args {
-            scope.add_variable(id, ty.clone());
+        for (i, (id, ty)) in function_args.iter().enumerate() {
+            let t = scope.add_variable(id, ty.clone());
+            Self::insert_vardecl(loc.clone(), t, STExpr::new(ty.clone(), loc.clone(), ExprKind::FunctionArg(i)), &mut codeblock, self.buildins.clone(), true)?
         }
-        scope.add_variable(&Id("Result".to_owned()), return_arg.clone());
-        let mut codeblock = CodeBlock::new();
+        let result = scope.add_variable(&Id("Result".to_owned()), return_arg.clone());
+        if !return_arg.is_void() {
+            Self::insert_vardecl(loc.clone(), result, STExpr::new(return_arg.clone(), loc.clone(), ExprKind::Default), &mut codeblock, self.buildins.clone(), false)?;
+        }
         for st in &func.body {
             self.visit_statement(st, &mut scope, &mut codeblock)?;
         }
@@ -456,20 +460,8 @@ impl SemanticTree {
                 let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 for i in s {
                     let lv = scope.add_variable(&Id(i.clone()), ty.clone());
-                    let t = STStatement::VarDecl(
-                        *l,
-                        VarDecl {
-                            id: lv.clone(),
-                            ty: ty.clone(),
-                            init_expr: STExpr { ret_type: ty.clone(), loc: l.clone(), kind: ExprKind::Default },
-                        },
-                    );
-                    code_block.common_statements.push(t);
-                    if !ty.is_trivially_copiable() {
-                        let drop_id = self.buildins.borrow_mut().register_or_get_drop(&ty);
-                        code_block.defer_statements.push(STStatement::BuildInCall(l.clone(), BuildInCall { func: drop_id.unwrap(), args: vec![STExpr::new(ty.wrap_autoderef_or_pass(), l.clone(), ExprKind::GetLocalVariableRef(lv.clone()))], ret_type: SLPType::void() }));
-                        code_block.common_statements.push(STStatement::DeferHint(l.clone(), code_block.defer_statements.len() - 1));
-                    }
+                    let init = STExpr { ret_type: ty.clone(), loc: l.clone(), kind: ExprKind::Default };
+                    Self::insert_vardecl(l.clone(), lv, init, code_block, self.buildins.clone(), true)?;
                 }
                 Ok(())
             }
@@ -478,41 +470,42 @@ impl SemanticTree {
                 let expr = self.visit_expression(e, scope)?;
                 let converted_expr = self.insert_impl_conversion(expr, &ty, l.clone())?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
-                code_block.common_statements.push(STStatement::VarDecl(
-                    *l,
-                    VarDecl {
-                        id: lv.clone(),
-                        ty: ty.clone(),
-                        init_expr: converted_expr,
-                    },
-                ));
-                if !ty.is_trivially_copiable() {
-                    let drop_id = self.buildins.borrow_mut().register_or_get_drop(&ty);
-                    code_block.defer_statements.push(STStatement::BuildInCall(l.clone(), BuildInCall { func: drop_id.unwrap(), args: vec![STExpr::new(ty.wrap_autoderef_or_pass(), l.clone(), ExprKind::GetLocalVariableRef(lv.clone()))], ret_type: SLPType::void() }));
-                    code_block.common_statements.push(STStatement::DeferHint(l.clone(), code_block.defer_statements.len() - 1));
-                }
-                Ok(())                
+                Self::insert_vardecl(l.clone(), lv, converted_expr, code_block, self.buildins.clone(), true)?;
+                Ok(())               
             }
             ast::VarDecl::ImplicitType(s, e) => {
                 //let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
+                let expr = self.insert_autoderef_or_pass(expr)?;
                 let lv = scope.add_variable(&Id(s.clone()), expr.ret_type.clone());
-                code_block.common_statements.push(STStatement::VarDecl(
-                    *l,
-                    VarDecl {
-                        id: lv.clone(),
-                        ty: expr.ret_type.clone(),
-                        init_expr: self.visit_expression(e, scope)?,
-                    },
-                ));
-                if !expr.ret_type.is_trivially_copiable() {
-                    let drop_id = self.buildins.borrow_mut().register_or_get_drop(&expr.ret_type);
-                    code_block.defer_statements.push(STStatement::BuildInCall(l.clone(), BuildInCall { func: drop_id.unwrap(), args: vec![STExpr::new(expr.ret_type.wrap_autoderef_or_pass(), l.clone(), ExprKind::GetLocalVariableRef(lv.clone()))], ret_type: SLPType::void() }));
-                    code_block.common_statements.push(STStatement::DeferHint(l.clone(), code_block.defer_statements.len() - 1));
-                }
+                Self::insert_vardecl(l.clone(), lv, expr, code_block, self.buildins.clone(), true)?;
                 Ok(())
             }
         }
+    }
+    fn insert_vardecl(loc: Loc, variable_name: LocalVariable, initializer: STExpr, code_block: &mut CodeBlock, buildins: Arc<RefCell<BuildInModule>>, insert_autoclean: bool) -> Result<(), SemTreeBuildErrors> {
+        let ty = initializer.ret_type.clone();
+        code_block.common_statements.push(STStatement::VarDecl(
+            loc.clone(),
+            VarDecl {
+                id: variable_name.clone(),
+                ty: initializer.ret_type.clone(),
+                init_expr: initializer,
+            },
+        ));
+        if !ty.is_trivially_copiable() && insert_autoclean {
+            let drop_id = buildins.borrow_mut().register_or_get_drop(&ty);
+            Self::insert_defer(loc, code_block, STStatement::BuildInCall(loc.clone(), BuildInCall { func: drop_id.unwrap(), 
+                args: vec![STExpr::new(ty.wrap_autoderef_or_pass(), loc, ExprKind::GetLocalVariableRef(variable_name.clone()))], 
+                ret_type: SLPType::void() }))?;
+            code_block.common_statements.push(STStatement::DeferHint(loc.clone(), code_block.defer_statements.len() - 1));
+        }
+        Ok(())
+    }
+    fn insert_defer(loc: Loc, code_block: &mut CodeBlock, stmt: STStatement) -> Result<(), SemTreeBuildErrors>{
+        code_block.defer_statements.push(stmt);
+        code_block.common_statements.push(STStatement::DeferHint(loc, code_block.defer_statements.len() - 1));
+        Ok(())
     }
     fn visit_int_constant(&self, cnst: &str, l: &Loc) -> Result<STExpr, SemTreeBuildErrors> {
         //let int = Regex::new(r#"(-)?(((0b|0x|0o)[0-9a-fA-F][0-9_a-fA-F]*)|([0-9][0-9_]*))(u8|i8|u16|i16|u32|i32|u64|i64|isize|usize)?"#).unwrap();
@@ -1289,6 +1282,8 @@ impl STExpr {
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind {
+    FunctionArg(usize),
+
     LocalVariable(LocalVariable),
     TypeCast(Box<STExpr>, TypeConversionKind),
     NumberLiteral(NumberLiteral),
@@ -1319,6 +1314,7 @@ pub enum ExprKind {
     IsNull(Box<STExpr>),
     ///Expect reference on refcounter, returns true if refcount reaches zero,
     RefCountDecrease(Box<STExpr>),
+    ///Expect reference on refcounter, returns same refcounter by val,
     RefCountIncrease(Box<STExpr>),
 
     
