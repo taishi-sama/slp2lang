@@ -116,6 +116,19 @@ pub fn statements(st: &Statement) -> StringTreeNode {
             "Defer".to_string(),
             vec![statements(x)].into_iter()
         ),
+        Statement::For(_, b) => StringTreeNode::with_child_nodes(
+            "For".to_string(),
+            vec![StringTreeNode::new(format!("{} {} :=", if b.is_new {"var"} else {""}, b.var_id)),
+            expressions(&b.initial_value),
+            StringTreeNode::new(format!("{}", match &b.direction {
+                crate::ast::ForDirection::Up => "to",
+                crate::ast::ForDirection::Down => "downto",
+            })),
+            expressions(&b.final_value),
+            StringTreeNode::new(format!("Do")),
+            statements(&b.body)
+            ].into_iter()
+        ),
     }
 }
 pub fn vardecl(vd: &VarDecl) -> StringTreeNode {

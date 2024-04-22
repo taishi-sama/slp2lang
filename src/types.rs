@@ -50,6 +50,7 @@ impl SLPPrimitiveType {
 
             SLPPrimitiveType::ISize => true,
             SLPPrimitiveType::USize => true,
+            
             SLPPrimitiveType::String => false,
             SLPPrimitiveType::Char => false,
             SLPPrimitiveType::Bool => false,

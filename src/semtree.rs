@@ -7,7 +7,7 @@ use std::{
 
 
 use crate::{
-    ast::{self, Expr, ExternFunctionBody, FunctionBody, Loc, ProgramFile, Statement}, buildins::BuildInModule, compiler::FileId, errors::SemTreeBuildErrors, symbols::{FunctionDecl, GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}
+    ast::{self, Expr, ExternFunctionBody, ForDirection, ForLoop, FunctionBody, Loc, ProgramFile, Statement}, buildins::BuildInModule, compiler::FileId, errors::SemTreeBuildErrors, symbols::{FunctionDecl, GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}
 };
 #[derive(Debug, Clone)]
 pub struct SemanticTree {
@@ -342,6 +342,21 @@ impl SemanticTree {
             kind: ExprKind::TypeCast(Box::new(input_expr), tck),
         });
     }
+    fn insert_assignment(loc: Loc, target: RhsExpr, from: STExpr, code_block: &mut CodeBlock, buildins: Arc<RefCell<BuildInModule>>, insert_autoclean: bool) -> Result<(), SemTreeBuildErrors> {
+        let middle_drop = if target.required_type.is_trivially_copiable() {None} else {
+            let drop = buildins.borrow_mut().register_or_get_drop(&target.required_type)?.unwrap();
+            let RhsKind::Deref(d) = &target.kind; 
+            Some(Box::new(STStatement::BuildInCall(loc.clone(), BuildInCall { func: drop, args: vec![d.clone()], ret_type: SLPType::void() })))
+        };
+        code_block.common_statements.push(STStatement::Assignment(
+            loc,
+            Box::new(target),
+            middle_drop,
+            Box::new(from),
+        ));
+        Ok(())
+    }
+
     fn visit_statement(
         &mut self,
         statement: &Statement,
@@ -370,19 +385,7 @@ impl SemanticTree {
                 let target = self.visit_rhs_expression(&target, &outer)?;
 
                 let from = self.insert_impl_conversion(from, &target.required_type, l.clone())?;
-                let middle_drop = if target.required_type.is_trivially_copiable() {None} else {
-                    let drop = self.buildins.borrow_mut().register_or_get_drop(&target.required_type)?.unwrap();
-                    let RhsKind::Deref(d) = &target.kind; 
-                    Some(Box::new(STStatement::BuildInCall(l.clone(), BuildInCall { func: drop, args: vec![d.clone()], ret_type: SLPType::void() })))
-                };
-
-
-                code_block.common_statements.push(STStatement::Assignment(
-                    *l,
-                    Box::new(target),
-                    middle_drop,
-                    Box::new(from),
-                ));
+                Self::insert_assignment(l.clone(), target, from, code_block, self.buildins.clone(), true)?;
                 Ok(())
             }
             Statement::If(l, cond, mb, ab) => {
@@ -442,11 +445,100 @@ impl SemanticTree {
             Statement::Defer(l, d) => {
                 let mut cb = CodeBlock::new();
                 self.visit_statement(&d, outer, &mut cb)?;
-                code_block.defer_statements.push(STStatement::CodeBlock(l.clone(), cb));
-                code_block.common_statements.push(STStatement::DeferHint(l.clone(), code_block.defer_statements.len() - 1));
+                Self::insert_defer(l.clone(), code_block, STStatement::CodeBlock(l.clone(), cb))?;
                 Ok(())
             },
+            Statement::For(l, fl) => self.visit_for_loop(fl, l, outer, code_block),
         }
+    }
+    pub fn build_int_constant(val: u64, ty: SLPPrimitiveType, loc: Loc) -> Result<STExpr, SemTreeBuildErrors> {
+        if !ty.is_int() {
+            todo!()
+        }
+        let res_ty = SLPType::PrimitiveType(ty.clone());
+        let kind =  match ty {
+            SLPPrimitiveType::Int8 => ExprKind::NumberLiteral(NumberLiteral::I8(val as i64 as _)),
+            SLPPrimitiveType::Int16 => ExprKind::NumberLiteral(NumberLiteral::I16(val as i64 as _)),
+            SLPPrimitiveType::Int32 => ExprKind::NumberLiteral(NumberLiteral::I32(val as i64 as _)),
+            SLPPrimitiveType::Int64 => ExprKind::NumberLiteral(NumberLiteral::I64(val as i64 as _)),
+            SLPPrimitiveType::Uint8 => ExprKind::NumberLiteral(NumberLiteral::I8(val as _)),
+            SLPPrimitiveType::Uint16 => ExprKind::NumberLiteral(NumberLiteral::I16(val as _)),
+            SLPPrimitiveType::Uint32 => ExprKind::NumberLiteral(NumberLiteral::I32(val as _)),
+            SLPPrimitiveType::Uint64 => ExprKind::NumberLiteral(NumberLiteral::I64(val as _)),
+            SLPPrimitiveType::ISize => ExprKind::NumberLiteral(NumberLiteral::ISize(val as i64)),
+            SLPPrimitiveType::USize => todo!(),
+            SLPPrimitiveType::Float32 => todo!(),
+            SLPPrimitiveType::Float64 => todo!(),
+            SLPPrimitiveType::String => todo!(),
+            SLPPrimitiveType::StringLiteral(_) => todo!(),
+            SLPPrimitiveType::Char => todo!(),
+            SLPPrimitiveType::Bool => todo!(),
+            SLPPrimitiveType::Void => todo!(),
+        };
+        Ok(STExpr::new(res_ty, loc, kind))
+    }
+    fn visit_for_loop(&mut self, fl: &ForLoop, l: &Loc, scope: &mut Scope, code_block: &mut CodeBlock) -> Result<(), SemTreeBuildErrors> {
+        let mut scope = Scope::new_with_outer(&scope);
+        let from = self.visit_expression(&fl.initial_value, &scope)?;
+        let from = self.insert_autoderef_or_pass(from)?;
+        let to = self.visit_expression(&fl.final_value, &scope)?;
+        let to = self.insert_autoderef_or_pass(to)?;
+        if !from.ret_type.is_any_int() || !to.ret_type.is_any_int() {
+            todo!("error handling: only ints are supported")
+        } 
+        if from.ret_type != to.ret_type {
+            todo!("error handling: Implement type hierarchy")
+        }
+        let ty = from.ret_type.clone();
+        let prim_ty = 
+            if let SLPType::PrimitiveType(pt) = ty.clone() {
+                pt
+            }
+            else {todo!()};
+        
+        let name = Id(fl.var_id.clone());
+
+        let var_name =
+            if fl.is_new {
+                let lv = scope.add_variable(&name, ty.clone());
+
+                Self::insert_vardecl(l.clone(), lv.clone(), from, code_block, self.buildins.clone(), true)?;
+                lv
+            } else {
+                let t = scope.get_variable(&name);
+                if t.is_none() {
+                    todo!("Variable not found")
+                }
+                let t = t.unwrap();
+                if &t.1 != &ty {
+                    todo!("error handling: Implement type hierarchy")
+                }
+                let var_expr = STExpr::new(ty.clone(), l.clone(), ExprKind::LocalVariable(t.0.clone()));
+                let target = Self::to_rhs_expression(var_expr)?;
+                Self::insert_assignment(l.clone(), target, from, code_block, self.buildins.clone(), true)?;
+                t.0
+            };
+        let var_expr = STExpr::new(ty.clone(), l.clone(), ExprKind::LocalVariable(var_name));
+        
+        let control_expression = if let ForDirection::Up = fl.direction {
+            STExpr::new(SLPType::bool(), l.clone(), ExprKind::PrimitiveIntComparation(Box::new(var_expr.clone()), Box::new(to.clone()), ComparationKind::LesserEqual))
+        } else {
+            STExpr::new(SLPType::bool(), l.clone(), ExprKind::PrimitiveIntComparation(Box::new(var_expr.clone()), Box::new(to.clone()), ComparationKind::GreaterEqual))
+        };
+        let change_expr = if let ForDirection::Up = fl.direction {
+            STExpr::new(ty.clone(), l.clone(), ExprKind::PrimitiveIntBinOp(Box::new(var_expr.clone()), Box::new(Self::build_int_constant(1, prim_ty, l.clone())?), IntBinOp::Add))
+        } else {
+            STExpr::new(ty.clone(), l.clone(), ExprKind::PrimitiveIntBinOp(Box::new(var_expr.clone()), Box::new(Self::build_int_constant(1, prim_ty, l.clone())?), IntBinOp::Substract))
+        };
+        let target = Self::to_rhs_expression(var_expr.clone())?;
+        let mut internal_codeblock = CodeBlock::new();
+        let mut for_body = CodeBlock::new();
+        self.visit_statement(&fl.body, &mut scope, &mut for_body)?;
+        internal_codeblock.common_statements.push(STStatement::CodeBlock(l.clone(), for_body));
+        Self::insert_assignment(l.clone(), target, change_expr, &mut internal_codeblock, self.buildins.clone(), true)?;
+        let stmt =  STStatement::While(l.clone(), Box::new(control_expression), Box::new(STStatement::CodeBlock(l.clone(), internal_codeblock)));
+        code_block.common_statements.push(stmt);
+        Ok(())
     }
     fn visit_vardelc(
         &mut self,
@@ -803,6 +895,9 @@ impl SemanticTree {
         scope: &Scope,
     ) -> Result<RhsExpr, SemTreeBuildErrors> {
         let expr = self.visit_expression(expr, scope)?;
+        Self::to_rhs_expression(expr)
+    }
+    fn to_rhs_expression(expr: STExpr) ->Result<RhsExpr, SemTreeBuildErrors> {
         let try_take_autoref = Self::autoref_or_pass(expr)?;
         Ok(RhsExpr {
             required_type: try_take_autoref.ret_type.get_underlying_autoderef_type().unwrap().clone(),

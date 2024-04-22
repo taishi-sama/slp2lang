@@ -1,3 +1,4 @@
+use core::str;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy)]
@@ -141,12 +142,28 @@ pub enum Statement {
     Assignment(Loc, Box<Expr>, Box<Expr>),
     If(Loc, Box<Expr>, Box<Statement>, Option<Box<Statement>>),
     While(Loc, Box<Expr>, Box<Statement>),
+    For(Loc, ForLoop),
     RepeatUntil(Loc, Box<Expr>, Box<Statement>),
     VarDecl(Loc, VarDecl),
     Defer(Loc, Box<Statement>),
 
     Empty(),
 }
+#[derive(Debug, Clone)]
+pub struct ForLoop {
+    pub is_new: bool,
+    pub var_id: String,
+    pub initial_value: Box<Expr>,
+    pub direction: ForDirection,
+    pub final_value: Box<Expr>,
+    pub body: Box<Statement>
+}
+#[derive(Debug, Clone)]
+pub enum ForDirection {
+    Up,
+    Down,
+}
+
 #[derive(Debug, Clone)]
 pub enum VarDecl {
     Multiple(Vec<String>, TypeDecl),

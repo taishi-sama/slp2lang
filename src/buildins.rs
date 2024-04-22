@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{ast::Loc, errors::SemTreeBuildErrors, semtree::{BuildInCall, CodeBlock, ExprKind, Function, LocalVariable, RhsExpr, STExpr, STStatement, VarDecl}, symbols::{GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}};
+use crate::{ast::Loc, errors::SemTreeBuildErrors, semtree::{BuildInCall, CodeBlock, ExprKind, Function, LocalVariable, RhsExpr, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}};
 
 #[derive(Debug, Clone)]
 pub struct BuildInModule {
@@ -87,8 +87,8 @@ impl BuildInModule {
                     if let Some(dropper) = internal_drop {
                         let counter = "counter".to_string();
                         let id = STStatement::VarDecl(zero_zero_loc.clone(), VarDecl { id: LocalVariable(counter.clone()), ty: SLPType::isize(), init_expr: STExpr::new(SLPType::isize(), zero_zero_loc, ExprKind::NumberLiteral(crate::semtree::NumberLiteral::ISize(0)))});
-                        let size = STExpr::new(SLPType::isize(), zero_zero_loc, ExprKind::NumberLiteral(crate::semtree::NumberLiteral::ISize((*size).try_into().unwrap())));
-                        let const_1 = STExpr::new(SLPType::isize(), zero_zero_loc, ExprKind::NumberLiteral(crate::semtree::NumberLiteral::ISize(1)));
+                        let size = SemanticTree::build_int_constant(*size, SLPPrimitiveType::ISize, zero_zero_loc.clone()).unwrap();
+                        let const_1 = SemanticTree::build_int_constant(1, SLPPrimitiveType::ISize, zero_zero_loc.clone()).unwrap();
                         
                         code_block.common_statements.push(id);
                         let counter_var = STExpr::new(SLPType::isize(), zero_zero_loc.clone(), ExprKind::LocalVariable(LocalVariable(counter.clone())));

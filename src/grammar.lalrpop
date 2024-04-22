@@ -34,6 +34,9 @@ match {
     r"(?i)record" => Record,
     r"(?i)as" => As,
     r"(?i)defer" => Defer,
+    r"(?i)for" => For,
+    r"(?i)to" => To,
+    r"(?i)downto" => Downto,
     "(",
     ")",
     "[",
@@ -159,6 +162,7 @@ Statement: Statement = {
 OpenStatement: Statement = {
     <ifsmt: OpenIfStatement> => ifsmt,
     <whsmt: OpenWhileStatement> => whsmt,
+    <forstmt: OpenForStatement> => forstmt,
 }
 ClosedStatement: Statement = {
     <cb:CodeBlock> => cb,
@@ -166,6 +170,8 @@ ClosedStatement: Statement = {
     <asmt: AssigmentStatement> => asmt,
     <ifsmt: ClosedIfStatement> => ifsmt,
     <whsmt: ClosedWhileStatement> => whsmt,
+    <forstmt: ClosedForStatement> => forstmt,
+
     <fc: FuncCallStmt> => fc,
     <df: DeferStatement> => df,
     () => Statement::Empty(),
@@ -201,6 +207,18 @@ OpenWhileStatement: Statement = {
 }
 ClosedWhileStatement: Statement = {
     <tl:@L> While <cond:Expr> Do <body_stmt: ClosedStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(body_stmt)),
+}
+OpenForStatement: Statement = {
+    <tl:@L> For <cond: Var?> <id: SoloId> ":=" <initial: Expr> <dir: ForDirection> <final_val: Expr> Do <stmt: OpenStatement> <tr:@R> => Statement::For(Loc::new(tl, tr), 
+            ForLoop {is_new: cond.is_some(), var_id: id, initial_value: Box::new(initial), direction: dir, final_value: Box::new(final_val), body: Box::new(stmt) }),
+}
+ClosedForStatement: Statement = {
+    <tl:@L> For <cond: Var?> <id: SoloId> ":=" <initial: Expr> <dir: ForDirection> <final_val: Expr> Do <stmt: ClosedStatement> <tr:@R> => Statement::For(Loc::new(tl, tr), 
+            ForLoop {is_new: cond.is_some(), var_id: id, initial_value: Box::new(initial), direction: dir, final_value: Box::new(final_val), body: Box::new(stmt) }),
+}
+ForDirection: ForDirection = {
+    To => ForDirection::Up,
+    Downto => ForDirection::Down,
 }
 
 AssigmentStatement : Statement = {
