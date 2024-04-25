@@ -890,6 +890,8 @@ impl SemanticTree {
                     ),
                 };
                 Ok(res)
+            } else if let SLPType::DynArray(ty) = internal_ty.as_ref() {
+                todo!()
             } else {
                 todo!()
             }
@@ -1050,14 +1052,17 @@ impl SemanticTree {
         args: &Vec<Expr>,
         scope: &Scope,
     ) -> Result<STExpr, SemTreeBuildErrors> {
-        if let Some(t) = count {
-            todo!()
-        }
+        
         let mut args_p = vec![]; 
         for a in args {
             args_p.push(self.visit_expression(a, scope)?)
         }
         let t = self.types_resolver.from_ast_type(ty, &self.fileid)?;
+        let t = {
+            if let Some(c) = count {
+                SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(t))))
+            } else {t}
+        };
         if let SLPType::Struct(fid, id, _) = &t {
             let tyr = Arc::clone(&self.types_resolver);
             let st = tyr.get_struct(fid, id)?.unwrap();
@@ -1446,7 +1451,10 @@ pub enum ExprKind {
     PrimitiveIntComparation(Box<STExpr>, Box<STExpr>, ComparationKind),
     BoolBinOp(Box<STExpr>, Box<STExpr>, BoolBinOp),
     BoolUnaryOp(Box<STExpr>, BoolUnaryOp),
+
     GetElementRefInReffedArray(Box<STExpr>, Box<STExpr>),
+    GetReffedDynArrayLength(Box<STExpr>),
+
     ///Expression and field number
     GetElementRefInReffedRecord(Box<STExpr>, u32),
     GetElementBehindReffedReferenceCounter(Box<STExpr>),
@@ -1454,6 +1462,9 @@ pub enum ExprKind {
     ConstructRecordFromArgList(Vec<STExpr>),
     ///Expect intenal content by value,
     ConstructRefcounterFromInternalContent(Box<STExpr>),
+    ConstructDynArrayFromElements(Vec<STExpr>),
+    ConstructDynArrayWithDefaultElements(Box<STExpr>),
+
     ///Checks pointer, dynamic array or reference counter to be null(default-initialized) or not. Expects type by value, so deref before passing. 
     IsNull(Box<STExpr>),
     ///Expect reference on refcounter, returns true if refcount reaches zero,

@@ -912,6 +912,9 @@ impl<'a> Codegen<'a> {
             },
             ExprKind::FunctionArg(i) => {func.get_nth_param((*i).try_into().unwrap()).unwrap()},
             ExprKind::NilLiteral => todo!(),
+            ExprKind::ConstructDynArrayFromElements(_) => todo!(),
+            ExprKind::GetReffedDynArrayLength(_) => todo!(),
+            ExprKind::ConstructDynArrayWithDefaultElements(_) => todo!(),
         }
     }
     pub fn slp_func_to_llvm_func(

@@ -304,10 +304,15 @@ impl GlobalSymbolResolver {
                             println!("{:?}({}) not found", tmp, &t.path[0]);
                             return Err(SemTreeBuildErrors::TypeConversionError);
                         }
+                        let fname = self.reverse_filename_translation.as_ref().get(&tmp.0).unwrap();
 
                         return match ty.unwrap() {
                             SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
-                            SLPTypeDecl::StructDecl(_) => todo!(),
+                            SLPTypeDecl::StructDecl(d) => if d.is_class {
+                                Ok(SLPType::RefCounter(Box::new(SLPType::Struct(fname.clone(), tmp.1.clone(), d.is_copiable))))
+                            } else {
+                                Ok(SLPType::Struct(fname.clone(), tmp.1.clone(), d.is_copiable))
+                            },
                         };
                     } else {
                         todo!("Error report: {} not in deps list", &t.path[0])
@@ -317,7 +322,7 @@ impl GlobalSymbolResolver {
                 }
             }
             Type::Pointer(t) => Ok(SLPType::Pointer(Box::new(self.from_ast_type(&t, file)?))),
-            Type::DynArray(t) => Ok(SLPType::DynArray(Box::new(self.from_ast_type(&t, file)?))),
+            Type::DynArray(t) => Ok(SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(self.from_ast_type(&t, file)?))))),
             //Insert offset to integer index on semtree building phase
             Type::FixedArray(b, e, t) => Ok(SLPType::FixedArray {
                 ty: Box::new(self.from_ast_type(&t, file)?),

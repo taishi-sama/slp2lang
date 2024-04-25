@@ -210,5 +210,8 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::ConstructRefcounterFromInternalContent(_) => todo!(),
         ExprKind::FunctionArg(n) => StringTreeNode::new(format!("n-th function arg: {n}")),
         ExprKind::NilLiteral => todo!(),
+        ExprKind::ConstructDynArrayFromElements(_) => todo!(),
+        ExprKind::GetReffedDynArrayLength(_) => todo!(),
+        ExprKind::ConstructDynArrayWithDefaultElements(_) => todo!(),
     }
 }
