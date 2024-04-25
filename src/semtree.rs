@@ -1013,7 +1013,7 @@ impl SemanticTree {
                 //TODO Path resolving
                 self.visit_method_call(l, &stmt, &field, scope)?
             },
-            Expr::OpNew(l, t, args) => self.visit_new(l.clone(), t, args, scope)?,
+            Expr::OpNew(l, t, s, args) => self.visit_new(l.clone(), t, s, args, scope)?,
             Expr::NilLiteral(l) => STExpr::new(SLPType::PrimitiveType(SLPPrimitiveType::Nil), l.clone(), ExprKind::NilLiteral),
         })
     }
@@ -1046,9 +1046,13 @@ impl SemanticTree {
         &mut self,
         loc: Loc,
         ty: &ast::Type,
+        count: &Option<Box<Expr>>,
         args: &Vec<Expr>,
         scope: &Scope,
     ) -> Result<STExpr, SemTreeBuildErrors> {
+        if let Some(t) = count {
+            todo!()
+        }
         let mut args_p = vec![]; 
         for a in args {
             args_p.push(self.visit_expression(a, scope)?)

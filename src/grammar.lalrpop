@@ -283,7 +283,8 @@ Tier1: Expr = {
     //<t: Tuples> => t,
     "(" <e:Expr> ")" => e,
     <tl:@L> <e:Tier1> "." <id:SoloId> <tr:@R> => Expr::OpMethodCall(Loc::new(tl, tr), Box::new(e), id),
-    <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, f),
+    <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, None, f),
+    <tl:@L> New <ty:Type> "[" <count:Expr> "]" "(" <f:FuncCallArgList> ")" <tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, Some(Box::new(count)), f),
     <tl:@L> <e:Tier1> "[" <i:Expr> "]" <tr:@R> => Expr::OpBinIndex(Loc::new(tl, tr), Box::new(e), Box::new(i)),
     <tl:@L> <fc: FuncCall> <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), fc),
     <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c),
@@ -315,6 +316,10 @@ IntConstant: String = {
 CharConstant: String = <s:CharLiteral> => s.to_string();
 
 StringConstant: String = <s:StrLiteral> => s[1..(s.len()-1)].to_string();
+
+FuncCallArgListParents: Vec<Expr> = {
+    "(" <f: FuncCallArgList> ")" => f,
+}
 
 FuncCallArgList: Vec<Expr> = {
     <d: Expr> "," <mut adl: FuncCallArgList> => {adl.insert(0, d); return adl;},

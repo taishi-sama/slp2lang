@@ -122,7 +122,7 @@ pub enum Expr {
     OpUnAs(Loc, Box<Expr>, TypeDecl),
 
     OpMethodCall(Loc, Box<Expr>, String),
-    OpNew(Loc, Type, Vec<Expr>),
+    OpNew(Loc, Type, Option<Box<Expr>>, Vec<Expr>),
     NilLiteral(Loc),
 }
 

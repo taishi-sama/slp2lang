@@ -251,7 +251,7 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             "BinDot".to_string(),
             vec![expressions(x), StringTreeNode::new(format!("{}", y))].into_iter(),
         ),
-        Expr::OpNew(_, x, t) => StringTreeNode::with_child_nodes(
+        Expr::OpNew(_, x, s, t) => StringTreeNode::with_child_nodes(
             "New".to_string(),
             iter::once(StringTreeNode::new(format!("{:?}", x))).chain(t.iter().map(expressions)),
         ),
