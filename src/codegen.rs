@@ -314,6 +314,7 @@ impl<'a> Codegen<'a> {
             SLPPrimitiveType::Float64 => self.ctx.context.f64_type().into(),
             SLPPrimitiveType::Char => self.ctx.context.i32_type().into(),
             SLPPrimitiveType::StringLiteral(_) => todo!(),
+            SLPPrimitiveType::Nil => todo!(),
         }
     }
     fn build_default<'b>(&self, ty: &'b SLPType, tyr: &GlobalSymbolResolver) -> BasicValueEnum<'a> {
@@ -344,6 +345,7 @@ impl<'a> Codegen<'a> {
                 SLPPrimitiveType::Char => self.ctx.context.i32_type().const_zero().into(),
                 SLPPrimitiveType::Bool => self.ctx.context.bool_type().const_zero().into(),
                 SLPPrimitiveType::Void => todo!(),
+                SLPPrimitiveType::Nil => todo!(),
             },
             SLPType::Pointer(ptr) => self.slp_type_to_llvm(&ptr).ptr_type(Default::default()).const_null().into(),
             SLPType::AutoderefPointer(_) => unreachable!("Autoderef pointers should never created as default values {ty:#?}"),
@@ -856,7 +858,6 @@ impl<'a> Codegen<'a> {
 
                 self.builder.build_struct_gep(pointee_type, ptr, *y, "").unwrap().into()
             },
-            ExprKind::Clone(_) => todo!(),
             ExprKind::Default => self.build_default(&expr.ret_type, tyr),
             ExprKind::IsNull(expr) => {
                 self.build_is_null(expr, localvar_stackalloc, syms, tyr, func)
@@ -910,6 +911,7 @@ impl<'a> Codegen<'a> {
                 result_rc.into_struct_value().into()
             },
             ExprKind::FunctionArg(i) => {func.get_nth_param((*i).try_into().unwrap()).unwrap()},
+            ExprKind::NilLiteral => todo!(),
         }
     }
     pub fn slp_func_to_llvm_func(

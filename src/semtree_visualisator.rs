@@ -190,7 +190,6 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::GetElementRefInReffedRecord(e, field_num) => StringTreeNode::with_child_nodes(
             format!("Taking ref of {field_num} field in referenced array "),
             vec![expr(e)].into_iter()),
-        ExprKind::Clone(_) => todo!(),
         ExprKind::BuildInCall(fc) => StringTreeNode::with_child_nodes(
             fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
             fc.args.iter().map(expr),
@@ -210,5 +209,6 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
             vec![expr(e)].into_iter()),
         ExprKind::ConstructRefcounterFromInternalContent(_) => todo!(),
         ExprKind::FunctionArg(n) => StringTreeNode::new(format!("n-th function arg: {n}")),
+        ExprKind::NilLiteral => todo!(),
     }
 }

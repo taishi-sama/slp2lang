@@ -1,0 +1,44 @@
+uses std_char;
+type test2 = class 
+    a: test;
+end;
+type test = class
+    q: int32;
+end;
+
+begin
+    var t: test2 = new test2(nil);
+    if t = nil then begin
+        std_char::putchar('n');
+        std_char::putchar('i');
+        std_char::putchar('l');
+        std_char::putchar('\n');
+
+    end else 
+    if t <> nil then begin
+        std_char::putchar('n');
+        std_char::putchar('o');
+        std_char::putchar('t');
+        std_char::putchar(' ');
+        std_char::putchar('n');
+        std_char::putchar('i');
+        std_char::putchar('l');
+        std_char::putchar('\n');
+        if t.a = nil then begin
+            std_char::putchar('n');
+            std_char::putchar('i');
+            std_char::putchar('l');
+            std_char::putchar('\n');
+        end else 
+        begin
+            std_char::putchar('n');
+            std_char::putchar('o');
+            std_char::putchar('t');
+            std_char::putchar(' ');
+            std_char::putchar('n');
+            std_char::putchar('i');
+            std_char::putchar('l');
+            std_char::putchar('\n');
+        end;
+    end;
+end.

@@ -35,6 +35,7 @@ pub enum SLPPrimitiveType {
     Char,
     Bool,
     Void,
+    Nil, 
 }
 impl SLPPrimitiveType {
     pub fn is_int(&self) -> bool {
@@ -58,6 +59,7 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::Float32 => false,
             SLPPrimitiveType::Float64 => false,
             SLPPrimitiveType::StringLiteral(_) => false,
+            SLPPrimitiveType::Nil => false,
         }
     }
     //Size in bytes
@@ -80,6 +82,7 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::Void => None,
             SLPPrimitiveType::Char => Some(4),
             SLPPrimitiveType::StringLiteral(_) => None,
+            SLPPrimitiveType::Nil => None,
         }
     }
     pub fn is_unsigned_int(&self) -> bool {
@@ -129,6 +132,17 @@ impl SLPType {
             SLPType::AutoderefPointer(Box::new(self.clone()))
         }
     }
+    pub fn is_nullable(&self) -> bool {
+        match self {
+            SLPType::PrimitiveType(_) => false,
+            SLPType::Pointer(_) => true,
+            SLPType::AutoderefPointer(_) => false,
+            SLPType::DynArray(_) => true,
+            SLPType::FixedArray { size, index_offset, ty } => false,
+            SLPType::Struct(_, _, _) => false,
+            SLPType::RefCounter(_) => true,
+        }
+    }
     pub fn normalized_name(&self) -> Id {
         match &self {
             SLPType::PrimitiveType(ty) => match ty {
@@ -149,6 +163,7 @@ impl SLPType {
                 SLPPrimitiveType::Char => Id(format!("char")),
                 SLPPrimitiveType::Bool => Id(format!("bool")),
                 SLPPrimitiveType::Void => todo!(),
+                SLPPrimitiveType::Nil => Id(format!("nil")),
             },
             SLPType::Pointer(t) => Id(format!("ptr@{}", t.normalized_name().0)),
             SLPType::AutoderefPointer(t) => Id(format!("autoref@{}", t.normalized_name().0)),
@@ -178,6 +193,7 @@ impl SLPType {
                 SLPPrimitiveType::Char => true,
                 SLPPrimitiveType::Bool => true,
                 SLPPrimitiveType::Void => todo!(),
+                SLPPrimitiveType::Nil => true,
             },
             SLPType::Pointer(x) => true,
             SLPType::AutoderefPointer(x) => true,
@@ -293,6 +309,13 @@ impl SLPType {
     }
     pub fn is_void(&self) -> bool {
         if let &SLPType::PrimitiveType(SLPPrimitiveType::Void) = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_nil(&self) -> bool {
+        if let &SLPType::PrimitiveType(SLPPrimitiveType::Nil) = self {
             true
         } else {
             false

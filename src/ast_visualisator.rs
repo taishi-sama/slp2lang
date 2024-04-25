@@ -259,5 +259,9 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             "BinIndex".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
+        Expr::NilLiteral(_) => StringTreeNode::with_child_nodes(
+            "NilLiteral".to_string(),
+            vec![].into_iter(),
+        ),
     }
 }

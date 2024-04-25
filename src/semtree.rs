@@ -169,10 +169,10 @@ impl SemanticTree {
             Self::try_get_autoref(expr)
         }
     }
-    fn insert_autoderef_or_pass(&mut self, expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
+    fn insert_autoderef_or_pass(&mut self, expr: STExpr, force_no_clone: bool) -> Result<STExpr, SemTreeBuildErrors> {
         if let Some(ty) = expr.ret_type.get_underlying_autoderef_type() {
             let target = ty.clone();
-            if target.is_trivially_copiable() {
+            if target.is_trivially_copiable() || force_no_clone {
                 Ok(STExpr {
                     ret_type: target,
                     loc: expr.loc.clone(),
@@ -194,9 +194,15 @@ impl SemanticTree {
         let from = &expr.ret_type;
         if from == to {
             Ok(expr)
+        } else if expr.ret_type.is_nil() {
+            if to.is_nullable() {
+                Ok(STExpr::new(to.clone(), loc, ExprKind::Default))
+            } else {
+                todo!()
+            }
         } else if let Some(ty) = from.get_underlying_autoderef_type() {
             if ty == to {
-                self.insert_autoderef_or_pass(expr)
+                self.insert_autoderef_or_pass(expr, false)
             } else {
                 todo!(
                     "Implement implicit conversion hierarcy: {:?} to {:?}",
@@ -474,15 +480,16 @@ impl SemanticTree {
             SLPPrimitiveType::Char => todo!(),
             SLPPrimitiveType::Bool => todo!(),
             SLPPrimitiveType::Void => todo!(),
+            SLPPrimitiveType::Nil => todo!(),
         };
         Ok(STExpr::new(res_ty, loc, kind))
     }
     fn visit_for_loop(&mut self, fl: &ForLoop, l: &Loc, scope: &mut Scope, code_block: &mut CodeBlock) -> Result<(), SemTreeBuildErrors> {
         let mut scope = Scope::new_with_outer(&scope);
         let from = self.visit_expression(&fl.initial_value, &scope)?;
-        let from = self.insert_autoderef_or_pass(from)?;
+        let from = self.insert_autoderef_or_pass(from, false)?;
         let to = self.visit_expression(&fl.final_value, &scope)?;
-        let to = self.insert_autoderef_or_pass(to)?;
+        let to = self.insert_autoderef_or_pass(to, false)?;
         if !from.ret_type.is_any_int() || !to.ret_type.is_any_int() {
             todo!("error handling: only ints are supported")
         } 
@@ -568,7 +575,7 @@ impl SemanticTree {
             ast::VarDecl::ImplicitType(s, e) => {
                 //let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
-                let expr = self.insert_autoderef_or_pass(expr)?;
+                let expr = self.insert_autoderef_or_pass(expr, false)?;
                 let lv = scope.add_variable(&Id(s.clone()), expr.ret_type.clone());
                 Self::insert_vardecl(l.clone(), lv, expr, code_block, self.buildins.clone(), true)?;
                 Ok(())
@@ -796,7 +803,7 @@ impl SemanticTree {
         scope: &Scope,
     ) -> Result<STExpr, SemTreeBuildErrors> {
         let index = self.visit_expression(index, scope)?;
-        let index = self.insert_autoderef_or_pass(index)?;
+        let index = self.insert_autoderef_or_pass(index, false)?;
         if index.ret_type.is_any_int() {
             let c = match &index.ret_type {
                 SLPType::PrimitiveType(pt) => match pt {
@@ -833,6 +840,7 @@ impl SemanticTree {
                     SLPPrimitiveType::Bool => todo!(),
                     SLPPrimitiveType::Void => todo!(),
                     SLPPrimitiveType::StringLiteral(_) => todo!(),
+                    SLPPrimitiveType::Nil => todo!(),
                 },
                 _ => todo!(),
             };
@@ -967,22 +975,22 @@ impl SemanticTree {
             Expr::OpBinShl(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shl)?,
             Expr::OpBinShr(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Shr)?,
             Expr::OpBinLesser(l, x, y) => {
-                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::LesserThan)?
+                self.visit_comparations(*l, &x, &y, scope, ComparationKind::LesserThan)?
             }
             Expr::OpBinGreater(l, x, y) => {
-                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::GreaterThan)?
+                self.visit_comparations(*l, &x, &y, scope, ComparationKind::GreaterThan)?
             }
             Expr::OpBinLesserEq(l, x, y) => {
-                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::LesserEqual)?
+                self.visit_comparations(*l, &x, &y, scope, ComparationKind::LesserEqual)?
             }
             Expr::OpBinGreaterEq(l, x, y) => {
-                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::GreaterEqual)?
+                self.visit_comparations(*l, &x, &y, scope, ComparationKind::GreaterEqual)?
             }
             Expr::OpBinEq(l, x, y) => {
-                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::Equal)?
+                self.visit_comparations(*l, &x, &y, scope, ComparationKind::Equal)?
             }
             Expr::OpBinNotEq(l, x, y) => {
-                self.visit_int_comparations(*l, &x, &y, scope, ComparationKind::NotEqual)?
+                self.visit_comparations(*l, &x, &y, scope, ComparationKind::NotEqual)?
             }
             Expr::OpUnDeref(_, _) => todo!(),
             Expr::OpUnGetRef(_, _) => todo!(),
@@ -1006,6 +1014,7 @@ impl SemanticTree {
                 self.visit_method_call(l, &stmt, &field, scope)?
             },
             Expr::OpNew(l, t, args) => self.visit_new(l.clone(), t, args, scope)?,
+            Expr::NilLiteral(l) => STExpr::new(SLPType::PrimitiveType(SLPPrimitiveType::Nil), l.clone(), ExprKind::NilLiteral),
         })
     }
     fn visit_method_call(&mut self, l: &Loc, expr: &Expr, field: &str, scope: &Scope) -> Result<STExpr, SemTreeBuildErrors> {
@@ -1092,11 +1101,12 @@ impl SemanticTree {
     ) -> Result<STExpr, SemTreeBuildErrors> {
         let vl = self.visit_expression(&l, scope)?;
         let le = Box::new(self.insert_autoderef_or_pass( 
-            vl
+            vl, false
         )?);
         let vr = self.visit_expression(&r, scope)?;
         let re = Box::new(self.insert_autoderef_or_pass(
             vr,
+            false
         )?);
         if le.ret_type == re.ret_type {
             if le.ret_type.is_any_int() {
@@ -1129,7 +1139,7 @@ impl SemanticTree {
             )
         }
     }
-    fn visit_int_comparations(
+    fn visit_comparations(
         &mut self,
         loc: Loc,
         l: &Expr,
@@ -1138,12 +1148,40 @@ impl SemanticTree {
         kind: ComparationKind,
     ) -> Result<STExpr, SemTreeBuildErrors> {
         let vl = self.visit_expression(&l, scope)?;
-        let le = Box::new(self.insert_autoderef_or_pass( 
-            vl
-        )?);
+        
         let vr = self.visit_expression(&r, scope)?;
+        if vl.ret_type.is_nil() || vr.ret_type.is_nil() {
+            let nilcheck = if vr.ret_type.is_nil() {
+                Box::new(self.insert_autoderef_or_pass( 
+                    vl,
+                    true
+                )?)
+            } else {
+                Box::new(self.insert_autoderef_or_pass(
+                    vr,
+                    true,
+                )?)
+            };
+            if nilcheck.ret_type.is_nullable() {
+                if let ComparationKind::Equal = kind {
+                    return Ok(STExpr::new(SLPType::bool(), loc, ExprKind::IsNull(nilcheck)));
+                } else if let ComparationKind::NotEqual = kind {
+                    let comp = STExpr::new(SLPType::bool(), loc.clone(), ExprKind::IsNull(nilcheck));
+                    return Ok(STExpr::new(SLPType::bool(), loc, ExprKind::BoolUnaryOp(Box::new(comp), BoolUnaryOp::Not)));
+                } else {
+                    todo!()
+                }
+            } else {
+                todo!()
+            }
+        } 
+        let le = Box::new(self.insert_autoderef_or_pass( 
+            vl,
+            false
+        )?);
         let re = Box::new(self.insert_autoderef_or_pass(
             vr,
+            false,
         )?);
         if le.ret_type == re.ret_type {
             if le.ret_type.is_any_int() {
@@ -1379,12 +1417,21 @@ impl STExpr {
 pub enum ExprKind {
     FunctionArg(usize),
 
+    
+    
     LocalVariable(LocalVariable),
+    GetLocalVariableRef(LocalVariable),
+
+
     TypeCast(Box<STExpr>, TypeConversionKind),
     NumberLiteral(NumberLiteral),
     FloatLiteral(FloatLiteral),
     BoolLiteral(bool),
     CharLiteral(char),
+
+    ///Should be never exists in final semtree
+    NilLiteral,
+
     FunctionCall(FunctionCall),
     BuildInCall(BuildInCall),
 
@@ -1400,8 +1447,6 @@ pub enum ExprKind {
     GetElementRefInReffedRecord(Box<STExpr>, u32),
     GetElementBehindReffedReferenceCounter(Box<STExpr>),
     Deref(Box<STExpr>),
-    Clone(Box<STExpr>),
-    GetLocalVariableRef(LocalVariable),
     ConstructRecordFromArgList(Vec<STExpr>),
     ///Expect intenal content by value,
     ConstructRefcounterFromInternalContent(Box<STExpr>),

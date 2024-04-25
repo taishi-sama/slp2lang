@@ -123,6 +123,7 @@ pub enum Expr {
 
     OpMethodCall(Loc, Box<Expr>, String),
     OpNew(Loc, Type, Vec<Expr>),
+    NilLiteral(Loc),
 }
 
 #[derive(Debug, Clone)]

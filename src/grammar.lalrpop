@@ -37,6 +37,7 @@ match {
     r"(?i)for" => For,
     r"(?i)to" => To,
     r"(?i)downto" => Downto,
+    r"(?i)nil" => Nil,
     "(",
     ")",
     "[",
@@ -286,6 +287,7 @@ Tier1: Expr = {
     <tl:@L> <e:Tier1> "[" <i:Expr> "]" <tr:@R> => Expr::OpBinIndex(Loc::new(tl, tr), Box::new(e), Box::new(i)),
     <tl:@L> <fc: FuncCall> <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), fc),
     <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c),
+    <tl:@L> Nil <tr:@R> => Expr::NilLiteral(Loc::new(tl, tr)),
     <tl:@L> <id: IdPath> <tr:@R> => Expr::Ident(Loc::new(tl, tr), id),
     
 };
@@ -305,7 +307,6 @@ Constant: Constant = {
     <c: CharConstant> => Constant::Char(c),
     True => Constant::Bool(true),
     False => Constant::Bool(false),
-
 };
 IntConstant: String = {
     <s:Int> => s.to_string(),
