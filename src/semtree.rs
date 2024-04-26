@@ -278,6 +278,7 @@ impl SemanticTree {
                     //TODO check if symbol is type instead of assuming this
                     let ty = ast::Type::Primitive(id.clone());
                     if args.len() == 1 {
+                        let ty: SLPType = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
                         return Ok(FunctionCallResolveResult::TypeCast(self.resolve_typecast(
                             &ty,
                             args.pop().unwrap(),
@@ -294,15 +295,19 @@ impl SemanticTree {
     }
     fn resolve_typecast(
         &self,
-        ty: &ast::Type,
+        target: &SLPType,
         input_expr: STExpr,
         loc: Loc,
     ) -> Result<STExpr, SemTreeBuildErrors> {
-        let target = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
+        //let target = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
 
         let source = &input_expr.ret_type;
-        let tck = if &target == source {
+        let tck = if target == source {
             TypeConversionKind::Identity
+        } else if source.is_any_int() && target.is_usize(){
+            TypeConversionKind::ToUsize
+        } else if source.is_any_int() && target.is_isize(){
+            TypeConversionKind::ToUsize
         } else if source.is_unsigned_int() && target.is_unsigned_int() {
             if source.get_number_size().unwrap() > target.get_number_size().unwrap() {
                 TypeConversionKind::UnsignedIntTruncate
@@ -342,8 +347,9 @@ impl SemanticTree {
         } else {
             todo!()
         };
+        
         return Ok(STExpr {
-            ret_type: target,
+            ret_type: target.clone(),
             loc,
             kind: ExprKind::TypeCast(Box::new(input_expr), tck),
         });
@@ -472,7 +478,7 @@ impl SemanticTree {
             SLPPrimitiveType::Uint32 => ExprKind::NumberLiteral(NumberLiteral::I32(val as _)),
             SLPPrimitiveType::Uint64 => ExprKind::NumberLiteral(NumberLiteral::I64(val as _)),
             SLPPrimitiveType::ISize => ExprKind::NumberLiteral(NumberLiteral::ISize(val as i64)),
-            SLPPrimitiveType::USize => todo!(),
+            SLPPrimitiveType::USize => ExprKind::NumberLiteral(NumberLiteral::USize(val)),
             SLPPrimitiveType::Float32 => todo!(),
             SLPPrimitiveType::Float64 => todo!(),
             SLPPrimitiveType::String => todo!(),
@@ -890,8 +896,24 @@ impl SemanticTree {
                     ),
                 };
                 Ok(res)
-            } else if let SLPType::DynArray(ty) = internal_ty.as_ref() {
-                todo!()
+            } else if let SLPType::RefCounter(ty) = internal_ty.as_ref() {
+                if let SLPType::DynArray(da) = ty.as_ref() {
+                    let ret_ty = SLPType::AutoderefPointer(da.clone());
+                    let indexable_expr_ref = STExpr::new(ty.wrap_autoderef_or_pass(), loc.clone(), ExprKind::GetElementBehindReffedReferenceCounter(Box::new(indexable_expr_ref)));
+                    let index_expr =
+                    self.visit_indexation_expression(index, 0, u64::MAX, scope)?;
+                    let res = STExpr {
+                        ret_type: ret_ty,
+                        loc,
+                        kind: ExprKind::GetElementRefInReffedArray(
+                            Box::new(indexable_expr_ref),
+                            Box::new(index_expr),
+                        ),
+                    };
+                    Ok(res)
+                } else {
+                    todo!()
+                }
             } else {
                 todo!()
             }
@@ -1009,7 +1031,8 @@ impl SemanticTree {
             },
             Expr::OpUnAs(l, e, td) => {
                 let expr = self.visit_expression(&e, scope)?;
-                self.resolve_typecast(&td.ty, expr, l.clone())?
+                let ty = self.types_resolver.from_ast_type(&td.ty, &self.fileid)?;
+                self.resolve_typecast(&ty, expr, l.clone())?
             }
             Expr::OpMethodCall(l, stmt, field) => {
                 //TODO Path resolving
@@ -1059,7 +1082,7 @@ impl SemanticTree {
         }
         let t = self.types_resolver.from_ast_type(ty, &self.fileid)?;
         let t = {
-            if let Some(c) = count {
+            if count.is_some() {
                 SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(t))))
             } else {t}
         };
@@ -1092,7 +1115,14 @@ impl SemanticTree {
                 }
                 internal_content = STExpr{ ret_type: *rc.clone(), loc, kind: ExprKind::ConstructRecordFromArgList(reconst_exprs) };
             } else if let SLPType::DynArray(da) = rc.as_ref() {
-                todo!()
+                if let Some(count_expr) = count {
+                    let visited = self.visit_expression(&count_expr, scope)?;
+                    if !visited.ret_type.is_any_int() {todo!("Wrong type reporting")}
+                    
+                    let t = self.resolve_typecast(&SLPType::usize(), visited, loc.clone())?;
+                    let id = self.buildins.borrow_mut().register_or_get_dyn_array_empty_constuctors(&rc)?;
+                    internal_content = STExpr::new(*rc.clone(), loc.clone(), ExprKind::BuildInCall(BuildInCall{func: id, args: vec![t], ret_type: *rc.clone()}))
+                } else {todo!()}
             } else {todo!()}
             Ok(STExpr{ ret_type: t.clone(), loc, kind: ExprKind::ConstructRefcounterFromInternalContent(Box::new(internal_content)) })
             
@@ -1463,8 +1493,13 @@ pub enum ExprKind {
     ///Expect intenal content by value,
     ConstructRefcounterFromInternalContent(Box<STExpr>),
     ConstructDynArrayFromElements(Vec<STExpr>),
-    ConstructDynArrayWithDefaultElements(Box<STExpr>),
+    ConstructUninitizedDynArray(Box<STExpr>),
 
+
+    ///Returns uint32 length. Expects type by value, so deref before passing. 
+    DynArrayIntLen(Box<STExpr>),
+    ///Returns uint64 length. Expects type by value, so deref before passing. 
+    DynArrayLongLen(Box<STExpr>),
     ///Checks pointer, dynamic array or reference counter to be null(default-initialized) or not. Expects type by value, so deref before passing. 
     IsNull(Box<STExpr>),
     ///Expect reference on refcounter, returns true if refcount reaches zero,
@@ -1488,6 +1523,8 @@ pub enum NumberLiteral {
     U16(u16),
     U8(u8),
     ISize(i64),
+    USize(u64),
+
 }
 #[derive(Debug, Clone)]
 pub enum FloatLiteral {
@@ -1548,6 +1585,8 @@ pub enum BoolUnaryOp {
 pub enum TypeConversionKind {
     Identity,
 
+    
+    ToUsize,
     SignedIntExtend,
     UnsignedIntExtend,
 

@@ -122,6 +122,15 @@ impl SLPType {
     pub fn isize() -> Self {
         SLPType::PrimitiveType(SLPPrimitiveType::ISize)
     }
+    pub fn usize() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::USize)
+    }
+    pub fn int64() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::Int64)
+    }
+    pub fn uint64() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::Uint64)
+    }
     pub fn void() -> Self {
         SLPType::PrimitiveType(SLPPrimitiveType::Void)
     }
@@ -298,6 +307,27 @@ impl SLPType {
             }
         } else {
             todo!()
+        }
+    }
+    pub fn is_dyn_array(&self) -> bool {
+        if let &SLPType::DynArray(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_usize(&self) -> bool {
+        if let &SLPType::PrimitiveType(SLPPrimitiveType::USize) = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_isize(&self) -> bool {
+        if let &SLPType::PrimitiveType(SLPPrimitiveType::ISize) = self {
+            true
+        } else {
+            false
         }
     }
     pub fn is_bool(&self) -> bool {

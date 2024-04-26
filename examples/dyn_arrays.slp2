@@ -1,3 +1,10 @@
+uses std_char;
 begin
-    var arr := new int32[3]();
+    var arr := new int32[100]();
+    //arr[1] := 10;
+    for var i := 0 to 100 - 1 do 
+        arr[i] := i + 1;
+    for var j := 0 to 100 - 1 do 
+        std_char::put_int32(arr[j]);
+    
 end.

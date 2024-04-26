@@ -121,6 +121,8 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
                     NumberLiteral::U8(i) => i.to_string(),
                     NumberLiteral::I8(i) => i.to_string(),
                     NumberLiteral::ISize(i) => i.to_string(),
+                    NumberLiteral::USize(i) => i.to_string(),
+
                 },
         ),
         ExprKind::FunctionCall(fc) => StringTreeNode::with_child_nodes(
@@ -194,7 +196,7 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
             fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
             fc.args.iter().map(expr),
         ),
-        ExprKind::Default => todo!(),
+        ExprKind::Default => StringTreeNode::new("Default".to_string()),
         ExprKind::IsNull(e) => StringTreeNode::with_child_nodes(
             format!("IsNull"),
             vec![expr(e)].into_iter()),
@@ -212,6 +214,11 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::NilLiteral => todo!(),
         ExprKind::ConstructDynArrayFromElements(_) => todo!(),
         ExprKind::GetReffedDynArrayLength(_) => todo!(),
-        ExprKind::ConstructDynArrayWithDefaultElements(_) => todo!(),
+        ExprKind::ConstructUninitizedDynArray(c) => StringTreeNode::with_child_nodes(
+            format!("Build unitilized dyn array with size"),
+            vec![expr(c)].into_iter()),
+        ExprKind::DynArrayIntLen(_) => todo!(),
+        ExprKind::DynArrayLongLen(_) => todo!(),
+
     }
 }

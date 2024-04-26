@@ -7,11 +7,13 @@ pub struct BuildInModule {
     pub types_resolver: Arc<GlobalSymbolResolver>,
     pub drops: HashMap<SLPType, Id>,
     pub clones: HashMap<SLPType, Id>,
-    pub buildins: HashMap<Id, Function>
+    pub dyn_array_empty_constuctors: HashMap<SLPType, Id>,
+
+    pub buildins: HashMap<Id, Function>,
 }
 impl BuildInModule {
     pub fn new(tyr: Arc<GlobalSymbolResolver>) -> Self {
-        Self { types_resolver: tyr, drops: Default::default(), clones: Default::default(), buildins: Default::default() }
+        Self { types_resolver: tyr, drops: Default::default(), clones: Default::default(), buildins: Default::default(), dyn_array_empty_constuctors: Default::default() }
     }
     pub fn canonical_functions(id: &Id) -> Id {
         Id(format!("_slp2_buildins${}", id.0))
@@ -86,11 +88,11 @@ impl BuildInModule {
                     
                     if let Some(dropper) = internal_drop {
                         let counter = "counter".to_string();
-                        let id = STStatement::VarDecl(zero_zero_loc.clone(), VarDecl { id: LocalVariable(counter.clone()), ty: SLPType::isize(), init_expr: STExpr::new(SLPType::isize(), zero_zero_loc, ExprKind::NumberLiteral(crate::semtree::NumberLiteral::ISize(0)))});
+                        let counter_decl = STStatement::VarDecl(zero_zero_loc.clone(), VarDecl { id: LocalVariable(counter.clone()), ty: SLPType::isize(), init_expr: STExpr::new(SLPType::isize(), zero_zero_loc, ExprKind::NumberLiteral(crate::semtree::NumberLiteral::ISize(0)))});
                         let size = SemanticTree::build_int_constant(*size, SLPPrimitiveType::ISize, zero_zero_loc.clone()).unwrap();
                         let const_1 = SemanticTree::build_int_constant(1, SLPPrimitiveType::ISize, zero_zero_loc.clone()).unwrap();
                         
-                        code_block.common_statements.push(id);
+                        code_block.common_statements.push(counter_decl);
                         let counter_var = STExpr::new(SLPType::isize(), zero_zero_loc.clone(), ExprKind::LocalVariable(LocalVariable(counter.clone())));
                         let counter_var_ref = STExpr::new(SLPType::isize().wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::GetLocalVariableRef(LocalVariable(counter.clone())));
                         
@@ -107,6 +109,10 @@ impl BuildInModule {
                         while_body.common_statements.push(counter_increment);
                         code_block.common_statements.push(STStatement::While(zero_zero_loc.clone(), Box::new(cond), Box::new(STStatement::CodeBlock(zero_zero_loc.clone(), while_body))));
                     }
+                } else if let SLPType::DynArray(internal) = ty {
+                    todo!()
+                } else {
+                    unreachable!()
                 }
                 let func_id = Id(format!("drop@{}", &tyname.0));
                 let func = Function { function_name: func_id.clone(), function_args: vec![( Id(input_name.clone()), ty.wrap_autoderef_or_pass())], return_arg: SLPType::PrimitiveType(SLPPrimitiveType::Void), body: code_block, temporary_variables: Default::default(), loc:  zero_zero_loc.clone()};
@@ -147,5 +153,55 @@ impl BuildInModule {
             }
         }
     }
-    
+    pub fn register_or_get_dyn_array_empty_constuctors(&mut self, array_type: &SLPType) -> Result<Id, SemTreeBuildErrors> {
+        let zero_zero_loc = Loc::new(0, 0);
+
+        if let SLPType::DynArray(ty) = array_type {
+            let mut code_block = CodeBlock::new();
+            
+            let size_var = "input".to_string();
+            code_block.common_statements.push(STStatement::VarDecl(zero_zero_loc, VarDecl{ id: LocalVariable(size_var.clone()), ty: SLPType::usize(), init_expr: STExpr::new(SLPType::usize(), zero_zero_loc, ExprKind::FunctionArg(0)) }));
+            let size_var_value = STExpr::new(SLPType::usize(), zero_zero_loc.clone(), ExprKind::LocalVariable(LocalVariable(size_var.clone())));
+
+
+            let arr_var = "Result".to_string();
+            code_block.common_statements.push(STStatement::VarDecl(zero_zero_loc, VarDecl{ id: LocalVariable(arr_var.clone()), ty: array_type.clone(), init_expr: STExpr::new(array_type.clone(), zero_zero_loc.clone(), ExprKind::ConstructUninitizedDynArray(Box::new(size_var_value.clone())))}));
+            let arr_value_ref = STExpr::new(array_type.wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::GetLocalVariableRef(LocalVariable(arr_var.clone())));
+            
+
+            let tyname = array_type.normalized_name(); 
+            let func_id = Id(format!("build_empty@{}", &tyname.0));
+
+            let counter = "counter".to_string();
+            let counter_decl = STStatement::VarDecl(zero_zero_loc.clone(), VarDecl { id: LocalVariable(counter.clone()), ty: SLPType::usize(), init_expr: SemanticTree::build_int_constant(0, SLPPrimitiveType::USize, zero_zero_loc.clone())?});
+            code_block.common_statements.push(counter_decl);
+            let counter_var = STExpr::new(SLPType::usize(), zero_zero_loc.clone(), ExprKind::LocalVariable(LocalVariable(counter.clone())));
+            let counter_var_ref = STExpr::new(SLPType::usize().wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::GetLocalVariableRef(LocalVariable(counter.clone())));
+            
+           
+            let const_1 = SemanticTree::build_int_constant(1, SLPPrimitiveType::USize, zero_zero_loc.clone()).unwrap();
+            let cond = STExpr::new(SLPType::bool(), zero_zero_loc.clone(), ExprKind::PrimitiveIntComparation(Box::new(counter_var.clone()), Box::new(size_var_value), crate::semtree::ComparationKind::LesserThan));
+            let mut internal_body = CodeBlock::new();
+            let elem_ref = STExpr::new(ty.wrap_autoderef_or_pass(), zero_zero_loc, ExprKind::GetElementRefInReffedArray(Box::new(arr_value_ref), Box::new(counter_var.clone())));
+            let assign = STStatement::Assignment(zero_zero_loc.clone(), 
+                Box::new(RhsExpr { required_type: *ty.clone(), loc: zero_zero_loc.clone(), kind: crate::semtree::RhsKind::Deref(elem_ref)}), 
+                None, 
+                Box::new(STExpr::new(*ty.clone(), zero_zero_loc.clone(), ExprKind::Default)),
+            );
+            let counter_increment = STStatement::Assignment(zero_zero_loc.clone(),
+                Box::new(RhsExpr { required_type: SLPType::usize(), loc: zero_zero_loc.clone(), kind: crate::semtree::RhsKind::Deref(counter_var_ref)}), None, 
+                Box::new(STExpr::new(SLPType::usize(), zero_zero_loc.clone(), ExprKind::PrimitiveIntBinOp(Box::new(counter_var.clone()), Box::new(const_1), crate::semtree::IntBinOp::Add)))
+            );
+            internal_body.common_statements.push(assign);
+            internal_body.common_statements.push(counter_increment);
+
+            code_block.common_statements.push(STStatement::While(zero_zero_loc.clone(), Box::new(cond), Box::new(STStatement::CodeBlock(zero_zero_loc.clone(), internal_body))));
+
+            let func = Function { function_name: func_id.clone(), function_args: vec![( Id(size_var.clone()), SLPType::PrimitiveType(SLPPrimitiveType::USize))], return_arg: array_type.clone(), body: code_block, temporary_variables: Default::default(), loc:  zero_zero_loc.clone()};
+            self.buildins.insert(func_id.clone(), func);
+            Ok(func_id)
+        } else {
+            todo!("Internal compiler bug")
+        }
+    }
 }

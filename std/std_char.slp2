@@ -46,7 +46,7 @@ begin
         var a := 1;
         while a <= (c / 10) do
             a := a * 10;
-        while c > 0 do
+        while a > 0 do
         begin
             var temp := c / a;
             putchar(char(int32('0') + temp));

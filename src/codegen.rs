@@ -265,7 +265,7 @@ impl<'a> Codegen<'a> {
 
             SLPType::DynArray(b) => {
                 let arr_lenght = self.get_pointer_sized_int().into();
-                let arr_ty = self.slp_type_to_llvm(&b).into_pointer_type().into();
+                let arr_ty = self.slp_type_to_llvm(&b).ptr_type(Default::default()).into();
                 self.ctx.context.struct_type(&[arr_lenght, arr_ty], false).into()
             },
             SLPType::FixedArray {
@@ -351,7 +351,7 @@ impl<'a> Codegen<'a> {
             SLPType::AutoderefPointer(_) => unreachable!("Autoderef pointers should never created as default values {ty:#?}"),
             SLPType::DynArray(ty) => {
                 let arr_lenght = self.get_pointer_sized_int().into();
-                let arr_ty = self.slp_type_to_llvm(&ty).into_pointer_type().into();
+                let arr_ty = self.slp_type_to_llvm(&ty).ptr_type(Default::default()).into();
                 self.ctx.context.struct_type(&[arr_lenght, arr_ty], false).const_zero().into()
             },
             SLPType::FixedArray { size, index_offset, ty } => {
@@ -616,12 +616,53 @@ impl<'a> Codegen<'a> {
                         .into(),
                     crate::semtree::TypeConversionKind::SignedToUnsigned => inp,
                     crate::semtree::TypeConversionKind::UnsignedToSigned => inp,
-                    crate::semtree::TypeConversionKind::SignedToUnsignedExtend => todo!(),
-                    crate::semtree::TypeConversionKind::UnsignedToSignedExtend => todo!(),
-                    crate::semtree::TypeConversionKind::SignedToUnsignedTruncate => todo!(),
-                    crate::semtree::TypeConversionKind::UnsignedToSignedTruncate => todo!(),
+                    crate::semtree::TypeConversionKind::SignedToUnsignedExtend => self
+                    .builder
+                    .build_int_cast_sign_flag(
+                        inp.into_int_value(),
+                        ty.into_int_type(),
+                        false,
+                        "SignedToUnsignedExtend",
+                    )
+                    .into(),
+                    crate::semtree::TypeConversionKind::UnsignedToSignedExtend => self
+                    .builder
+                    .build_int_cast_sign_flag(
+                        inp.into_int_value(),
+                        ty.into_int_type(),
+                        false,
+                        "UnsignedToSignedExtend",
+                    )
+                    .into(),
+                    crate::semtree::TypeConversionKind::SignedToUnsignedTruncate => self
+                    .builder
+                    .build_int_cast_sign_flag(
+                        inp.into_int_value(),
+                        ty.into_int_type(),
+                        false,
+                        "SignedToUnsignedTruncate",
+                    )
+                    .into(),
+                    crate::semtree::TypeConversionKind::UnsignedToSignedTruncate => self
+                    .builder
+                    .build_int_cast_sign_flag(
+                        inp.into_int_value(),
+                        ty.into_int_type(),
+                        true,
+                        "UnsignedToSignedTruncate",
+                    )
+                    .into(),
                     crate::semtree::TypeConversionKind::IntToFloat => todo!(),
                     crate::semtree::TypeConversionKind::UintToFloat => todo!(),
+                    crate::semtree::TypeConversionKind::ToUsize => self
+                    .builder
+                    .build_int_cast_sign_flag(
+                        inp.into_int_value(),
+                        ty.into_int_type(),
+                        false,
+                        "ToUint",
+                    )
+                    .into(),
 
                 }
             }
@@ -658,6 +699,9 @@ impl<'a> Codegen<'a> {
                 }
                 crate::semtree::NumberLiteral::ISize(i) => {
                     self.get_pointer_sized_int().const_int(*i as u64, true).into()
+                },
+                crate::semtree::NumberLiteral::USize(i) => {
+                    self.get_pointer_sized_int().const_int(*i as u64, false).into()
                 },
             },
             ExprKind::FloatLiteral(_) => todo!(),
@@ -819,16 +863,33 @@ impl<'a> Codegen<'a> {
             }
             ExprKind::GetElementRefInReffedArray(ref_array, index) => {
                 let indexable = self.visit_expression(ref_array, localvar_stackalloc, syms, tyr, func);
-                let ptr = indexable.into_pointer_value();
                 let index = self.visit_expression(&index, localvar_stackalloc, syms, tyr, func);
-                let pointee_type =
+                let ptr = indexable.into_pointer_value();
+                if ref_array.ret_type.get_underlying_autoderef_type().unwrap().is_dyn_array() {
+                    let pointee_type =
+                        self.slp_type_to_llvm(ref_array.ret_type.get_underlying_autoderef_type().unwrap());
+                    let element_type = self.slp_type_to_llvm(ref_array.ret_type.get_underlying_autoderef_type().unwrap().get_underlying_array_type().unwrap());
+                    //println!("{pointee_type}");
+                    let array_ptr_loc = self.builder.build_struct_gep(pointee_type, ptr, 1, "").unwrap();
+                    let array_ptr = self.builder.build_load(element_type.ptr_type(Default::default()), array_ptr_loc, "").into_pointer_value();
+                    unsafe {
+                        //Pray to compiler gods
+                        self.builder
+                            .build_gep(element_type, array_ptr, &vec![index.into_int_value()], "")
+                            .into()
+                        }
+                } else {
+
+                    let pointee_type =
                     self.slp_type_to_llvm(expr.ret_type.get_underlying_autoderef_type().unwrap());
-                unsafe {
+                    unsafe {
                     //Pray to compiler gods
                     self.builder
                         .build_gep(pointee_type, ptr, &vec![index.into_int_value()], "")
                         .into()
+                    }
                 }
+
             }
             ExprKind::GetLocalVariableRef(r) => {
                 let ptr = localvar_stackalloc[r].clone();
@@ -914,7 +975,19 @@ impl<'a> Codegen<'a> {
             ExprKind::NilLiteral => todo!(),
             ExprKind::ConstructDynArrayFromElements(_) => todo!(),
             ExprKind::GetReffedDynArrayLength(_) => todo!(),
-            ExprKind::ConstructDynArrayWithDefaultElements(_) => todo!(),
+            ExprKind::ConstructUninitizedDynArray(count) => {
+                let size = self.visit_expression(&count, localvar_stackalloc, syms, tyr, func);
+                let true_size = self.builder.build_int_cast(size.into_int_value(), self.get_pointer_sized_int(), "");
+                let ty = self.slp_type_to_llvm(expr.ret_type.get_underlying_array_type().unwrap());
+                
+                let arr = self.builder.build_array_malloc(ty, true_size, "test").unwrap();
+                let def = self.build_default(&expr.ret_type, tyr).into_struct_value();
+                let temp1 = self.builder.build_insert_value(def, true_size, 0, "").unwrap().into_struct_value();
+                self.builder.build_insert_value(temp1, arr, 1, "").unwrap().into_struct_value().into()
+
+            },
+            ExprKind::DynArrayIntLen(_) => todo!(),
+            ExprKind::DynArrayLongLen(_) => todo!(),
         }
     }
     pub fn slp_func_to_llvm_func(
