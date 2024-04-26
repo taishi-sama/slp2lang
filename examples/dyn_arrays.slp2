@@ -1,10 +1,9 @@
 uses std_char;
 begin
     var arr := new int32[100]();
-    //arr[1] := 10;
-    for var i := 0 to 100 - 1 do 
+    for var i := arr.Low to arr.High do 
         arr[i] := i + 1;
-    for var j := 0 to 100 - 1 do 
+    for var j := arr.Low to arr.High do 
         std_char::put_int32(arr[j]);
     
 end.

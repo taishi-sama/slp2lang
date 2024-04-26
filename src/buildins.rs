@@ -109,8 +109,41 @@ impl BuildInModule {
                         while_body.common_statements.push(counter_increment);
                         code_block.common_statements.push(STStatement::While(zero_zero_loc.clone(), Box::new(cond), Box::new(STStatement::CodeBlock(zero_zero_loc.clone(), while_body))));
                     }
-                } else if let SLPType::DynArray(internal) = ty {
-                    todo!()
+                } else if let SLPType::DynArray(int_ty) = ty {
+                    let internal_drop = self.register_or_get_drop(&int_ty)?;
+                    if let Some(dropper) = internal_drop {
+                        let counter = "counter".to_string();
+                        let counter_decl = STStatement::VarDecl(zero_zero_loc.clone(), VarDecl { id: LocalVariable(counter.clone()), ty: SLPType::usize(), init_expr: SemanticTree::build_int_constant(0, SLPPrimitiveType::USize, zero_zero_loc.clone())?});
+                        let size = STExpr::new(SLPType::usize(), zero_zero_loc.clone(), ExprKind::DynArrayLongLen(
+                            Box::new(STExpr::new(ty.clone(), zero_zero_loc.clone(), ExprKind::Deref(local_variable_ref.clone())))
+                        ));
+                        let const_1 = SemanticTree::build_int_constant(1, SLPPrimitiveType::ISize, zero_zero_loc.clone()).unwrap();
+                        
+                        code_block.common_statements.push(counter_decl);
+                        let counter_var = STExpr::new(SLPType::usize(), zero_zero_loc.clone(), ExprKind::LocalVariable(LocalVariable(counter.clone())));
+                        let counter_var_ref = STExpr::new(SLPType::usize().wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::GetLocalVariableRef(LocalVariable(counter.clone())));
+                        
+                        let cond = STExpr::new(SLPType::bool(), zero_zero_loc.clone(), ExprKind::PrimitiveIntComparation(Box::new(counter_var.clone()), Box::new(size), crate::semtree::ComparationKind::LesserThan));
+                        let mut while_body = CodeBlock::new();
+                        let element = STExpr::new(int_ty.wrap_autoderef_or_pass(), zero_zero_loc.clone(), ExprKind::GetElementRefInReffedArray(local_variable_ref.clone(), Box::new(counter_var.clone())));
+                        let drop_call = STStatement::BuildInCall(zero_zero_loc.clone(), BuildInCall{ func: dropper, args: vec![element], ret_type: SLPType::void() });
+
+                        let counter_increment = STStatement::Assignment(zero_zero_loc.clone(),
+                            Box::new(RhsExpr { required_type: SLPType::usize(), loc: zero_zero_loc.clone(), kind: crate::semtree::RhsKind::Deref(counter_var_ref)}), None, 
+                            Box::new(STExpr::new(SLPType::usize(), zero_zero_loc.clone(), ExprKind::PrimitiveIntBinOp(Box::new(counter_var.clone()), Box::new(const_1), crate::semtree::IntBinOp::Add)))
+                        );
+                        while_body.common_statements.push(drop_call);
+                        while_body.common_statements.push(counter_increment);
+                        code_block.common_statements.push(STStatement::While(zero_zero_loc.clone(), Box::new(cond), Box::new(STStatement::CodeBlock(zero_zero_loc.clone(), while_body))));
+                    }
+                    code_block.common_statements.push(
+                        STStatement::MemoryFree(zero_zero_loc.clone(), 
+                            Box::new(STExpr::new(ty.clone(), zero_zero_loc.clone(), ExprKind::Deref(
+                                local_variable_ref.clone()
+                            )))
+                        )
+                    );
+
                 } else {
                     unreachable!()
                 }

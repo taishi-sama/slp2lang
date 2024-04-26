@@ -125,6 +125,12 @@ impl SLPType {
     pub fn usize() -> Self {
         SLPType::PrimitiveType(SLPPrimitiveType::USize)
     }
+    pub fn int32() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::Int32)
+    }
+    pub fn uint32() -> Self {
+        SLPType::PrimitiveType(SLPPrimitiveType::Uint32)
+    }
     pub fn int64() -> Self {
         SLPType::PrimitiveType(SLPPrimitiveType::Int64)
     }

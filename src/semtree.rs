@@ -1063,7 +1063,38 @@ impl SemanticTree {
                 Ok(STExpr{ ret_type: SLPType::AutoderefPointer(Box::new(ty.clone())), loc: *l, kind: ExprKind::GetElementRefInReffedRecord(Box::new(reffed_struct_expr), index as u32) })
             } else {todo!()}
         }
-        else {
+        else if let SLPType::DynArray(dy) = &reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap() {
+                if method_name == "Length" {
+                    Ok(STExpr::new(SLPType::int32(), l.clone(), ExprKind::DynArrayIntLen(
+                        Box::new(STExpr::new(reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap().clone(), l.clone(), ExprKind::Deref(Box::new(reffed_struct_expr))))
+                    )))
+                } else if method_name == "Low" {
+                    Self::build_int_constant(0, SLPPrimitiveType::Int32, l.clone())
+    
+                } else if method_name == "High" {
+                    let len = STExpr::new(SLPType::int32(), l.clone(), ExprKind::DynArrayIntLen(
+                        Box::new(STExpr::new(reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap().clone(), l.clone(), ExprKind::Deref(Box::new(reffed_struct_expr))))
+                    ));
+                    let high = STExpr::new(SLPType::int32(), l.clone(), ExprKind::PrimitiveIntBinOp(Box::new(len), Box::new(Self::build_int_constant(1, SLPPrimitiveType::Int32, l.clone())?), IntBinOp::Substract));
+                    Ok(high)
+                } else {
+                    todo!()
+                }
+            } 
+        else if let SLPType::FixedArray { size, index_offset, ty } = &reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap(){
+            if method_name == "Length" {
+                Self::build_int_constant(size.clone(), SLPPrimitiveType::Int32, l.clone())
+            } else if method_name == "Low" {
+                Self::build_int_constant((*index_offset) as u64, SLPPrimitiveType::Int32, l.clone())
+
+            } else if method_name == "High" {
+                Self::build_int_constant(((*index_offset) as u64) + size - 1, SLPPrimitiveType::Int32, l.clone())
+                
+            } else {
+                todo!()
+            }
+
+        } else {
             todo!()
         }
     }
@@ -1496,9 +1527,9 @@ pub enum ExprKind {
     ConstructUninitizedDynArray(Box<STExpr>),
 
 
-    ///Returns uint32 length. Expects type by value, so deref before passing. 
+    ///Returns int32 length. Expects type by value, so deref before passing. 
     DynArrayIntLen(Box<STExpr>),
-    ///Returns uint64 length. Expects type by value, so deref before passing. 
+    ///Returns usize length. Expects type by value, so deref before passing. 
     DynArrayLongLen(Box<STExpr>),
     ///Checks pointer, dynamic array or reference counter to be null(default-initialized) or not. Expects type by value, so deref before passing. 
     IsNull(Box<STExpr>),

@@ -549,6 +549,10 @@ impl<'a> Codegen<'a> {
                     self.builder.build_free(self.builder.build_extract_value(expr, 0, "counter_ptr").unwrap().into_pointer_value());
                     self.builder.build_free(self.builder.build_extract_value(expr, 1, "counter_ptr").unwrap().into_pointer_value());
 
+                } else if let SLPType::DynArray(rs) = &b.ret_type{
+                    let expr = self.visit_expression(&b, localvar_stackalloc, syms, tyr, func).into_struct_value();
+                    self.builder.build_free(self.builder.build_extract_value(expr, 1, "counter_ptr").unwrap().into_pointer_value());
+                    
                 } else {
                     todo!()
                 }
@@ -986,8 +990,15 @@ impl<'a> Codegen<'a> {
                 self.builder.build_insert_value(temp1, arr, 1, "").unwrap().into_struct_value().into()
 
             },
-            ExprKind::DynArrayIntLen(_) => todo!(),
-            ExprKind::DynArrayLongLen(_) => todo!(),
+            ExprKind::DynArrayIntLen(r) => {
+                let expr = self.visit_expression(&r, localvar_stackalloc, syms, tyr, func);
+                let pre = self.builder.build_extract_value(expr.into_struct_value(), 0, "len_extract").unwrap();
+                self.builder.build_int_cast(pre.into_int_value(), self.ctx.context.i32_type(), "len_cast").into()
+            },
+            ExprKind::DynArrayLongLen(r) => {
+                let expr = self.visit_expression(&r, localvar_stackalloc, syms, tyr, func);
+                self.builder.build_extract_value(expr.into_struct_value(), 0, "len_extract").unwrap()
+            },
         }
     }
     pub fn slp_func_to_llvm_func(
