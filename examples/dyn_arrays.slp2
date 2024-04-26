@@ -1,6 +1,7 @@
 uses std_char;
 begin
-    var arr := new int32[100]();
+    var len := 1024;
+    var arr := new int32[len]();
     for var i := arr.Low to arr.High do 
         arr[i] := i + 1;
     for var j := arr.Low to arr.High do 
