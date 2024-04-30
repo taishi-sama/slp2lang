@@ -2,5 +2,5 @@ uses std_char;
 
 begin
     for var i := 1 to 9 do 
-        std_char::put_int32(i);
+        std_char::PutInt32(i);
 end.

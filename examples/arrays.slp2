@@ -24,7 +24,7 @@ begin
     var index := 0;
     while (index < 13) do
     begin
-        std_char::putchar(arr[index]);
+        std_char::PutChar(arr[index]);
         index := index + 1;
     end;
     Result := 0;

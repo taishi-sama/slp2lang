@@ -19,9 +19,9 @@ begin
     var i := 1;
     while i <= 10 do
     begin
-        std_char::putchar( (int32('а') + a[i] - 1) as char );
+        std_char::PutChar( (int32('а') + a[i] - 1) as char );
         i := i + 1
     end;
-    std_char::putchar('\n');
+    std_char::PutChar('\n');
     Result := 0;
 end.

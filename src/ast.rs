@@ -1,14 +1,18 @@
 use core::str;
 use std::fmt::Display;
 
+use crate::compiler::FileId;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Loc {
     pub begin: usize,
     pub end: usize,
+    pub fid: FileId,
 }
+
 impl Loc {
-    pub fn new(begin: usize, end: usize) -> Self {
-        Self { begin, end }
+    pub fn new(begin: usize, end: usize, fid: FileId) -> Self {
+        Self { begin, end, fid }
     }
 }
 impl Display for Loc {

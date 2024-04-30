@@ -5,6 +5,11 @@ begin
     for var i := arr.Low to arr.High do 
         arr[i] := i + 1;
     for var j := arr.Low to arr.High do 
-        std_char::put_int32(arr[j]);
-    
+    begin
+        std_char::PutInt32(arr[j]);
+        std_char::PutChar('\n');
+    end;
+    var a := std_char::GetChar();
+    std_char::PutChar(a);
+    std_char::PutChar('\n');
 end.

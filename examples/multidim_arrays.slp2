@@ -19,10 +19,10 @@ begin
         var y := 0;
         while (y <= 5) do 
         begin
-            std_char::putchar(char(int32('a') + i[x][y]));
+            std_char::PutChar(char(int32('a') + i[x][y]));
             y := y + 1;
         end;
-        std_char::putchar('\n');
+        std_char::PutChar('\n');
         x := x + 1;
     end;
     Result := 0;

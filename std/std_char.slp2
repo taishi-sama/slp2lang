@@ -1,60 +1,19 @@
-uses cstd, ctypes;
-
-procedure putchar(c: char);
+uses rstd;
+procedure PutChar(c: char);
 begin
-    var ch := int32(c);
-    if ch >= 0i32 then 
-    begin
-        if ch < 128i32 then 
-            cstd::putchar(ctypes::c_char(ch))
-        else if ch < 2048i32 then 
-        begin
-            var byte1 := ctypes::c_char((ch shr 6i32) or 192i32);
-            var byte2 := ctypes::c_char((ch and 63i32) or 128i32);
-            cstd::putchar(byte1);
-            cstd::putchar(byte2);
-        end
-        else if ch < 65536i32 then
-        begin
-            cstd::putchar(int8('a'));
-
-        end
-        else if ch < 1114112i32 then
-        begin
-            cstd::putchar(int8('b'));
-
-        end;
-    end
-    else 
-        cstd::putchar(int8('c'));
+    rstd::rc_putchar(c);
 end;
 
-procedure put_int32(c: int32);
+procedure PutInt32(c: int32);
 begin
-    if c = 0 then
-    begin
-        putchar('0');
-        putchar('\n');
-    end 
-    else
-    begin
-        if c < 0 then 
-        begin
-            putchar('-');
-            c := 0-c;
-        end;
-        var a := 1;
-        while a <= (c / 10) do
-            a := a * 10;
-        while a > 0 do
-        begin
-            var temp := c / a;
-            putchar(char(int32('0') + temp));
-            c := c - a * temp;
-            a := a / 10;
-        end;
-        putchar('\n');
-    end;
-    
-    
+    rstd::rc_putint32(c)
+end;
+
+procedure PutInt64(c: int64);
+begin
+    rstd::rc_putint64(c)
+end;
+function GetChar():char;
+begin
+    Result := rstd::rc_getchar();
 end;

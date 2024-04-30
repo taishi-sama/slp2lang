@@ -9,36 +9,35 @@ end;
 begin
     var t: test2 = new test2(nil);
     if t = nil then begin
-        std_char::putchar('n');
-        std_char::putchar('i');
-        std_char::putchar('l');
-        std_char::putchar('\n');
-
+        std_char::PutChar('n');
+        std_char::PutChar('i');
+        std_char::PutChar('l');
+        std_char::PutChar('\n');
     end else 
     if t <> nil then begin
-        std_char::putchar('n');
-        std_char::putchar('o');
-        std_char::putchar('t');
-        std_char::putchar(' ');
-        std_char::putchar('n');
-        std_char::putchar('i');
-        std_char::putchar('l');
-        std_char::putchar('\n');
+        std_char::PutChar('n');
+        std_char::PutChar('o');
+        std_char::PutChar('t');
+        std_char::PutChar(' ');
+        std_char::PutChar('n');
+        std_char::PutChar('i');
+        std_char::PutChar('l');
+        std_char::PutChar('\n');
         if t.a = nil then begin
-            std_char::putchar('n');
-            std_char::putchar('i');
-            std_char::putchar('l');
-            std_char::putchar('\n');
+            std_char::PutChar('n');
+            std_char::PutChar('i');
+            std_char::PutChar('l');
+            std_char::PutChar('\n');
         end else 
         begin
-            std_char::putchar('n');
-            std_char::putchar('o');
-            std_char::putchar('t');
-            std_char::putchar(' ');
-            std_char::putchar('n');
-            std_char::putchar('i');
-            std_char::putchar('l');
-            std_char::putchar('\n');
+            std_char::PutChar('n');
+            std_char::PutChar('o');
+            std_char::PutChar('t');
+            std_char::PutChar(' ');
+            std_char::PutChar('n');
+            std_char::PutChar('i');
+            std_char::PutChar('l');
+            std_char::PutChar('\n');
         end;
     end;
 end.

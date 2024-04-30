@@ -4,9 +4,9 @@ begin
     var counter : int8 = 65i8; 
     while counter < 123i8 do
     begin
-        std_io::writechar(counter);
+        std_io::PutChar(counter);
         counter := counter + 1i8;
     end;
-    std_io::writechar(10i8);
+    std_io::PutChar(10i8);
     Result := 0i32;
 end.

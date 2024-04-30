@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{ast::Loc, errors::SemTreeBuildErrors, semtree::{BuildInCall, CodeBlock, ExprKind, Function, LocalVariable, RhsExpr, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}};
+use crate::{ast::Loc, compiler::FileId, errors::SemTreeBuildErrors, semtree::{BuildInCall, CodeBlock, ExprKind, Function, LocalVariable, RhsExpr, STExpr, STStatement, SemanticTree, VarDecl}, symbols::{GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}};
 
 #[derive(Debug, Clone)]
 pub struct BuildInModule {
@@ -26,7 +26,7 @@ impl BuildInModule {
                 Ok(None)
             } 
             else {
-                let zero_zero_loc = Loc::new(0, 0);
+                let zero_zero_loc = Loc::new(0, 0, FileId(0));
                 assert!(ty.get_underlying_autoderef_type().is_none());
                 let tyname = ty.normalized_name(); 
                 let mut code_block = CodeBlock::new();
@@ -163,7 +163,7 @@ impl BuildInModule {
                 Ok(None)
             } 
             else {
-                let zero_zero_loc = Loc::new(0, 0);
+                let zero_zero_loc = Loc::new(0, 0, FileId(0));
                 assert!(ty.get_underlying_autoderef_type().is_none());
                 let tyname = ty.normalized_name(); 
                 let mut code_block = CodeBlock::new();
@@ -187,7 +187,7 @@ impl BuildInModule {
         }
     }
     pub fn register_or_get_dyn_array_empty_constuctors(&mut self, array_type: &SLPType) -> Result<Id, SemTreeBuildErrors> {
-        let zero_zero_loc = Loc::new(0, 0);
+        let zero_zero_loc = Loc::new(0, 0, FileId(0));
 
         if let SLPType::DynArray(ty) = array_type {
             let mut code_block = CodeBlock::new();

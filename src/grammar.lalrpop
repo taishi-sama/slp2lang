@@ -1,6 +1,6 @@
 use crate::ast::*;
-
-grammar;
+use crate::compiler::FileId;
+grammar(file_id: FileId);
 
 match {
     r"\s*" => { }, // The default whitespace skipping is disabled if an `ignore pattern` is specified
@@ -85,10 +85,10 @@ pub UsingSection: Vec<Usings> = {
     <tl:@L> Uses <uf: UsingFrag> ";" <tr:@R> => uf
 }
 pub UsingFrag: Vec<Usings> = {
-    <tl:@L> <id: ID> <tr:@R> "," <mut uf: UsingFrag> => {uf.insert(0, Usings::Name(Loc::new(tl, tr), id.to_string())); return uf;},
-    <tl:@L> <id: StrLiteral> <tr:@R> "," <mut uf: UsingFrag> => {uf.insert(0, Usings::Path(Loc::new(tl, tr), id[1..id.len()-1].to_string())); return uf;}, 
-    <tl:@L> <id: ID> <tr:@R> => vec![Usings::Name(Loc::new(tl, tr), id.to_string())],
-    <tl:@L> <id: StrLiteral> <tr:@R> => vec![Usings::Path(Loc::new(tl, tr), id[1..id.len()-1].to_string())], 
+    <tl:@L> <id: ID> <tr:@R> "," <mut uf: UsingFrag> => {uf.insert(0, Usings::Name(Loc::new(tl, tr, file_id.clone()), id.to_string())); return uf;},
+    <tl:@L> <id: StrLiteral> <tr:@R> "," <mut uf: UsingFrag> => {uf.insert(0, Usings::Path(Loc::new(tl, tr, file_id.clone()), id[1..id.len()-1].to_string())); return uf;}, 
+    <tl:@L> <id: ID> <tr:@R> => vec![Usings::Name(Loc::new(tl, tr, file_id.clone()), id.to_string())],
+    <tl:@L> <id: StrLiteral> <tr:@R> => vec![Usings::Path(Loc::new(tl, tr, file_id.clone()), id[1..id.len()-1].to_string())], 
 
 }
 Declarations: Declaration = {
@@ -108,31 +108,31 @@ TypeDeclElement: TypeDeclElement = {
 
 }
 TypeAliasElement: TypeDeclElement = {
-    <tl:@L> <id: SoloId> "=" <al: Type> ";" <tr:@R> => TypeDeclElement::TypeAlias(Loc::new(tl, tr), id, al),
+    <tl:@L> <id: SoloId> "=" <al: Type> ";" <tr:@R> => TypeDeclElement::TypeAlias(Loc::new(tl, tr, file_id.clone()), id, al),
 }
 
 RecordDeclElement: TypeDeclElement = {
-    <tl:@L> <id: SoloId> "=" Record <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr), id, rf, RecordType::Record),
+    <tl:@L> <id: SoloId> "=" Record <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr, file_id.clone()), id, rf, RecordType::Record),
 }
 ClassDeclElement: TypeDeclElement = {
-    <tl:@L> <id: SoloId> "=" Class <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr), id, rf, RecordType::Class),
+    <tl:@L> <id: SoloId> "=" Class <rf: RecordField*> End ";" <tr:@R> => TypeDeclElement::RecordDeclare(Loc::new(tl, tr, file_id.clone()), id, rf, RecordType::Class),
 }
 
 RecordField: RecordField = {
-    <tl:@L> <id: SoloId> ":" <ty: TypeDecl> <tr:@R> ";" => RecordField{id, ty, loc: Loc::new(tl, tr)},
+    <tl:@L> <id: SoloId> ":" <ty: TypeDecl> <tr:@R> ";" => RecordField{id, ty, loc: Loc::new(tl, tr, file_id.clone())},
 }
 
 ProcedureDecl: FunctionBody = {
-    <tl:@L> Procedure <f:SoloId> "(" <fa:ArgsList> ")" ";" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::void()}}
+    <tl:@L> Procedure <f:SoloId> "(" <fa:ArgsList> ")" ";" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr, file_id.clone()), function_name: f, body: sb, function_args: fa, return_arg: TypeDecl{loc: Loc::new(tr, tr, file_id.clone()), ty: Type::void()}}
 };
 FunctionDecl: FunctionBody = {
-    <tl:@L> Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: f, body: sb, function_args: fa, return_arg: ret}
+    <tl:@L> Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";" Begin <sb:StatementsBlock> End ";"<tr:@R> => FunctionBody{loc:Loc::new(tl, tr, file_id.clone()), function_name: f, body: sb, function_args: fa, return_arg: ret}
 }
 ExternalFunctionDecl: ExternFunctionBody = {
-    <tl:@L> External Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";"<tr:@R> => ExternFunctionBody{loc:Loc::new(tl, tr), function_name: f, function_args: fa, return_arg: ret}
+    <tl:@L> External Function <f:SoloId> "(" <fa:ArgsList> ")" ":" <ret: TypeDecl> ";"<tr:@R> => ExternFunctionBody{loc:Loc::new(tl, tr, file_id.clone()), function_name: f, function_args: fa, return_arg: ret}
 }
 MainDecl: FunctionBody = {
-    <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr), ty: Type::Primitive(Identificator{name: "int32".to_string(), path: vec![]})}}
+    <tl:@L> Begin <sb:StatementsBlock> End "." <tr:@R> => FunctionBody{loc:Loc::new(tl, tr, file_id.clone()), function_name: "main".to_string(), body: sb, function_args: vec![], return_arg: TypeDecl{loc: Loc::new(tr, tr, file_id.clone()), ty: Type::Primitive(Identificator{name: "int32".to_string(), path: vec![]})}}
 }
 
 ArgsList: ArgDeclList = {
@@ -141,7 +141,7 @@ ArgsList: ArgDeclList = {
     () => Vec::new(),
 }
 ArgsDecl: ArgDecl = {
-    <tl:@L> <q:Var?> <il:IndList> ":" <t:TypeDecl> <tr:@R> => ArgDecl{names: il, ty: t, loc: Loc::new(tl, tr), var_param: q.is_some()}
+    <tl:@L> <q:Var?> <il:IndList> ":" <t:TypeDecl> <tr:@R> => ArgDecl{names: il, ty: t, loc: Loc::new(tl, tr, file_id.clone()), var_param: q.is_some()}
 }
 IndList: Vec<String> = {
     <id:SoloId> "," <mut il: IndList> => {il.insert(0, id.clone()); return il;},
@@ -180,41 +180,41 @@ ClosedStatement: Statement = {
 }
 
 DeferStatement: Statement = {
-    <tl:@L> Defer <s:ClosedStatement> <tr:@R> => Statement::Defer(Loc::new(tl, tr), Box::new(s))
+    <tl:@L> Defer <s:ClosedStatement> <tr:@R> => Statement::Defer(Loc::new(tl, tr, file_id.clone()), Box::new(s))
 }
 
 CodeBlock : Statement = {
-    <tl:@L> Begin <sb:StatementsBlock> End <tr:@R> => Statement::CodeBlock(Loc::new(tl, tr), sb)
+    <tl:@L> Begin <sb:StatementsBlock> End <tr:@R> => Statement::CodeBlock(Loc::new(tl, tr, file_id.clone()), sb)
 }
 
 LocalVariableDecl: Statement = {
-    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::Multiple(il, ty)),
-    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> ":=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ExplicitType(il[0].clone(), ty, Box::new(e))),
-    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> "=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ExplicitType(il[0].clone(), ty, Box::new(e))),
-    <tl:@L> Var <il: IndList> ":=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr), VarDecl::ImplicitType(il[0].clone(), Box::new(e)))
+    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr, file_id.clone()), VarDecl::Multiple(il, ty)),
+    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> ":=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr, file_id.clone()), VarDecl::ExplicitType(il[0].clone(), ty, Box::new(e))),
+    <tl:@L> Var <il: IndList> ":" <ty:TypeDecl> "=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr, file_id.clone()), VarDecl::ExplicitType(il[0].clone(), ty, Box::new(e))),
+    <tl:@L> Var <il: IndList> ":=" <e: Expr> <tr:@R> => Statement::VarDecl(Loc::new(tl, tr, file_id.clone()), VarDecl::ImplicitType(il[0].clone(), Box::new(e)))
 }
 FuncCallStmt: Statement = {
-    <tl:@L> <fc:FuncCall> <tr:@R> => Statement::FunctionCall(Loc::new(tl, tr), fc),
+    <tl:@L> <fc:FuncCall> <tr:@R> => Statement::FunctionCall(Loc::new(tl, tr, file_id.clone()), fc),
 }
 OpenIfStatement: Statement = {
-    <tl:@L> If <cond:Expr> Then <true_stmt: Statement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(true_stmt), None),
-    <tl:@L> If <cond:Expr> Then <true_stmt: ClosedStatement> Else <false_stmt: OpenStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(true_stmt), Some(Box::new(false_stmt))),
+    <tl:@L> If <cond:Expr> Then <true_stmt: Statement> <tr:@R> => Statement::If(Loc::new(tl, tr, file_id.clone()), Box::new(cond), Box::new(true_stmt), None),
+    <tl:@L> If <cond:Expr> Then <true_stmt: ClosedStatement> Else <false_stmt: OpenStatement> <tr:@R> => Statement::If(Loc::new(tl, tr, file_id.clone()), Box::new(cond), Box::new(true_stmt), Some(Box::new(false_stmt))),
 }
 ClosedIfStatement: Statement = {
-    <tl:@L> If <cond:Expr> Then <true_stmt: ClosedStatement> Else <false_stmt: ClosedStatement> <tr:@R> => Statement::If(Loc::new(tl, tr), Box::new(cond), Box::new(true_stmt), Some(Box::new(false_stmt))),
+    <tl:@L> If <cond:Expr> Then <true_stmt: ClosedStatement> Else <false_stmt: ClosedStatement> <tr:@R> => Statement::If(Loc::new(tl, tr, file_id.clone()), Box::new(cond), Box::new(true_stmt), Some(Box::new(false_stmt))),
 }
 OpenWhileStatement: Statement = {
-    <tl:@L> While <cond:Expr> Do <body_stmt: OpenStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(body_stmt)),
+    <tl:@L> While <cond:Expr> Do <body_stmt: OpenStatement> <tr:@R> => Statement::While(Loc::new(tl, tr, file_id.clone()), Box::new(cond), Box::new(body_stmt)),
 }
 ClosedWhileStatement: Statement = {
-    <tl:@L> While <cond:Expr> Do <body_stmt: ClosedStatement> <tr:@R> => Statement::While(Loc::new(tl, tr), Box::new(cond), Box::new(body_stmt)),
+    <tl:@L> While <cond:Expr> Do <body_stmt: ClosedStatement> <tr:@R> => Statement::While(Loc::new(tl, tr, file_id.clone()), Box::new(cond), Box::new(body_stmt)),
 }
 OpenForStatement: Statement = {
-    <tl:@L> For <cond: Var?> <id: SoloId> ":=" <initial: Expr> <dir: ForDirection> <final_val: Expr> Do <stmt: OpenStatement> <tr:@R> => Statement::For(Loc::new(tl, tr), 
+    <tl:@L> For <cond: Var?> <id: SoloId> ":=" <initial: Expr> <dir: ForDirection> <final_val: Expr> Do <stmt: OpenStatement> <tr:@R> => Statement::For(Loc::new(tl, tr, file_id.clone()), 
             ForLoop {is_new: cond.is_some(), var_id: id, initial_value: Box::new(initial), direction: dir, final_value: Box::new(final_val), body: Box::new(stmt) }),
 }
 ClosedForStatement: Statement = {
-    <tl:@L> For <cond: Var?> <id: SoloId> ":=" <initial: Expr> <dir: ForDirection> <final_val: Expr> Do <stmt: ClosedStatement> <tr:@R> => Statement::For(Loc::new(tl, tr), 
+    <tl:@L> For <cond: Var?> <id: SoloId> ":=" <initial: Expr> <dir: ForDirection> <final_val: Expr> Do <stmt: ClosedStatement> <tr:@R> => Statement::For(Loc::new(tl, tr, file_id.clone()), 
             ForLoop {is_new: cond.is_some(), var_id: id, initial_value: Box::new(initial), direction: dir, final_value: Box::new(final_val), body: Box::new(stmt) }),
 }
 ForDirection: ForDirection = {
@@ -223,7 +223,7 @@ ForDirection: ForDirection = {
 }
 
 AssigmentStatement : Statement = {
-    <tl:@L> <lhs:Expr> ":=" <rhs:Expr> <tr:@R> => Statement::Assignment(Loc::new(tl, tr), Box::new(lhs), Box::new(rhs))
+    <tl:@L> <lhs:Expr> ":=" <rhs:Expr> <tr:@R> => Statement::Assignment(Loc::new(tl, tr, file_id.clone()), Box::new(lhs), Box::new(rhs))
 }
 
 
@@ -233,41 +233,41 @@ Expr: Expr = {
 
 
 Tier5: Expr = {
-    <tl:@L> <e1:Tier5> "<" <e2:Tier4> <tr:@R> => Expr::OpBinLesser(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier5> ">" <e2:Tier4> <tr:@R> => Expr::OpBinGreater(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier5> "<=" <e2:Tier4> <tr:@R> => Expr::OpBinLesserEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier5> ">=" <e2:Tier4> <tr:@R> => Expr::OpBinGreaterEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier5> "=" <e2:Tier4> <tr:@R> => Expr::OpBinEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier5> "<>" <e2:Tier4> <tr:@R> => Expr::OpBinNotEq(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> "<" <e2:Tier4> <tr:@R> => Expr::OpBinLesser(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> ">" <e2:Tier4> <tr:@R> => Expr::OpBinGreater(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> "<=" <e2:Tier4> <tr:@R> => Expr::OpBinLesserEq(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> ">=" <e2:Tier4> <tr:@R> => Expr::OpBinGreaterEq(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> "=" <e2:Tier4> <tr:@R> => Expr::OpBinEq(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier5> "<>" <e2:Tier4> <tr:@R> => Expr::OpBinNotEq(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
 
     Tier4
 };
 
 
 Tier4: Expr = {
-    <tl:@L> <e1:Tier4> "+" <e2:Tier3> <tr:@R> => Expr::OpBinPlus(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier4> "-" <e2:Tier3> <tr:@R> => Expr::OpBinMinus(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier4> Or <e2:Tier3> <tr:@R> => Expr::OpBinOr(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier4> "+" <e2:Tier3> <tr:@R> => Expr::OpBinPlus(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier4> "-" <e2:Tier3> <tr:@R> => Expr::OpBinMinus(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier4> Or <e2:Tier3> <tr:@R> => Expr::OpBinOr(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
     Tier3
 };
 
 Tier3: Expr = {
-    <tl:@L> <e1:Tier3> "*" <e2:Tier2> <tr:@R> => Expr::OpBinAsterisk(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier3> "/" <e2:Tier2> <tr:@R> => Expr::OpBinSlash(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier3> Shr <e2:Tier2> <tr:@R> => Expr::OpBinShr(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier3> Shl <e2:Tier2> <tr:@R> => Expr::OpBinShl(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
-    <tl:@L> <e1:Tier3> And <e2:Tier2> <tr:@R> => Expr::OpBinAnd(Loc::new(tl, tr), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> "*" <e2:Tier2> <tr:@R> => Expr::OpBinAsterisk(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> "/" <e2:Tier2> <tr:@R> => Expr::OpBinSlash(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> Shr <e2:Tier2> <tr:@R> => Expr::OpBinShr(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> Shl <e2:Tier2> <tr:@R> => Expr::OpBinShl(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
+    <tl:@L> <e1:Tier3> And <e2:Tier2> <tr:@R> => Expr::OpBinAnd(Loc::new(tl, tr, file_id.clone()), Box::new(e1), Box::new(e2)),
 
     Tier2
 };
 
 Tier2: Expr = {
-    <tl:@L> "@" <e:Tier2> <tr:@R>  => Expr::OpUnGetRef(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> Not <e:Tier2> <tr:@R>  => Expr::OpUnNot(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> <e:Tier1> "^" <tr:@R>  => Expr::OpUnDeref(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> "+" <e:Tier1> <tr:@R>  => Expr::OpUnPlus(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> "-" <e:Tier1> <tr:@R>  => Expr::OpUnMinus(Loc::new(tl, tr), Box::new(e)),
-    <tl:@L> <e:Tier1> As <ty:TypeDecl> <tr:@R>  => Expr::OpUnAs(Loc::new(tl, tr), Box::new(e), ty),
+    <tl:@L> "@" <e:Tier2> <tr:@R>  => Expr::OpUnGetRef(Loc::new(tl, tr, file_id.clone()), Box::new(e)),
+    <tl:@L> Not <e:Tier2> <tr:@R>  => Expr::OpUnNot(Loc::new(tl, tr, file_id.clone()), Box::new(e)),
+    <tl:@L> <e:Tier1> "^" <tr:@R>  => Expr::OpUnDeref(Loc::new(tl, tr, file_id.clone()), Box::new(e)),
+    <tl:@L> "+" <e:Tier1> <tr:@R>  => Expr::OpUnPlus(Loc::new(tl, tr, file_id.clone()), Box::new(e)),
+    <tl:@L> "-" <e:Tier1> <tr:@R>  => Expr::OpUnMinus(Loc::new(tl, tr, file_id.clone()), Box::new(e)),
+    <tl:@L> <e:Tier1> As <ty:TypeDecl> <tr:@R>  => Expr::OpUnAs(Loc::new(tl, tr, file_id.clone()), Box::new(e), ty),
     Tier1
 };
 
@@ -282,14 +282,14 @@ Tier2: Expr = {
 Tier1: Expr = {
     //<t: Tuples> => t,
     "(" <e:Expr> ")" => e,
-    <tl:@L> <e:Tier1> "." <id:SoloId> <tr:@R> => Expr::OpMethodCall(Loc::new(tl, tr), Box::new(e), id),
-    <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, None, f),
-    <tl:@L> New <ty:Type> "[" <count:Expr> "]" "(" <f:FuncCallArgList> ")" <tr:@R> => Expr::OpNew(Loc::new(tl, tr), ty, Some(Box::new(count)), f),
-    <tl:@L> <e:Tier1> "[" <i:Expr> "]" <tr:@R> => Expr::OpBinIndex(Loc::new(tl, tr), Box::new(e), Box::new(i)),
-    <tl:@L> <fc: FuncCall> <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr), fc),
-    <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr), c),
-    <tl:@L> Nil <tr:@R> => Expr::NilLiteral(Loc::new(tl, tr)),
-    <tl:@L> <id: IdPath> <tr:@R> => Expr::Ident(Loc::new(tl, tr), id),
+    <tl:@L> <e:Tier1> "." <id:SoloId> <tr:@R> => Expr::OpMethodCall(Loc::new(tl, tr, file_id.clone()), Box::new(e), id),
+    <tl:@L> New <ty:Type> "(" <f:FuncCallArgList> ")"<tr:@R> => Expr::OpNew(Loc::new(tl, tr, file_id.clone()), ty, None, f),
+    <tl:@L> New <ty:Type> "[" <count:Expr> "]" "(" <f:FuncCallArgList> ")" <tr:@R> => Expr::OpNew(Loc::new(tl, tr, file_id.clone()), ty, Some(Box::new(count)), f),
+    <tl:@L> <e:Tier1> "[" <i:Expr> "]" <tr:@R> => Expr::OpBinIndex(Loc::new(tl, tr, file_id.clone()), Box::new(e), Box::new(i)),
+    <tl:@L> <fc: FuncCall> <tr:@R> => Expr::OpFunctionCall(Loc::new(tl, tr, file_id.clone()), fc),
+    <tl:@L> <c: Constant> <tr:@R> => Expr::Constant(Loc::new(tl, tr, file_id.clone()), c),
+    <tl:@L> Nil <tr:@R> => Expr::NilLiteral(Loc::new(tl, tr, file_id.clone())),
+    <tl:@L> <id: IdPath> <tr:@R> => Expr::Ident(Loc::new(tl, tr, file_id.clone()), id),
     
 };
 
@@ -327,7 +327,7 @@ FuncCallArgList: Vec<Expr> = {
     () => Vec::new(),
 }
 
-TypeDecl: TypeDecl = <tl:@L>  <t: Type> <tr:@R> => TypeDecl{ty: t, loc: Loc::new(tl, tr)};
+TypeDecl: TypeDecl = <tl:@L>  <t: Type> <tr:@R> => TypeDecl{ty: t, loc: Loc::new(tl, tr, file_id.clone())};
 
 Type: Type = {
     "^"<t: Type> => Type::Pointer(Box::new(t)),

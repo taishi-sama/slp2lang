@@ -22,11 +22,12 @@ pub struct TypeResolverGenerator<'a, 'b> {
 }
 #[derive(Debug, Clone)]
 enum ResolveTarget<'a> {
-    TypeAlias(&'a Type),
+    TypeAlias(Loc, &'a Type),
     StructDecl(PartialyResolvedRecord<'a>) 
 }
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct PartialyResolvedRecord<'a> {
+    pub loc: Loc,
     pub is_class: bool,
     pub resolved: HashMap<Id, SLPType>,
     pub to_be_resolved: HashMap<Id, &'a Type>,
@@ -48,10 +49,16 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                 for ty_decl in &section.decls {
                     match ty_decl {
                         crate::ast::TypeDeclElement::TypeAlias(_l, name, ty) => {
-                            self.queue_to_resolve.insert((file, Id(name.clone())), ResolveTarget::TypeAlias(ty));
+                            self.queue_to_resolve.insert((file, Id(name.clone())), ResolveTarget::TypeAlias(_l.clone(), ty));
                         }
                         crate::ast::TypeDeclElement::RecordDeclare(_l, name, fields, rec_ty) => {
-                            let mut prr = PartialyResolvedRecord::default();
+                            let mut prr = PartialyResolvedRecord{
+                                loc: _l.clone(),
+                                is_class: false,
+                                resolved: Default::default(),
+                                to_be_resolved: Default::default(),
+                                field_order: Default::default(),
+                            };
                             prr.is_class = match rec_ty {
                                 crate::ast::RecordType::Record => false,
                                 crate::ast::RecordType::Class => true,
@@ -81,14 +88,14 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
         while self.queue_to_resolve.len() > 0 {
             for ((fid, id), rt) in &mut self.queue_to_resolve {
                 match rt {
-                    ResolveTarget::TypeAlias(ty) => {
-                        if let Ok(t) = resolver.from_ast_type(ty, fid) {
+                    ResolveTarget::TypeAlias(loc, ty) => {
+                        if let Ok(t) = resolver.from_ast_type(&loc, ty, fid) {
                             resolver
                                 .types
                                 .insert((fid.clone(), id.clone()), SLPTypeDecl::TypeAlias(t));
                         } else {
                             self.next_round_resolve
-                                .insert((fid.clone(), id.clone()), ResolveTarget::TypeAlias(ty));
+                                .insert((fid.clone(), id.clone()), ResolveTarget::TypeAlias(loc.clone(), ty));
                         }
                     },
                     ResolveTarget::StructDecl(rs) => {
@@ -96,7 +103,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                         let mut new_to_be_resolved: HashMap<Id, &'a Type> = HashMap::new();
                         let field_order = rs.field_order.clone();
                         for (id, ty) in &rs.to_be_resolved {
-                            if let Ok(t) = resolver.from_ast_type(ty, fid) {
+                            if let Ok(t) = resolver.from_ast_type(&rs.loc,  ty, fid) {
                                 println!("Field {} is resolved", id.0);
                                 new_res.insert(id.clone(), t);
                             }
@@ -105,7 +112,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                                 new_to_be_resolved.insert(id.clone(), *ty);
                             }
                         }
-                        let prr = PartialyResolvedRecord { resolved: new_res, to_be_resolved: new_to_be_resolved, field_order, is_class: rs.is_class };
+                        let prr = PartialyResolvedRecord { resolved: new_res, to_be_resolved: new_to_be_resolved, field_order, is_class: rs.is_class, loc: rs.loc.clone() };
                         if !prr.to_be_resolved.is_empty() {
                             self.next_round_resolve.insert((fid.clone(), id.clone()), ResolveTarget::StructDecl(prr));
                         }
@@ -167,8 +174,8 @@ impl GlobalSymbolResolver {
                         (fid.clone(), i),
                         FunctionDecl::FunctionDecl {
                             loc: f.loc,
-                            input: self.convert_typedecls(&fid, &f.function_args)?,
-                            output: self.from_ast_type(&f.return_arg.ty, &fid)?,
+                            input: self.convert_typedecls(&f.loc, &fid, &f.function_args)?,
+                            output: self.from_ast_type(&f.loc, &f.return_arg.ty, &fid)?,
                         },
                     );
                 }
@@ -179,8 +186,8 @@ impl GlobalSymbolResolver {
                         (fid.clone(), i),
                         FunctionDecl::ExternFunctionDecl {
                             loc: f.loc,
-                            input: self.convert_typedecls(&fid, &f.function_args)?,
-                            output: self.from_ast_type(&f.return_arg.ty, &fid)?,
+                            input: self.convert_typedecls(&f.loc, &fid, &f.function_args)?,
+                            output: self.from_ast_type(&f.loc, &f.return_arg.ty, &fid)?,
                         },
                     );
                 }
@@ -194,6 +201,7 @@ impl GlobalSymbolResolver {
     }
     
     fn convert_typedecls(&self,
+        loc: &Loc,
         fid: &FileId,
         v: &[ArgDecl]
     ) -> Result<Vec<(Id, SLPType)>, SemTreeBuildErrors> {
@@ -203,7 +211,7 @@ impl GlobalSymbolResolver {
         //    .collect()
         let mut vardecls = vec![];
         for vardecl in v {
-            let mut ty = self.from_ast_type(&vardecl.ty.ty, fid)?;
+            let mut ty = self.from_ast_type(loc, &vardecl.ty.ty, fid)?;
             if vardecl.var_param {
                 ty = SLPType::AutoderefPointer(Box::new(ty));
             }
@@ -259,7 +267,7 @@ impl GlobalSymbolResolver {
             todo!()
         }
     }
-    pub fn from_ast_type(&self, ty: &Type, file: &FileId) -> Result<SLPType, SemTreeBuildErrors> {
+    pub fn from_ast_type(&self, loc: &Loc, ty: &Type, file: &FileId) -> Result<SLPType, SemTreeBuildErrors> {
         match ty {
             Type::Primitive(t) => {
                 if t.path.is_empty() {
@@ -278,7 +286,7 @@ impl GlobalSymbolResolver {
                         "bool" => SLPPrimitiveType::Bool,
                         "void" => SLPPrimitiveType::Void,
                         "char" => SLPPrimitiveType::Char,
-                        _ => {
+                        a @ _ => {
                             let id = (file.clone(), Id(t.name.clone()));
                             let fname = self.reverse_filename_translation.as_ref().get(&id.0).unwrap();
                             if let Some(ty) = self.types.get(&id) {
@@ -291,7 +299,7 @@ impl GlobalSymbolResolver {
                                     },
                                 };
                             } else {
-                                return Err(SemTreeBuildErrors::TypeConversionError);
+                                return Err(SemTreeBuildErrors::BadType(loc.clone(), a.to_owned()));
                             }
                         }
                     }))
@@ -302,7 +310,7 @@ impl GlobalSymbolResolver {
                         let ty = self.types.get(&tmp);
                         if ty.is_none() {
                             println!("{:?}({}) not found", tmp, &t.path[0]);
-                            return Err(SemTreeBuildErrors::TypeConversionError);
+                            return Err(SemTreeBuildErrors::BadType(loc.clone(), t.to_string()));
                         }
                         let fname = self.reverse_filename_translation.as_ref().get(&tmp.0).unwrap();
 
@@ -321,11 +329,11 @@ impl GlobalSymbolResolver {
                     todo!()
                 }
             }
-            Type::Pointer(t) => Ok(SLPType::Pointer(Box::new(self.from_ast_type(&t, file)?))),
-            Type::DynArray(t) => Ok(SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(self.from_ast_type(&t, file)?))))),
+            Type::Pointer(t) => Ok(SLPType::Pointer(Box::new(self.from_ast_type(loc, &t, file)?))),
+            Type::DynArray(t) => Ok(SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(self.from_ast_type(loc, &t, file)?))))),
             //Insert offset to integer index on semtree building phase
             Type::FixedArray(b, e, t) => Ok(SLPType::FixedArray {
-                ty: Box::new(self.from_ast_type(&t, file)?),
+                ty: Box::new(self.from_ast_type(loc, &t, file)?),
                 size: (e - b + 1).try_into().unwrap(),
                 index_offset: b.clone(),
             }),

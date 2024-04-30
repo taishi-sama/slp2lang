@@ -25,6 +25,7 @@ pub mod semtree_visualisator;
 pub mod symbols;
 pub mod types;
 pub mod buildins;
+pub mod error_handler;
 
 lalrpop_mod!(pub grammar);
 
@@ -161,8 +162,7 @@ pub fn new_compile(file: &str, output_filename: &str) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        ast::{Declaration, Statement},
-        grammar,
+        ast::{Declaration, Statement}, compiler::FileId, grammar
     };
 
     #[test]
@@ -172,7 +172,7 @@ mod tests {
         if 123 then if 321 then print("trl") else print("ltr"); 
         end.
         "##;
-        let res = grammar::ProgramBlockParser::new().parse(program).unwrap();
+        let res = grammar::ProgramBlockParser::new().parse(FileId(0), program).unwrap();
         let m = res
             .declarations
             .iter()

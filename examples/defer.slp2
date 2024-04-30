@@ -2,23 +2,23 @@ uses std_char;
 
 procedure print_defer();
 begin
-    std_char::putchar('A');
-    std_char::putchar('f');
-    std_char::putchar('t');
-    std_char::putchar('e');
-    std_char::putchar('r');
-    std_char::putchar('\n');
+    std_char::PutChar('A');
+    std_char::PutChar('f');
+    std_char::PutChar('t');
+    std_char::PutChar('e');
+    std_char::PutChar('r');
+    std_char::PutChar('\n');
 end;
 
 procedure print_before();
 begin
-    std_char::putchar('B');
-    std_char::putchar('e');
-    std_char::putchar('f');
-    std_char::putchar('o');
-    std_char::putchar('r');
-    std_char::putchar('e');
-    std_char::putchar('\n');
+    std_char::PutChar('B');
+    std_char::PutChar('e');
+    std_char::PutChar('f');
+    std_char::PutChar('o');
+    std_char::PutChar('r');
+    std_char::PutChar('e');
+    std_char::PutChar('\n');
 end;
 
 

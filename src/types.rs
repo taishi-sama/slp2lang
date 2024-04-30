@@ -371,4 +371,35 @@ impl SLPType {
             None
         }
     }
+    pub fn pretty_representation(&self) -> String {
+        match self {
+            SLPType::PrimitiveType(pt) =>
+            match pt {
+                SLPPrimitiveType::Int8 => "int8".into(),
+                SLPPrimitiveType::Int16 => "int16".into(),
+                SLPPrimitiveType::Int32 => "int32".into(),
+                SLPPrimitiveType::Int64 => "int64".into(),
+                SLPPrimitiveType::Uint8 => "uint8".into(),
+                SLPPrimitiveType::Uint16 => "uint16".into(),
+                SLPPrimitiveType::Uint32 => "uint32".into(),
+                SLPPrimitiveType::Uint64 => "uint64".into(),
+                SLPPrimitiveType::ISize => "isize".into(),
+                SLPPrimitiveType::USize => "usize".into(),
+                SLPPrimitiveType::Float32 => "f32".into(),
+                SLPPrimitiveType::Float64 => "f64".into(),
+                SLPPrimitiveType::Char => "char".into(),
+                SLPPrimitiveType::Bool => "bool".into(),
+                SLPPrimitiveType::Void => "void".into(),
+                SLPPrimitiveType::Nil => "nil".into(),
+                SLPPrimitiveType::String => todo!(),
+                SLPPrimitiveType::StringLiteral(_) => todo!(), // Handle this case separately or raise an error,
+            }
+            SLPType::Pointer(_) => todo!(),
+            SLPType::AutoderefPointer(_) => todo!(),
+            SLPType::DynArray(_) => todo!(),
+            SLPType::FixedArray { size, index_offset, ty } => todo!(),
+            SLPType::Struct(_, _, _) => todo!(),
+            SLPType::RefCounter(_) => todo!(),
+        }
+    }
 }

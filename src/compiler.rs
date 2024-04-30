@@ -8,13 +8,14 @@
 // Link resulting .obj file into executable
 
 use std::{
-    cell::RefCell, collections::{HashMap, VecDeque}, fs, path::{Path, PathBuf}, str::FromStr, sync::Arc
+    cell::RefCell, collections::{HashMap, VecDeque}, fs::{self, read_to_string, File}, io::Read, path::{Path, PathBuf}, str::FromStr, sync::Arc
 };
 
 use anyhow::Ok;
+use source_span::{fmt::Formatter, DefaultMetrics, SourceBuffer};
 
 use crate::{
-    ast::{self, ProgramFile}, ast_visualisator, buildins::BuildInModule, semtree::SemanticTree, semtree_visualisator, symbols::{Id, TypeResolverGenerator}
+    ast::{self, ProgramFile}, ast_visualisator, buildins::BuildInModule, error_handler::InfileLoc, semtree::SemanticTree, semtree_visualisator, symbols::{Id, TypeResolverGenerator}
 };
 const COMPILER_BUILDINS_MODULE_FID: FileId = FileId(0);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -44,11 +45,12 @@ impl Compiler {
     }
     pub fn start_compilation(&mut self, initial_file: PathBuf) -> anyhow::Result<()> {
         let text = fs::read_to_string(&initial_file)?;
-        let ast = crate::grammar::ProgramBlockParser::new()
-            .parse(&text)
-            .unwrap();
         self.add_fid_as("$build-in$", COMPILER_BUILDINS_MODULE_FID);
         let fid = self.path_to_fileid_mut(&initial_file);
+
+        let ast = crate::grammar::ProgramBlockParser::new()
+            .parse(fid.0.clone(), &text)
+            .unwrap();
         let pf = Arc::new(ast);
         println!("{}", ast_visualisator::get_program_tree(&pf));
         self.asts.insert(fid.0, pf.clone());
@@ -84,7 +86,32 @@ impl Compiler {
                 type_resolver_arc.clone(),
                 buildins.clone()
             );
-            let semtree_unwrap = semtree.unwrap();
+            let semtree_unwrap = match semtree {
+                std::result::Result::Ok(st) => st,
+                Err(err) => {
+                    for e in err {
+                        match e {
+                            crate::errors::SemTreeBuildErrors::BadType(l, c) => {
+                                let file = read_to_string(&self.id_to_filepath[ids])?;         
+                                let s = InfileLoc::from_loc(l, &file);
+                                let file = File::open(&self.id_to_filepath[ids]).unwrap();
+                                let chars = utf8_decode::UnsafeDecoder::new(file.bytes());
+                                let metrics = source_span::DEFAULT_METRICS;
+                                let buffer = SourceBuffer::new(chars, source_span::Position::default(), metrics);
+                            
+                                let mut form = Formatter::new();
+                                buffer.iter().for_each(|_|()); 
+                                form.add(s.span.clone(), Some(format!("Unknown type \"{}\"", c)), source_span::fmt::Style::Error);
+                                let t = form.render(buffer.iter(), buffer.span().clone(), &metrics);
+                                println!("{}", t.unwrap())
+                            },
+                            _ => todo!()
+                        }
+                    }
+                    panic!("----------")
+                },
+            };
+            
 
             //if semtree_unwrap
             //    .symbols
@@ -128,7 +155,7 @@ impl Compiler {
                         println!("File loaded: {}", f.to_string_lossy());
                         let text = fs::read_to_string(&f)?;
                         let ast = crate::grammar::ProgramBlockParser::new()
-                            .parse(&text)
+                            .parse(fid.clone(), &text )
                             .unwrap();
                         self.asts.insert(fid, Arc::new(ast));
                         self.queue_on_check.push_back(fid);

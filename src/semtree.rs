@@ -278,7 +278,7 @@ impl SemanticTree {
                     //TODO check if symbol is type instead of assuming this
                     let ty = ast::Type::Primitive(id.clone());
                     if args.len() == 1 {
-                        let ty: SLPType = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
+                        let ty: SLPType = self.types_resolver.from_ast_type(_l, &ty, &self.fileid)?;
                         return Ok(FunctionCallResolveResult::TypeCast(self.resolve_typecast(
                             &ty,
                             args.pop().unwrap(),
@@ -562,7 +562,7 @@ impl SemanticTree {
     ) -> Result<(), SemTreeBuildErrors> {
         match vd {
             ast::VarDecl::Multiple(s, ty) => {
-                let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
+                let ty = self.types_resolver.from_ast_type(l, &ty.ty, &self.fileid)?;
                 for i in s {
                     let lv = scope.add_variable(&Id(i.clone()), ty.clone());
                     let init = STExpr { ret_type: ty.clone(), loc: l.clone(), kind: ExprKind::Default };
@@ -571,7 +571,7 @@ impl SemanticTree {
                 Ok(())
             }
             ast::VarDecl::ExplicitType(s, ty, e) => {
-                let ty = self.types_resolver.from_ast_type(&ty.ty, &self.fileid)?;
+                let ty = self.types_resolver.from_ast_type(l, &ty.ty, &self.fileid)?;
                 let expr = self.visit_expression(e, scope)?;
                 let converted_expr = self.insert_impl_conversion(expr, &ty, l.clone())?;
                 let lv = scope.add_variable(&Id(s.clone()), ty.clone());
@@ -1031,7 +1031,7 @@ impl SemanticTree {
             },
             Expr::OpUnAs(l, e, td) => {
                 let expr = self.visit_expression(&e, scope)?;
-                let ty = self.types_resolver.from_ast_type(&td.ty, &self.fileid)?;
+                let ty = self.types_resolver.from_ast_type(l, &td.ty, &self.fileid)?;
                 self.resolve_typecast(&ty, expr, l.clone())?
             }
             Expr::OpMethodCall(l, stmt, field) => {
@@ -1111,7 +1111,7 @@ impl SemanticTree {
         for a in args {
             args_p.push(self.visit_expression(a, scope)?)
         }
-        let t = self.types_resolver.from_ast_type(ty, &self.fileid)?;
+        let t = self.types_resolver.from_ast_type(&loc, ty, &self.fileid)?;
         let t = {
             if count.is_some() {
                 SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(t))))

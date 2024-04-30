@@ -20,12 +20,10 @@ impl LinkerBuilder {
     }
     pub fn new_linux_x86_64<'a, 'b>() -> Self {
         Self {
-            linker: "ld".into(),
-            system_dyn_linker: Some("/lib/ld-linux-x86-64.so.2".into()),
+            linker: "cc".into(),
+            system_dyn_linker: None,
             system_crt: vec![
-                "/usr/lib64/crti.o".into(),
-                "/usr/lib64/crt1.o".into(),
-                "/usr/lib64/crtn.o".into(),
+                "./bin_blobs/librstd.a".into()
             ],
             libc_options: vec!["-lc".to_string()],
             linker_options: vec![],
@@ -46,6 +44,8 @@ impl LinkerBuilder {
         if link_asan {
             comm.arg("-lasan");
         }
+        comm.arg(main_linkable_object);
+
         if let Some(sys_linker) = &self.system_dyn_linker {
             comm.arg("-dynamic-linker").arg(sys_linker);
         }
@@ -58,7 +58,7 @@ impl LinkerBuilder {
         for linker_option in &self.linker_options {
             comm.arg(linker_option);
         }
-        comm.arg(main_linkable_object).arg("-o").arg(output_object);
+        comm.arg("-o").arg(output_object);
 
         //println!("{:#?}", comm);
 

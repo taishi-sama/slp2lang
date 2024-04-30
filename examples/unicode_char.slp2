@@ -1,7 +1,7 @@
 uses std_char;
 
 begin
-    std_char::putchar('Г');
-    std_char::putchar('\n');
+    std_char::PutChar('Г');
+    std_char::PutChar('\n');
     Result := 0;
 end.

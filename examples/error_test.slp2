@@ -1,0 +1,3 @@
+begin
+    var a : error_type;
+end.
