@@ -15,13 +15,14 @@ use anyhow::Ok;
 use source_span::{fmt::Formatter, DefaultMetrics, SourceBuffer};
 
 use crate::{
-    ast::{self, ProgramFile}, ast_visualisator, buildins::BuildInModule, error_handler::InfileLoc, semtree::SemanticTree, semtree_visualisator, symbols::{Id, TypeResolverGenerator}
+    ast::{self, ProgramFile}, ast_visualisator, buildins::BuildInModule, error_handler::{ErrorHandler, InfileLoc}, semtree::SemanticTree, semtree_visualisator, symbols::{Id, TypeResolverGenerator}
 };
 const COMPILER_BUILDINS_MODULE_FID: FileId = FileId(0);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileId(pub u32);
 #[derive(Debug, Clone)]
 pub struct Compiler {
+    error_handler: ErrorHandler,
     includes: Vec<PathBuf>,
     pub filename_to_id: Arc<HashMap<String, FileId>>,
     pub id_to_filename: Arc<HashMap<FileId, String>>,
@@ -41,6 +42,7 @@ impl Compiler {
             includes,
             id_to_filepath: Default::default(),
             id_to_filename: Default::default(),
+            error_handler: ErrorHandler::new(),
         }
     }
     pub fn start_compilation(&mut self, initial_file: PathBuf) -> anyhow::Result<()> {
@@ -90,25 +92,31 @@ impl Compiler {
                 std::result::Result::Ok(st) => st,
                 Err(err) => {
                     for e in err {
-                        match e {
-                            crate::errors::SemTreeBuildErrors::BadType(l, c) => {
-                                let file = read_to_string(&self.id_to_filepath[ids])?;         
-                                let s = InfileLoc::from_loc(l, &file);
-                                let file = File::open(&self.id_to_filepath[ids]).unwrap();
-                                let chars = utf8_decode::UnsafeDecoder::new(file.bytes());
-                                let metrics = source_span::DEFAULT_METRICS;
-                                let buffer = SourceBuffer::new(chars, source_span::Position::default(), metrics);
-                            
-                                let mut form = Formatter::new();
-                                buffer.iter().for_each(|_|()); 
-                                form.add(s.span.clone(), Some(format!("Unknown type \"{}\"", c)), source_span::fmt::Style::Error);
-                                let t = form.render(buffer.iter(), buffer.span().clone(), &metrics);
-                                println!("{}", t.unwrap())
-                            },
-                            _ => todo!()
-                        }
+                        self.error_handler.add_error(e, &self.id_to_filepath);
+
                     }
-                    panic!("----------")
+                    self.error_handler.display_errors();
+                    panic!()
+                    // for e in err {
+                    //     match e {
+                    //         crate::errors::SemTreeBuildErrors::BadType(l, c) => {
+                    //             let file = read_to_string(&self.id_to_filepath[ids])?;         
+                    //             let s = InfileLoc::from_loc(l, &file);
+                    //             let file = File::open(&self.id_to_filepath[ids]).unwrap();
+                    //             let chars = utf8_decode::UnsafeDecoder::new(file.bytes());
+                    //             let metrics = source_span::DEFAULT_METRICS;
+                    //             let buffer = SourceBuffer::new(chars, source_span::Position::default(), metrics);
+                            
+                    //             let mut form = Formatter::new();
+                    //             buffer.iter().for_each(|_|()); 
+                    //             form.add(s.span.clone(), Some(format!("Unknown type \"{}\"", c)), source_span::fmt::Style::Error);
+                    //             let t = form.render(buffer.iter(), buffer.span().clone(), &metrics);
+                    //             println!("{}", t.unwrap())
+                    //         },
+                    //         _ => todo!()
+                    //     }
+                    // }
+                    // panic!("----------")
                 },
             };
             

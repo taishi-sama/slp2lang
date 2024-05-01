@@ -9,3 +9,12 @@ pub enum SemTreeBuildErrors {
     TypeConversionError(Loc, String, String),
 
 }
+
+impl SemTreeBuildErrors {
+    pub fn get_loc(&self) -> Loc {
+        match self {
+            SemTreeBuildErrors::BadType(l, _) => l.clone(),
+            SemTreeBuildErrors::TypeConversionError(l, _, _) => l.clone(),
+        }
+    }
+}
