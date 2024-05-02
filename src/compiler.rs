@@ -65,9 +65,16 @@ impl Compiler {
         for (ids, _deps) in self.deps.iter() {
             t.fill(&self.asts[ids], ids.clone())
         }
-        let mut type_resolver = t.resolve();
+        let type_resolver_raw = t.resolve();
+        if type_resolver_raw.is_err() {
+            for e in type_resolver_raw.err().unwrap() {
+                self.error_handler.add_error(e, &self.id_to_filepath);
 
-
+            }
+            self.error_handler.display_errors()?;
+            panic!()
+        }
+        let mut type_resolver = type_resolver_raw.unwrap();
         for (ids, _deps) in self.deps.iter() {
             println!("Resolving {}", type_resolver.reverse_filename_translation[ids]);
             type_resolver.fill_function_decl(&self.asts[ids], ids)?
@@ -76,7 +83,7 @@ impl Compiler {
         let type_resolver_arc = Arc::new(type_resolver);
         let buildins = Arc::new(RefCell::new(BuildInModule::new(type_resolver_arc.clone())));
         let mut semtrees = vec![];
-        for (ids, deps) in self.deps.iter() {
+        for (ids, _deps) in self.deps.iter() {
             let p = Self::path_into_string(&self.id_to_filepath[ids]);
 
             println!("Compiling {}", self.id_to_filepath[ids].to_string_lossy());
@@ -95,44 +102,10 @@ impl Compiler {
                         self.error_handler.add_error(e, &self.id_to_filepath);
 
                     }
-                    self.error_handler.display_errors();
+                    self.error_handler.display_errors()?;
                     panic!()
-                    // for e in err {
-                    //     match e {
-                    //         crate::errors::SemTreeBuildErrors::BadType(l, c) => {
-                    //             let file = read_to_string(&self.id_to_filepath[ids])?;         
-                    //             let s = InfileLoc::from_loc(l, &file);
-                    //             let file = File::open(&self.id_to_filepath[ids]).unwrap();
-                    //             let chars = utf8_decode::UnsafeDecoder::new(file.bytes());
-                    //             let metrics = source_span::DEFAULT_METRICS;
-                    //             let buffer = SourceBuffer::new(chars, source_span::Position::default(), metrics);
-                            
-                    //             let mut form = Formatter::new();
-                    //             buffer.iter().for_each(|_|()); 
-                    //             form.add(s.span.clone(), Some(format!("Unknown type \"{}\"", c)), source_span::fmt::Style::Error);
-                    //             let t = form.render(buffer.iter(), buffer.span().clone(), &metrics);
-                    //             println!("{}", t.unwrap())
-                    //         },
-                    //         _ => todo!()
-                    //     }
-                    // }
-                    // panic!("----------")
                 },
             };
-            
-
-            //if semtree_unwrap
-            //    .symbols
-            //    .main_file_symbols
-            //    .func_decls
-            //    .contains_key(&Id("main".to_string()))
-            //{
-            //    println!(
-            //        "{}",
-            //        semtree_visualisator::get_program_root(&semtree_unwrap.root)
-            //    );
-            //}
-
             semtrees.push(semtree_unwrap);
         }
         Ok(semtrees)
@@ -140,6 +113,7 @@ impl Compiler {
     fn find_first_applicable_child(&self, filename: &str) -> Option<PathBuf> {
         for i in &self.includes {
             let t = Path::join(&i, format!("{}.slp2", filename));
+            //println!("Checking {}...", t.to_string_lossy());
             if t.is_file() {
                 return Some(t);
             }

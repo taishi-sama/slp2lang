@@ -60,7 +60,14 @@ pub fn new_compile(file: &str, output_filename: &str) {
         .unwrap();
     let target_machine = Arc::new(target_machine);
     let cctx = CodegenContext::new();
-    let mut comp = Compiler::new(vec!["./".to_owned().into(), "./std".to_owned().into()]);
+    let file_dir = Path::new(file).parent();
+    let mut includes = vec!["./".to_owned().into(), "./std".to_owned().into()];
+    if let Some(p) = file_dir {
+        includes.push(p.to_owned())
+    }
+    let mut comp = Compiler::new(
+        includes
+    );
     comp.start_compilation(file.into()).unwrap();
     let res = comp.continue_compilation().unwrap();
     

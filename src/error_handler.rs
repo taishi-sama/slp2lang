@@ -48,7 +48,26 @@ impl ErrorHandler {
     pub fn generate_error_message(err: &SemTreeBuildErrors) -> String {
         match err {
             SemTreeBuildErrors::BadType(_, ty) => format!("Unknown type: {}", ty),
-            SemTreeBuildErrors::TypeConversionError(_, from, to) =>  format!("Unable to convert type {} to type {}", from, to),
+            SemTreeBuildErrors::ExplicitTypeConversionError(_, from, to) =>  format!("Unable to convert type {} to type {}", from, to),
+            SemTreeBuildErrors::UnknownFilename(_, n) => format!("Unknown file name: \"{}\". Ensure that file with name \"{}.slp\" exists, placed inside path directories and included in \"uses\" section.", n, n),
+            SemTreeBuildErrors::FileIsNotInUses(_, n) => format!("File \"{}\" exists, but is not in usages list of this file.", n),
+            SemTreeBuildErrors::ImplicitTypeConversionError(_, _, _) => todo!(),
+            SemTreeBuildErrors::IsNotLocalVariable(_) => todo!(),
+            SemTreeBuildErrors::InvalidArgumentCount(_, _, _, _) => todo!(),
+            SemTreeBuildErrors::UnknownFunctionOrTypename(_, _) => todo!(),
+            SemTreeBuildErrors::InternalError(_, _) => todo!(),
+            SemTreeBuildErrors::IntExpected(_, _) => todo!(),
+            SemTreeBuildErrors::FieldDoesntExists(_, _, _) => todo!(),
+            SemTreeBuildErrors::TypesNotSame(_, _, _) => todo!(),
+            SemTreeBuildErrors::LocalVariableDoesntExist(_, _) => todo!(),
+            SemTreeBuildErrors::NegateSymbolToUnsignedError(_) => todo!(),
+            SemTreeBuildErrors::InvalidSuffix(_, _) => todo!(),
+            SemTreeBuildErrors::InvalidNumber(_, _) => todo!(),
+            SemTreeBuildErrors::ArrayExpected(_, _) => todo!(),
+            SemTreeBuildErrors::InvalidNewOpArgumentCount(_, _, _, _) => todo!(),
+            SemTreeBuildErrors::InvalidTypeForNew(_, _) => todo!(),
+            SemTreeBuildErrors::InvalidOperationForType(_, _, _) => todo!(),
+            SemTreeBuildErrors::NotNullCheckableError(_, _) => todo!(),
         }
     }   
     //Returns true if has any errors inside

@@ -75,7 +75,7 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
             }
         }
     }
-    pub fn resolve(mut self) -> GlobalSymbolResolver {
+    pub fn resolve(mut self) -> Result<GlobalSymbolResolver, Vec<SemTreeBuildErrors>> {
         let mut resolver = GlobalSymbolResolver {
             types: self.resolved,
             deps: self.compiler.deps.clone(),
@@ -84,18 +84,23 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
             functions: Default::default(),
             function_declare_order: Default::default(),
         };
+        let mut error_list = vec![];
         let mut count = self.queue_to_resolve.len();
         while self.queue_to_resolve.len() > 0 {
             for ((fid, id), rt) in &mut self.queue_to_resolve {
                 match rt {
                     ResolveTarget::TypeAlias(loc, ty) => {
-                        if let Ok(t) = resolver.from_ast_type(&loc, ty, fid) {
-                            resolver
+                        match resolver.from_ast_type(&loc, ty, fid) {
+                            Ok(t) => {
+                                resolver
                                 .types
                                 .insert((fid.clone(), id.clone()), SLPTypeDecl::TypeAlias(t));
-                        } else {
-                            self.next_round_resolve
-                                .insert((fid.clone(), id.clone()), ResolveTarget::TypeAlias(loc.clone(), ty));
+                            },
+                            Err(err) => {
+                                error_list.push(err);
+                                self.next_round_resolve
+                                    .insert((fid.clone(), id.clone()), ResolveTarget::TypeAlias(loc.clone(), ty));
+                            },
                         }
                     },
                     ResolveTarget::StructDecl(rs) => {
@@ -103,13 +108,14 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
                         let mut new_to_be_resolved: HashMap<Id, &'a Type> = HashMap::new();
                         let field_order = rs.field_order.clone();
                         for (id, ty) in &rs.to_be_resolved {
-                            if let Ok(t) = resolver.from_ast_type(&rs.loc,  ty, fid) {
-                                println!("Field {} is resolved", id.0);
-                                new_res.insert(id.clone(), t);
-                            }
-                            else {
-                                println!("Field {} is not resolved", id.0);
-                                new_to_be_resolved.insert(id.clone(), *ty);
+                            match resolver.from_ast_type(&rs.loc,  ty, fid) {
+                                Ok(t) => {
+                                    new_res.insert(id.clone(), t);
+                                },
+                                Err(err) => {
+                                    error_list.push(err);
+                                    new_to_be_resolved.insert(id.clone(), *ty);
+                                },
                             }
                         }
                         let prr = PartialyResolvedRecord { resolved: new_res, to_be_resolved: new_to_be_resolved, field_order, is_class: rs.is_class, loc: rs.loc.clone() };
@@ -135,11 +141,14 @@ impl<'a, 'b> TypeResolverGenerator<'a, 'b> {
             mem::swap(&mut self.queue_to_resolve, &mut self.next_round_resolve);
             self.next_round_resolve.clear();
             if count <= self.queue_to_resolve.len() {
-                panic!("{count} <= {}", self.queue_to_resolve.len())
+                return Err(error_list);
+                //panic!("{count} <= {}", self.queue_to_resolve.len())
+            } else {
+                error_list.clear();
             }
             count = self.queue_to_resolve.len();
         }
-        resolver
+        Ok(resolver)
     }
 }
 #[derive(Debug, Clone)]
@@ -152,6 +161,21 @@ pub struct GlobalSymbolResolver {
     pub reverse_filename_translation: Arc<HashMap<FileId, String>>,
 }
 impl GlobalSymbolResolver {
+    pub fn get_fileid_checked(&self, loc: &Loc, name: &str) -> Result<FileId, SemTreeBuildErrors> {
+        let target_fid = self.filename_translation.get(name);
+        match target_fid {
+            Some(f) => Ok(f.clone()),
+            None => Err(SemTreeBuildErrors::UnknownFilename(loc.clone(), name.to_owned())),
+        }
+    }
+    pub fn is_in_dep_list_checked(&self, loc: &Loc, checked: FileId, dep: FileId) -> Result<(), SemTreeBuildErrors> {
+        if self.deps.get(&dep).unwrap().contains(&checked) {
+            Ok(())
+        } else {
+            let name = self.reverse_filename_translation[&checked].clone();
+            Err(SemTreeBuildErrors::FileIsNotInUses(loc.clone(), name))
+        }
+    }
     pub fn canonical_functions(&self, fid: &FileId, id: &Id) -> Id {
         let fn_type = self.functions.get(&(fid.clone(), id.clone())).unwrap();
         if id.0 == "main" {
@@ -235,7 +259,7 @@ impl GlobalSymbolResolver {
             Ok(None)
         }
     }
-    pub fn resolve_funccall(&self, fid: &FileId, id: &Identificator) -> Result<Option<(Id, FunctionDecl)>, SemTreeBuildErrors>  {
+    pub fn resolve_funccall(&self, loc: &Loc, fid: &FileId, id: &Identificator) -> Result<Option<(Id, FunctionDecl)>, SemTreeBuildErrors>  {
         if id.path.is_empty() {
             let id = Id(id.name.clone());
             if let Some(sym) = self.functions.get(&(fid.clone(), id.clone())) {
@@ -248,20 +272,17 @@ impl GlobalSymbolResolver {
         } else if id.path.len() == 1 {
             let i = Id(id.name.clone());
             //println!("{:?}", self.deps_symbols);
-            let target_fid = self.filename_translation.get(&id.path[0]).unwrap();
-            if self.deps.get(fid).unwrap().contains(target_fid) {
-                if let Some(sym) = self.functions.get(&(target_fid.clone(), i.clone())) {
-                    return Ok(Some((
-                        self.canonical_functions(target_fid, &i),
-                        sym.clone(),
-                    )));
-                }
-                else {
-                    return Ok(None);
-                }
+            let target_fid = self.get_fileid_checked(loc, &id.path[0])?;
+            self.is_in_dep_list_checked(loc, target_fid, *fid)?;
+
+            if let Some(sym) = self.functions.get(&(target_fid.clone(), i.clone())) {
+                return Ok(Some((
+                    self.canonical_functions(&target_fid, &i),
+                    sym.clone(),
+                )));
             }
             else {
-                todo!("Report that file is not in usages list")
+                return Ok(None);
             }
         } else {
             todo!()
@@ -304,27 +325,24 @@ impl GlobalSymbolResolver {
                         }
                     }))
                 } else if t.path.len() == 1 {
-                    let target_fid = self.filename_translation.get(&t.path[0]).unwrap();
-                    if self.deps.get(file).unwrap().contains(target_fid) {
-                        let tmp = (target_fid.clone(), Id(t.name.clone()));
-                        let ty = self.types.get(&tmp);
-                        if ty.is_none() {
-                            println!("{:?}({}) not found", tmp, &t.path[0]);
-                            return Err(SemTreeBuildErrors::BadType(loc.clone(), t.to_string()));
-                        }
-                        let fname = self.reverse_filename_translation.as_ref().get(&tmp.0).unwrap();
-
-                        return match ty.unwrap() {
-                            SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
-                            SLPTypeDecl::StructDecl(d) => if d.is_class {
-                                Ok(SLPType::RefCounter(Box::new(SLPType::Struct(fname.clone(), tmp.1.clone(), d.is_copiable))))
-                            } else {
-                                Ok(SLPType::Struct(fname.clone(), tmp.1.clone(), d.is_copiable))
-                            },
-                        };
-                    } else {
-                        todo!("Error report: {} not in deps list", &t.path[0])
+                    let target_fid = self.get_fileid_checked(loc, &t.path[0])?;
+                    self.is_in_dep_list_checked(loc, target_fid, *file)?;
+                    
+                    let tmp = (target_fid.clone(), Id(t.name.clone()));
+                    let ty = self.types.get(&tmp);
+                    if ty.is_none() {
+                        println!("{:?}({}) not found", tmp, &t.path[0]);
+                        return Err(SemTreeBuildErrors::BadType(loc.clone(), t.to_string()));
                     }
+                    let fname = self.reverse_filename_translation.as_ref().get(&tmp.0).unwrap();
+                    return match ty.unwrap() {
+                        SLPTypeDecl::TypeAlias(ta) => Ok(ta.clone()),
+                        SLPTypeDecl::StructDecl(d) => if d.is_class {
+                            Ok(SLPType::RefCounter(Box::new(SLPType::Struct(fname.clone(), tmp.1.clone(), d.is_copiable))))
+                        } else {
+                            Ok(SLPType::Struct(fname.clone(), tmp.1.clone(), d.is_copiable))
+                        },
+                    };
                 } else {
                     todo!()
                 }

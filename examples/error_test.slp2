@@ -1,3 +1,11 @@
+uses error_test2;
+
+//type a = class 
+//    e: test::error_type;
+//end;
+
+
 begin
-    var a : error_type;
+    //error_test3::do_nothing();
+    var a : int32 := 0;
 end.

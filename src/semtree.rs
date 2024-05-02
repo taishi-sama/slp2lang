@@ -79,7 +79,7 @@ impl SemanticTree {
     }
     fn visit_function_decl(&mut self, func: &FunctionBody) -> Result<Function, SemTreeBuildErrors> {
         let mut scope = Scope::new();
-        let (_id, fd) = self.types_resolver.resolve_funccall(&self.fileid, &ast::Identificator { name: func.function_name.clone(), path: vec![] } ).unwrap().unwrap();
+        let (_id, fd) = self.types_resolver.resolve_funccall(&func.loc, &self.fileid, &ast::Identificator { name: func.function_name.clone(), path: vec![] } ).unwrap().unwrap();
         if let FunctionDecl::FunctionDecl { loc, input, output } = fd {
         let return_arg = output;
 
@@ -114,7 +114,7 @@ impl SemanticTree {
         &mut self,
         func: &ExternFunctionBody,
     ) -> Result<ExternFunction, SemTreeBuildErrors> {
-        let (_id, fd) = self.types_resolver.resolve_funccall(&self.fileid, &ast::Identificator { name: func.function_name.clone(), path: vec![] } ).unwrap().unwrap();
+        let (_id, fd) = self.types_resolver.resolve_funccall(&func.loc, &self.fileid, &ast::Identificator { name: func.function_name.clone(), path: vec![] } ).unwrap().unwrap();
         if let FunctionDecl::ExternFunctionDecl { loc, input, output } = fd {
         
         let return_arg = output;
@@ -204,29 +204,17 @@ impl SemanticTree {
             if ty == to {
                 self.insert_autoderef_or_pass(expr, false)
             } else {
-                todo!(
-                    "Implement implicit conversion hierarcy: {:?} to {:?}",
-                    from,
-                    to
-                )
+                return Err(SemTreeBuildErrors::ImplicitTypeConversionError(loc, ty.pretty_representation(), to.pretty_representation()));
             }
         } else if let Some(ty) = to.get_underlying_autoderef_type() {
             if ty == from {
                 Self::try_get_autoref(expr)
             } else {
-                todo!(
-                    "Implement implicit conversion hierarcy: {:?} to {:?}",
-                    from,
-                    to
-                )
+                return Err(SemTreeBuildErrors::ImplicitTypeConversionError(loc, from.pretty_representation(), ty.pretty_representation()));
+
             }
         } else {
-            todo!(
-                "Implement implicit conversion hierarcy: {:?} to {:?} at {}",
-                from,
-                to,
-                loc
-            )
+            return Err(SemTreeBuildErrors::ImplicitTypeConversionError(loc, from.pretty_representation(), to.pretty_representation()));
         }
 
     }
@@ -241,14 +229,14 @@ impl SemanticTree {
             let expr = self.visit_expression(a, scope)?;
             args.push(expr);
         }
-        if let ast::Expr::Ident(_l, id) = fc.func.as_ref() {
+        if let ast::Expr::Ident(l, id) = fc.func.as_ref() {
             //TODO full path resolve
-            let t = self.types_resolver.resolve_funccall(&self.fileid, id)?;
+            let t = self.types_resolver.resolve_funccall(l, &self.fileid, id)?;
             match t {
                 Some((id, func)) => match func {
                     FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
                         if args.len() != input.len() {
-                            panic!("Argument count ({}) should be equal to parameter count ({})", args.len(), input.len())
+                            return Err(SemTreeBuildErrors::InvalidArgumentCount(loc.clone(), id.0.clone(), args.len(), input.len()));
                         }
                         let mut reconst_exprs = vec![];
                         for (inp_type, expr) in input.iter().zip(args.into_iter()) {
@@ -277,15 +265,19 @@ impl SemanticTree {
                 None => {
                     //TODO check if symbol is type instead of assuming this
                     let ty = ast::Type::Primitive(id.clone());
+                    let ty = self.types_resolver.from_ast_type(l, &ty, &self.fileid);
+                    if ty.is_err() {
+                        return Err(SemTreeBuildErrors::UnknownFunctionOrTypename(l.clone(), id.to_string()));
+                    }
                     if args.len() == 1 {
-                        let ty: SLPType = self.types_resolver.from_ast_type(_l, &ty, &self.fileid)?;
                         return Ok(FunctionCallResolveResult::TypeCast(self.resolve_typecast(
-                            &ty,
+                            &ty.unwrap(),
                             args.pop().unwrap(),
                             loc,
                         )?));
                     } else {
-                        todo!("Invalid amount of arguments report")
+                        return Err(SemTreeBuildErrors::InvalidArgumentCount(loc.clone(), id.to_string(), args.len(), 1));
+
                     }
                 }
             }
@@ -299,7 +291,6 @@ impl SemanticTree {
         input_expr: STExpr,
         loc: Loc,
     ) -> Result<STExpr, SemTreeBuildErrors> {
-        //let target = self.types_resolver.from_ast_type(&ty, &self.fileid)?;
 
         let source = &input_expr.ret_type;
         let tck = if target == source {
@@ -345,7 +336,7 @@ impl SemanticTree {
                 TypeConversionKind::UnsignedIntExtend
             }
         } else {
-            todo!()
+            return Err(SemTreeBuildErrors::ExplicitTypeConversionError(loc.clone(), source.pretty_representation(), target.pretty_representation()));
         };
         
         return Ok(STExpr {
@@ -496,11 +487,16 @@ impl SemanticTree {
         let from = self.insert_autoderef_or_pass(from, false)?;
         let to = self.visit_expression(&fl.final_value, &scope)?;
         let to = self.insert_autoderef_or_pass(to, false)?;
-        if !from.ret_type.is_any_int() || !to.ret_type.is_any_int() {
-            todo!("error handling: only ints are supported")
+        if !from.ret_type.is_any_int() {
+            return Err(SemTreeBuildErrors::IntExpected(from.loc.clone(), from.ret_type.pretty_representation()));
         } 
+        if !to.ret_type.is_any_int() {
+            return Err(SemTreeBuildErrors::IntExpected(to.loc.clone(), to.ret_type.pretty_representation()));
+        }
         if from.ret_type != to.ret_type {
-            todo!("error handling: Implement type hierarchy")
+            //TODO: Implement type hierarchy
+            return Err(SemTreeBuildErrors::TypesNotSame(to.loc.clone(), from.ret_type.pretty_representation(), to.ret_type.pretty_representation()));
+
         }
         let ty = from.ret_type.clone();
         let prim_ty = 
@@ -520,11 +516,12 @@ impl SemanticTree {
             } else {
                 let t = scope.get_variable(&name);
                 if t.is_none() {
-                    todo!("Variable not found")
+                    return Err(SemTreeBuildErrors::LocalVariableDoesntExist(to.loc.clone(), name.0.clone()));
+
                 }
                 let t = t.unwrap();
                 if &t.1 != &ty {
-                    todo!("error handling: Implement type hierarchy")
+                    return Err(SemTreeBuildErrors::TypesNotSame(to.loc.clone(), t.1.pretty_representation(), ty.pretty_representation()));
                 }
                 let var_expr = STExpr::new(ty.clone(), l.clone(), ExprKind::LocalVariable(t.0.clone()));
                 let target = Self::to_rhs_expression(var_expr)?;
@@ -631,7 +628,7 @@ impl SemanticTree {
             base = 10;
             after_prefix = &after_minus[..];
         }
-        let (number, rem) = Self::parse_int(after_prefix, base)?;
+        let (number, rem) = Self::parse_int(l, after_prefix, base)?;
         let ty = match rem {
             "i8" => STExpr {
                 ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Int8),
@@ -690,7 +687,7 @@ impl SemanticTree {
                     if !minus {
                         num
                     } else {
-                        todo!("Can't apply minus operator for unsigned")
+                        return Err(SemTreeBuildErrors::NegateSymbolToUnsignedError(l.clone()));
                     }
                 })),
             },
@@ -702,7 +699,7 @@ impl SemanticTree {
                     if !minus {
                         num
                     } else {
-                        todo!("Can't apply minus operator for unsigned")
+                        return Err(SemTreeBuildErrors::NegateSymbolToUnsignedError(l.clone()));
                     }
                 })),
             },
@@ -714,7 +711,7 @@ impl SemanticTree {
                     if !minus {
                         num
                     } else {
-                        todo!("Can't apply minus operator for unsigned")
+                        return Err(SemTreeBuildErrors::NegateSymbolToUnsignedError(l.clone()));
                     }
                 })),
             },
@@ -726,7 +723,7 @@ impl SemanticTree {
                     if !minus {
                         num
                     } else {
-                        todo!("Can't apply minus operator for unsigned")
+                        return Err(SemTreeBuildErrors::NegateSymbolToUnsignedError(l.clone()));
                     }
                 })),
             },
@@ -744,11 +741,11 @@ impl SemanticTree {
                     }
                 })),
             },
-            _ => todo!("Can't parse suffix: {}", rem),
+            a @ _ => return Err(SemTreeBuildErrors::InvalidSuffix(l.clone(), a.to_string())),
         };
         Ok(ty)
     }
-    fn parse_int(digits: &str, base: u32) -> Result<(u64, &str), SemTreeBuildErrors> {
+    fn parse_int<'a>(loc: &Loc, digits: &'a str, base: u32) -> Result<(u64, &'a str), SemTreeBuildErrors> {
         let mut curr = 0;
         let mut acc = 0u64;
         for c in digits.chars() {
@@ -760,10 +757,18 @@ impl SemanticTree {
                     _ => unreachable!(),
                 };
                 if digit >= base {
-                    todo!("Proper wrong numer base exception!")
+                    return Err(SemTreeBuildErrors::InvalidNumber(loc.clone(), digits.to_string()));
                 }
-                acc = acc.checked_mul(base as u64).unwrap();
-                acc = acc.checked_add(digit as u64).unwrap();
+                if let Some(n) = acc.checked_mul(base as u64){
+                    acc = n;
+                } else {
+                    return Err(SemTreeBuildErrors::InvalidNumber(loc.clone(), digits.to_string()));
+                };
+                if let Some(n) = acc.checked_add(digit as u64){
+                    acc = n;
+                } else {
+                    return Err(SemTreeBuildErrors::InvalidNumber(loc.clone(), digits.to_string()));
+                };
                 curr += 1;
             } else if "_".contains(c) {
                 curr += 1;
@@ -866,7 +871,7 @@ impl SemanticTree {
             };
             Ok(ex)
         } else {
-            todo!("{:?}", index.ret_type)
+            Err(SemTreeBuildErrors::IntExpected(index.loc.clone(), index.ret_type.pretty_representation()))
         }
     }
     fn visit_array_index(
@@ -912,10 +917,10 @@ impl SemanticTree {
                     };
                     Ok(res)
                 } else {
-                    todo!()
+                    Err(SemTreeBuildErrors::ArrayExpected(loc.clone(), ty.pretty_representation()))
                 }
             } else {
-                todo!()
+                Err(SemTreeBuildErrors::ArrayExpected(loc.clone(), internal_ty.pretty_representation()))
             }
         } else {
             unreachable!()
@@ -1051,7 +1056,7 @@ impl SemanticTree {
         } else if let SLPType::Struct(_, _, _) = autoderef.ret_type.get_underlying_autoderef_type().unwrap() {
             self.generate_structure_method_call(l, field, autoderef)
         } else {
-            todo!()
+            Err(SemTreeBuildErrors::FieldDoesntExists(l.clone(), field.to_owned(), autoderef.ret_type.get_underlying_autoderef_type().unwrap().pretty_representation()))
         }
     }
     fn generate_structure_method_call(&mut self, l: &Loc, method_name: &str, reffed_struct_expr: STExpr) -> Result<STExpr, SemTreeBuildErrors> {
@@ -1061,7 +1066,9 @@ impl SemanticTree {
             if let Some((index, (name, ty))) = t {
                 println!("index: {index}, name: {}", name.0);
                 Ok(STExpr{ ret_type: SLPType::AutoderefPointer(Box::new(ty.clone())), loc: *l, kind: ExprKind::GetElementRefInReffedRecord(Box::new(reffed_struct_expr), index as u32) })
-            } else {todo!()}
+            } else {
+                Err(SemTreeBuildErrors::FieldDoesntExists(l.clone(), method_name.to_owned(), reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap().pretty_representation()))
+            }
         }
         else if let SLPType::DynArray(dy) = &reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap() {
                 if method_name == "Length" {
@@ -1078,7 +1085,7 @@ impl SemanticTree {
                     let high = STExpr::new(SLPType::int32(), l.clone(), ExprKind::PrimitiveIntBinOp(Box::new(len), Box::new(Self::build_int_constant(1, SLPPrimitiveType::Int32, l.clone())?), IntBinOp::Substract));
                     Ok(high)
                 } else {
-                    todo!()
+                    Err(SemTreeBuildErrors::FieldDoesntExists(l.clone(), method_name.to_owned(), reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap().pretty_representation()))
                 }
             } 
         else if let SLPType::FixedArray { size, index_offset, ty } = &reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap(){
@@ -1091,11 +1098,11 @@ impl SemanticTree {
                 Self::build_int_constant(((*index_offset) as u64) + size - 1, SLPPrimitiveType::Int32, l.clone())
                 
             } else {
-                todo!()
+                Err(SemTreeBuildErrors::FieldDoesntExists(l.clone(), method_name.to_owned(), reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap().pretty_representation()))
             }
 
         } else {
-            todo!()
+            Err(SemTreeBuildErrors::FieldDoesntExists(l.clone(), method_name.to_owned(), reffed_struct_expr.ret_type.get_underlying_autoderef_type().unwrap().pretty_representation()))
         }
     }
     fn visit_new(
@@ -1121,7 +1128,7 @@ impl SemanticTree {
             let tyr = Arc::clone(&self.types_resolver);
             let st = tyr.get_struct(fid, id)?.unwrap();
             if args_p.len() != st.fields.len() {
-                panic!("Argument count ({}) should be equal to fields count ({})", args_p.len(), st.fields.len())
+                return Err(SemTreeBuildErrors::InvalidNewOpArgumentCount(loc.clone(), format!("{}::{}", fid, id.0) , args_p.len(), st.fields.len()));
             }
             let mut reconst_exprs = vec![];
             for (inp_type, expr) in st.fields.iter().map(|x|&x.1).zip(args_p.into_iter()) {
@@ -1137,7 +1144,7 @@ impl SemanticTree {
                 let tyr = Arc::clone(&self.types_resolver);
                 let st = tyr.get_struct(fid, id)?.unwrap();
                 if args_p.len() != st.fields.len() {
-                    panic!("Argument count ({}) should be equal to fields count ({})", args_p.len(), st.fields.len())
+                    return Err(SemTreeBuildErrors::InvalidNewOpArgumentCount(loc.clone(), format!("{}::{}", fid, id.0) , args_p.len(), st.fields.len()));
                 }
                 let mut reconst_exprs = vec![];
                 for (inp_type, expr) in st.fields.iter().map(|x|&x.1).zip(args_p.into_iter()) {
@@ -1148,17 +1155,25 @@ impl SemanticTree {
             } else if let SLPType::DynArray(da) = rc.as_ref() {
                 if let Some(count_expr) = count {
                     let visited = self.visit_expression(&count_expr, scope)?;
-                    if !visited.ret_type.is_any_int() {todo!("Wrong type reporting")}
+                    let visited = self.insert_autoderef_or_pass(visited, false)?;
+                    if !visited.ret_type.is_any_int() {
+                        return Err(SemTreeBuildErrors::IntExpected(loc.clone(), visited.ret_type.pretty_representation()));
+                    }
                     
                     let t = self.resolve_typecast(&SLPType::usize(), visited, loc.clone())?;
                     let id = self.buildins.borrow_mut().register_or_get_dyn_array_empty_constuctors(&rc)?;
                     internal_content = STExpr::new(*rc.clone(), loc.clone(), ExprKind::BuildInCall(BuildInCall{func: id, args: vec![t], ret_type: *rc.clone()}))
-                } else {todo!()}
-            } else {todo!()}
+                } else {
+                    todo!()
+                }
+            } else 
+            {
+                return Err(SemTreeBuildErrors::InvalidTypeForNew(loc.clone(), t.pretty_representation()));
+            }
             Ok(STExpr{ ret_type: t.clone(), loc, kind: ExprKind::ConstructRefcounterFromInternalContent(Box::new(internal_content)) })
             
         } else {
-            todo!()
+            return Err(SemTreeBuildErrors::InvalidTypeForNew(loc.clone(), t.pretty_representation()));
         }
     }
     fn visit_int_bin_op(
@@ -1191,7 +1206,20 @@ impl SemanticTree {
                     IntBinOp::And => BoolBinOp::And,
                     IntBinOp::Xor => BoolBinOp::Xor,
 
-                    _ => todo!("Proper error handling"),
+                    a @ _ => {
+                        return Err(SemTreeBuildErrors::InvalidOperationForType(loc.clone(), match a {
+                            IntBinOp::Add => "+",
+                            IntBinOp::Substract => "-",
+                            IntBinOp::Multiplication => "*",
+                            IntBinOp::Division => "/",
+                            IntBinOp::Modulo => "mod",
+                            IntBinOp::Or => todo!(),
+                            IntBinOp::And => todo!(),
+                            IntBinOp::Xor => todo!(),
+                            IntBinOp::Shr => "shr",
+                            IntBinOp::Shl => "shl",
+                        }.into(), le.ret_type.pretty_representation()));
+                    }
                 };
                 Ok(STExpr {
                     ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
@@ -1199,14 +1227,21 @@ impl SemanticTree {
                     kind: ExprKind::BoolBinOp(le, re, bool_op),
                 })
             } else {
-                todo!("Type error!");
+                return Err(SemTreeBuildErrors::InvalidOperationForType(loc.clone(), match kind {
+                    IntBinOp::Add => "+",
+                    IntBinOp::Substract => "-",
+                    IntBinOp::Multiplication => "*",
+                    IntBinOp::Division => "/",
+                    IntBinOp::Modulo => "mod",
+                    IntBinOp::Or => "or",
+                    IntBinOp::And => "and",
+                    IntBinOp::Xor => "xor",
+                    IntBinOp::Shr => "shr",
+                    IntBinOp::Shl => "shl",
+                }.into(), le.ret_type.pretty_representation()));
             }
         } else {
-            todo!(
-                "Non-equal type conversion hierarchy from {:?} to {:?}",
-                le.ret_type,
-                re.ret_type
-            )
+            return Err(SemTreeBuildErrors::TypesNotSame(loc.clone(), le.ret_type.pretty_representation(), re.ret_type.pretty_representation()));
         }
     }
     fn visit_comparations(
@@ -1239,10 +1274,17 @@ impl SemanticTree {
                     let comp = STExpr::new(SLPType::bool(), loc.clone(), ExprKind::IsNull(nilcheck));
                     return Ok(STExpr::new(SLPType::bool(), loc, ExprKind::BoolUnaryOp(Box::new(comp), BoolUnaryOp::Not)));
                 } else {
-                    todo!()
+                    return Err(SemTreeBuildErrors::InvalidOperationForType(loc.clone(), match kind {
+                        ComparationKind::LesserThan => "<",
+                        ComparationKind::LesserEqual => "<=",
+                        ComparationKind::GreaterThan => ">",
+                        ComparationKind::GreaterEqual => ">=",
+                        ComparationKind::Equal => "=",
+                        ComparationKind::NotEqual => "<>",
+                    }.into(), SLPType::PrimitiveType(SLPPrimitiveType::Nil).pretty_representation()));
                 }
             } else {
-                todo!()
+                return Err(SemTreeBuildErrors::NotNullCheckableError(loc, nilcheck.ret_type.pretty_representation()));
             }
         } 
         let le = Box::new(self.insert_autoderef_or_pass( 
@@ -1264,7 +1306,16 @@ impl SemanticTree {
                 let bool_op = match kind {
                     ComparationKind::Equal => BoolBinOp::Equal,
                     ComparationKind::NotEqual => BoolBinOp::NotEqual,
-                    _ => todo!("Proper error handling"),
+                    _ => {
+                        return Err(SemTreeBuildErrors::InvalidOperationForType(loc.clone(), match kind {
+                            ComparationKind::LesserThan => "<",
+                            ComparationKind::LesserEqual => "<=",
+                            ComparationKind::GreaterThan => ">",
+                            ComparationKind::GreaterEqual => ">=",
+                            ComparationKind::Equal => "=",
+                            ComparationKind::NotEqual => "<>",
+                        }.into(), le.ret_type.pretty_representation()));
+                    }
                 };
                 Ok(STExpr {
                     ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
@@ -1272,14 +1323,17 @@ impl SemanticTree {
                     kind: ExprKind::BoolBinOp(le, re, bool_op),
                 })
             } else {
-                todo!("Type error!");
+                return Err(SemTreeBuildErrors::InvalidOperationForType(loc.clone(), match kind {
+                    ComparationKind::LesserThan => "<",
+                    ComparationKind::LesserEqual => "<=",
+                    ComparationKind::GreaterThan => ">",
+                    ComparationKind::GreaterEqual => ">=",
+                    ComparationKind::Equal => "=",
+                    ComparationKind::NotEqual => "<>",
+                }.into(), le.ret_type.pretty_representation()));
             }
         } else {
-            todo!(
-                "Non-equal type conversion hierarchy from {:?} to {:?}",
-                le.ret_type,
-                re.ret_type
-            )
+            return Err(SemTreeBuildErrors::TypesNotSame(loc.clone(), le.ret_type.pretty_representation(), re.ret_type.pretty_representation()));
         }
     }
     fn visit_int_unary_op(
@@ -1289,7 +1343,11 @@ impl SemanticTree {
         scope: &Scope,
         kind: IntUnaryOp,
     ) -> Result<STExpr, SemTreeBuildErrors> {
-        let inp = Box::new(self.visit_expression(&i, scope)?);
+        let inp = self.visit_expression(&i, scope)?;
+        let inp = Box::new(self.insert_autoderef_or_pass( 
+            inp,
+            false
+        )?);
         if inp.ret_type.is_any_int() {
             Ok(STExpr {
                 ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
@@ -1300,7 +1358,12 @@ impl SemanticTree {
             let bool_op = match kind {
                 IntUnaryOp::Inverse => BoolUnaryOp::Not,
 
-                _ => todo!("Proper error handling"),
+                _ => {
+                    return Err(SemTreeBuildErrors::InvalidOperationForType(loc, match kind {
+                        IntUnaryOp::Minus => "-",
+                        IntUnaryOp::Inverse => "not",
+                    }.into(), inp.ret_type.pretty_representation()));
+                }
             };
             Ok(STExpr {
                 ret_type: SLPType::PrimitiveType(SLPPrimitiveType::Bool),
@@ -1308,7 +1371,10 @@ impl SemanticTree {
                 kind: ExprKind::BoolUnaryOp(inp, bool_op),
             })
         } else {
-            todo!("Type error")
+            return Err(SemTreeBuildErrors::InvalidOperationForType(loc, match kind {
+                IntUnaryOp::Minus => "-",
+                IntUnaryOp::Inverse => "not",
+            }.into(), inp.ret_type.pretty_representation()));
         }
     }
 }
