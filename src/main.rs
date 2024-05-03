@@ -47,10 +47,19 @@ pub fn new_compile(file: &str, output_filename: &str) {
     let reloc = RelocMode::Default;
     let model = CodeModel::Default;
     let target = Target::from_name("x86-64").unwrap();
+    let target_triple = {
+        #[cfg(target_os = "linux")]
+        { TargetTriple::create("x86_64-pc-linux-gnu") }
+        #[cfg(target_os = "windows")]
+        {TargetTriple::create("x86_64-pc-windows-msvc")}
+        
+    };
 
     let target_machine = target
         .create_target_machine(
-            &TargetTriple::create("x86_64-pc-linux-gnu"),
+            &target_triple,
+            //
+            //,
             "x86-64",
             "+avx2",
             opt,

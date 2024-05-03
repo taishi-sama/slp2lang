@@ -11,7 +11,7 @@ anyhow = "1.0.81"
 inkwell = { version = "0.2.0", features = ["llvm16-0"] }
 lalrpop-util = { version = "0.20.0", features = ["lexer", "unicode"] }
 regex = "1.10.4"
-source-span = "2.7.0"
+source-span = { version = "2.7.0", default-features = false}
 text_trees = "0.1.2"
 thiserror = "1.0.50"
 utf8-decode = "1.0.1"
