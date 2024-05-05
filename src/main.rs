@@ -1,6 +1,5 @@
 //https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/index.html
 
-
 use std::{env::args, fs::create_dir, path::Path, sync::Arc};
 
 use codegen::{Codegen, CodegenContext};
@@ -16,19 +15,18 @@ use crate::linkage::LinkerBuilder;
 
 pub mod ast;
 pub mod ast_visualisator;
+pub mod buildins;
 pub mod codegen;
 pub mod compiler;
+pub mod error_handler;
 pub mod errors;
 pub mod linkage;
 pub mod semtree;
 pub mod semtree_visualisator;
 pub mod symbols;
 pub mod types;
-pub mod buildins;
-pub mod error_handler;
 
 lalrpop_mod!(pub grammar);
-
 
 const ENABLE_ASAN: bool = false;
 
@@ -49,10 +47,13 @@ pub fn new_compile(file: &str, output_filename: &str) {
     let target = Target::from_name("x86-64").unwrap();
     let target_triple = {
         #[cfg(target_os = "linux")]
-        { TargetTriple::create("x86_64-pc-linux-gnu") }
+        {
+            TargetTriple::create("x86_64-pc-linux-gnu")
+        }
         #[cfg(target_os = "windows")]
-        {TargetTriple::create("x86_64-pc-windows-msvc")}
-        
+        {
+            TargetTriple::create("x86_64-pc-windows-msvc")
+        }
     };
 
     let target_machine = target
@@ -74,12 +75,10 @@ pub fn new_compile(file: &str, output_filename: &str) {
     if let Some(p) = file_dir {
         includes.push(p.to_owned())
     }
-    let mut comp = Compiler::new(
-        includes
-    );
+    let mut comp = Compiler::new(includes);
     comp.start_compilation(file.into()).unwrap();
     let res = comp.continue_compilation().unwrap();
-    
+
     let buildins_module = {
         let cdgn: Codegen = Codegen::new(&cctx, "_buildins_", target_machine.clone());
         let t = res.first().unwrap();
@@ -93,9 +92,9 @@ pub fn new_compile(file: &str, output_filename: &str) {
         cdgn.compile_buildins(&tyr, &internal);
         cdgn
     };
-    
+
     let mut modules = vec![buildins_module];
-    
+
     for i in &res {
         let cdgn: Codegen = Codegen::new(&cctx, &i.semtree_name.0, target_machine.clone());
         cdgn.register_structs(i.types_resolver.as_ref());
@@ -138,22 +137,19 @@ pub fn new_compile(file: &str, output_filename: &str) {
         .unwrap();
     println!("{}", main_module.module.print_to_string().to_string_lossy());
     if ENABLE_ASAN {
-    main_module
-        .module
-        .run_passes("asan", &target_machine, PassBuilderOptions::create())
-        .unwrap();
+        main_module
+            .module
+            .run_passes("asan", &target_machine, PassBuilderOptions::create())
+            .unwrap();
     }
     println!("{}", main_module.module.print_to_string().to_string_lossy());
     let p = Path::new(output_filename);
 
-    let output_dir = p
-    .parent()
-    .unwrap()
-    .join("target");
+    let output_dir = p.parent().unwrap().join("target");
     if !Path::exists(&output_dir) {
         create_dir(&output_dir).unwrap();
     }
-    
+
     let filename = p.file_stem().unwrap();
     let object_output = (&output_dir).join(Path::new(filename).with_extension("o"));
     let executable_output = (&output_dir).join(filename);
@@ -162,8 +158,11 @@ pub fn new_compile(file: &str, output_filename: &str) {
         .write_to_file(&main_module.module, FileType::Object, &object_output)
         .unwrap();
     println!("Emit object file to {}", object_output.to_string_lossy());
-    let linker =
-        LinkerBuilder::new_linux_x86_64().link_gnu_linker_flavor(ENABLE_ASAN, &object_output, &executable_output);
+    let linker = LinkerBuilder::new_linux_x86_64().link_gnu_linker_flavor(
+        ENABLE_ASAN,
+        &object_output,
+        &executable_output,
+    );
     linker.unwrap();
     println!(
         "Linkage complete... File available at {:}",
@@ -178,7 +177,9 @@ pub fn new_compile(file: &str, output_filename: &str) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        ast::{Declaration, Statement}, compiler::FileId, grammar
+        ast::{Declaration, Statement},
+        compiler::FileId,
+        grammar,
     };
 
     #[test]
@@ -188,7 +189,9 @@ mod tests {
         if 123 then if 321 then print("trl") else print("ltr"); 
         end.
         "##;
-        let res = grammar::ProgramBlockParser::new().parse(FileId(0), program).unwrap();
+        let res = grammar::ProgramBlockParser::new()
+            .parse(FileId(0), program)
+            .unwrap();
         let m = res
             .declarations
             .iter()

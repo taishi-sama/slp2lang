@@ -2,7 +2,9 @@ use thiserror::Error;
 
 use crate::ast::Loc;
 #[derive(Debug, Error, Clone)]
-pub enum SemTreeBuildErrors {
+pub enum CompilerErrors {
+    #[error("")]
+    SyntaxError(Loc, String, Vec<String>),
     #[error("On {0} unknown type: {1}")]
     BadType(Loc, String),
     #[error("")]
@@ -50,30 +52,31 @@ pub enum SemTreeBuildErrors {
     InternalError(Loc, String),
 }
 
-impl SemTreeBuildErrors {
+impl CompilerErrors {
     pub fn get_loc(&self) -> Loc {
         match self {
-            SemTreeBuildErrors::BadType(l, _) => l.clone(),
-            SemTreeBuildErrors::ExplicitTypeConversionError(l, _, _) => l.clone(),
-            SemTreeBuildErrors::UnknownFilename(l, _) => l.clone(),
-            SemTreeBuildErrors::FileIsNotInUses(l, _) => l.clone(),
-            SemTreeBuildErrors::ImplicitTypeConversionError(l, _, _) => l.clone(),
-            SemTreeBuildErrors::IsNotLocalVariable(l) => l.clone(),
-            SemTreeBuildErrors::InvalidArgumentCount(l, _, _, _) => l.clone(),
-            SemTreeBuildErrors::UnknownFunctionOrTypename(l, _) => l.clone(),
-            SemTreeBuildErrors::InternalError(l, _) => l.clone(),
-            SemTreeBuildErrors::IntExpected(l, _) => l.clone(),
-            SemTreeBuildErrors::FieldDoesntExists(l, _, _) => l.clone(),
-            SemTreeBuildErrors::TypesNotSame(l, _, _) => l.clone(),
-            SemTreeBuildErrors::LocalVariableDoesntExist(_, _) => todo!(),
-            SemTreeBuildErrors::NegateSymbolToUnsignedError(l) => l.clone(),
-            SemTreeBuildErrors::InvalidSuffix(l, _) => l.clone(),
-            SemTreeBuildErrors::InvalidNumber(l, _) => l.clone(),
-            SemTreeBuildErrors::ArrayExpected(l, _) => l.clone(),
-            SemTreeBuildErrors::InvalidNewOpArgumentCount(l, _, _, _) => l.clone(),
-            SemTreeBuildErrors::InvalidTypeForNew(l, _) => l.clone(),
-            SemTreeBuildErrors::InvalidOperationForType(l, _, _) => l.clone(),
-            SemTreeBuildErrors::NotNullCheckableError(l, _) => l.clone(),
+            CompilerErrors::BadType(l, _) => l.clone(),
+            CompilerErrors::ExplicitTypeConversionError(l, _, _) => l.clone(),
+            CompilerErrors::UnknownFilename(l, _) => l.clone(),
+            CompilerErrors::FileIsNotInUses(l, _) => l.clone(),
+            CompilerErrors::ImplicitTypeConversionError(l, _, _) => l.clone(),
+            CompilerErrors::IsNotLocalVariable(l) => l.clone(),
+            CompilerErrors::InvalidArgumentCount(l, _, _, _) => l.clone(),
+            CompilerErrors::UnknownFunctionOrTypename(l, _) => l.clone(),
+            CompilerErrors::InternalError(l, _) => l.clone(),
+            CompilerErrors::IntExpected(l, _) => l.clone(),
+            CompilerErrors::FieldDoesntExists(l, _, _) => l.clone(),
+            CompilerErrors::TypesNotSame(l, _, _) => l.clone(),
+            CompilerErrors::LocalVariableDoesntExist(_, _) => todo!(),
+            CompilerErrors::NegateSymbolToUnsignedError(l) => l.clone(),
+            CompilerErrors::InvalidSuffix(l, _) => l.clone(),
+            CompilerErrors::InvalidNumber(l, _) => l.clone(),
+            CompilerErrors::ArrayExpected(l, _) => l.clone(),
+            CompilerErrors::InvalidNewOpArgumentCount(l, _, _, _) => l.clone(),
+            CompilerErrors::InvalidTypeForNew(l, _) => l.clone(),
+            CompilerErrors::InvalidOperationForType(l, _, _) => l.clone(),
+            CompilerErrors::NotNullCheckableError(l, _) => l.clone(),
+            CompilerErrors::SyntaxError(l, _, _) => l.clone(),
         }
     }
 }

@@ -3,7 +3,8 @@ use std::iter;
 use text_trees::StringTreeNode;
 
 use crate::semtree::{
-    CodeBlock, ExprKind, ExternFunction, Function, NumberLiteral, ProgramRoot, RhsExpr, STExpr, STStatement, VarDecl
+    CodeBlock, ExprKind, ExternFunction, Function, NumberLiteral, ProgramRoot, RhsExpr, STExpr,
+    STStatement, VarDecl,
 };
 
 pub fn get_program_root(root: &ProgramRoot) -> StringTreeNode {
@@ -49,8 +50,17 @@ pub fn extern_function(func: &ExternFunction) -> StringTreeNode {
 pub fn statement_block(block: &CodeBlock) -> StringTreeNode {
     StringTreeNode::with_child_nodes(
         "Codeblock".to_string(),
-        vec![StringTreeNode::with_child_nodes("Common statements: ".to_owned(), block.common_statements.iter().map(|x|statement(x))),
-        StringTreeNode::with_child_nodes("Defer statements(in call order): ".to_owned(), block.defer_statements.iter().rev().map(|x|statement(x)))].into_iter()
+        vec![
+            StringTreeNode::with_child_nodes(
+                "Common statements: ".to_owned(),
+                block.common_statements.iter().map(|x| statement(x)),
+            ),
+            StringTreeNode::with_child_nodes(
+                "Defer statements(in call order): ".to_owned(),
+                block.defer_statements.iter().rev().map(|x| statement(x)),
+            ),
+        ]
+        .into_iter(),
     )
 }
 pub fn statement(stmt: &STStatement) -> StringTreeNode {
@@ -65,11 +75,18 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         ),
         STStatement::Assignment(_, x, z, y) => StringTreeNode::with_child_nodes(
             "Assign".to_string(),
-            vec![rhs(x), expr(y)].into_iter(),
+            vec![rhs(x), expr(y)].into_iter().chain(z.as_ref().map(|x| {
+                StringTreeNode::with_child_nodes(
+                    "Cleanup:".to_string(),
+                    vec![statement(&x)].into_iter(),
+                )
+            })),
         ),
-        STStatement::If(l, condition, mb, ab) => StringTreeNode::with_child_nodes(
+        STStatement::If(_, condition, mb, ab) => StringTreeNode::with_child_nodes(
             "If ".to_string(),
-            vec![expr(condition), statement(mb)].into_iter().chain(ab.as_ref().map(|x|statement(&x))),
+            vec![expr(condition), statement(mb)]
+                .into_iter()
+                .chain(ab.as_ref().map(|x| statement(&x))),
         ),
         STStatement::While(_, cond, block) => StringTreeNode::with_child_nodes(
             "While ".to_string(),
@@ -78,14 +95,16 @@ pub fn statement(stmt: &STStatement) -> StringTreeNode {
         STStatement::RepeatUntil(_, _, _) => todo!(),
         STStatement::VarDecl(_, l) => vardecl(l),
         STStatement::Empty() => StringTreeNode::new("*Empty*".to_string()),
-        STStatement::DeferHint(_, num) => StringTreeNode::new(format!("Location of {num}'th defer statement in this code block")),
+        STStatement::DeferHint(_, num) => StringTreeNode::new(format!(
+            "Location of {num}'th defer statement in this code block"
+        )),
         STStatement::BuildInCall(_, fc) => StringTreeNode::with_child_nodes(
             fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
             fc.args.iter().map(expr),
         ),
-        STStatement::MemoryFree(_, e) => StringTreeNode::with_child_nodes(
-            "MemoryFree ".to_string(),
-            vec![expr(e)].into_iter()),
+        STStatement::MemoryFree(_, e) => {
+            StringTreeNode::with_child_nodes("MemoryFree ".to_string(), vec![expr(e)].into_iter())
+        }
     }
 }
 fn vardecl(vd: &VarDecl) -> StringTreeNode {
@@ -96,7 +115,6 @@ fn vardecl(vd: &VarDecl) -> StringTreeNode {
 }
 pub fn rhs(expression: &RhsExpr) -> StringTreeNode {
     match &expression.kind {
-
         crate::semtree::RhsKind::Deref(dt) => {
             StringTreeNode::with_child_nodes("Defer of ".to_owned(), vec![expr(dt)].into_iter())
         }
@@ -122,7 +140,6 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
                     NumberLiteral::I8(i) => i.to_string(),
                     NumberLiteral::ISize(i) => i.to_string(),
                     NumberLiteral::USize(i) => i.to_string(),
-
                 },
         ),
         ExprKind::FunctionCall(fc) => StringTreeNode::with_child_nodes(
@@ -188,27 +205,31 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
             vec![StringTreeNode::new("Variable: ".to_string() + &lv.0)].into_iter(),
         ),
         ExprKind::ConstructRecordFromArgList(x) => StringTreeNode::with_child_nodes(
-            format!("New of type: {:?}", expression.ret_type), x.iter().map(expr)),
+            format!("New of type: {:?}", expression.ret_type),
+            x.iter().map(expr),
+        ),
         ExprKind::GetElementRefInReffedRecord(e, field_num) => StringTreeNode::with_child_nodes(
             format!("Taking ref of {field_num} field in referenced array "),
-            vec![expr(e)].into_iter()),
+            vec![expr(e)].into_iter(),
+        ),
         ExprKind::BuildInCall(fc) => StringTreeNode::with_child_nodes(
             fc.func.0.clone() + " -> " + &format!("{:?}", fc.ret_type),
             fc.args.iter().map(expr),
         ),
         ExprKind::Default => StringTreeNode::new("Default".to_string()),
-        ExprKind::IsNull(e) => StringTreeNode::with_child_nodes(
-            format!("IsNull"),
-            vec![expr(e)].into_iter()),
-        ExprKind::RefCountDecrease(e) => StringTreeNode::with_child_nodes(
-            format!("RefCountDecrease"),
-            vec![expr(e)].into_iter()),
-        ExprKind::RefCountIncrease(e) => StringTreeNode::with_child_nodes(
-            format!("RefCountIncrease"),
-            vec![expr(e)].into_iter()),
+        ExprKind::IsNull(e) => {
+            StringTreeNode::with_child_nodes(format!("IsNull"), vec![expr(e)].into_iter())
+        }
+        ExprKind::RefCountDecrease(e) => {
+            StringTreeNode::with_child_nodes(format!("RefCountDecrease"), vec![expr(e)].into_iter())
+        }
+        ExprKind::RefCountIncrease(e) => {
+            StringTreeNode::with_child_nodes(format!("RefCountIncrease"), vec![expr(e)].into_iter())
+        }
         ExprKind::GetElementBehindReffedReferenceCounter(e) => StringTreeNode::with_child_nodes(
             format!("Taking ref of element behind referenced refcounter "),
-            vec![expr(e)].into_iter()),
+            vec![expr(e)].into_iter(),
+        ),
         ExprKind::ConstructRefcounterFromInternalContent(_) => todo!(),
         ExprKind::FunctionArg(n) => StringTreeNode::new(format!("n-th function arg: {n}")),
         ExprKind::NilLiteral => todo!(),
@@ -216,9 +237,9 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ExprKind::GetReffedDynArrayLength(_) => todo!(),
         ExprKind::ConstructUninitizedDynArray(c) => StringTreeNode::with_child_nodes(
             format!("Build unitilized dyn array with size"),
-            vec![expr(c)].into_iter()),
+            vec![expr(c)].into_iter(),
+        ),
         ExprKind::DynArrayIntLen(_) => todo!(),
         ExprKind::DynArrayLongLen(_) => todo!(),
-
     }
 }

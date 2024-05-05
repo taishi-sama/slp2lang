@@ -22,9 +22,7 @@ impl LinkerBuilder {
         Self {
             linker: "cc".into(),
             system_dyn_linker: None,
-            system_crt: vec![
-                "./bin_blobs/librstd.a".into()
-            ],
+            system_crt: vec!["./bin_blobs/librstd.a".into()],
             libc_options: vec!["-lc".to_string()],
             linker_options: vec![],
         }

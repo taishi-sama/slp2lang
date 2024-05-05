@@ -1,5 +1,4 @@
-use crate::{compiler::FileId, symbols::Id};
-
+use crate::symbols::Id;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SLPType {
@@ -13,7 +12,7 @@ pub enum SLPType {
         ty: Box<SLPType>,
     },
     ///Bool indicates that struct is trivially copiable
-    Struct(String, Id, bool), 
+    Struct(String, Id, bool),
     RefCounter(Box<SLPType>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -35,7 +34,7 @@ pub enum SLPPrimitiveType {
     Char,
     Bool,
     Void,
-    Nil, 
+    Nil,
 }
 impl SLPPrimitiveType {
     pub fn is_int(&self) -> bool {
@@ -51,7 +50,7 @@ impl SLPPrimitiveType {
 
             SLPPrimitiveType::ISize => true,
             SLPPrimitiveType::USize => true,
-            
+
             SLPPrimitiveType::String => false,
             SLPPrimitiveType::Char => false,
             SLPPrimitiveType::Bool => false,
@@ -105,7 +104,6 @@ impl SLPPrimitiveType {
             false
         }
     }
-
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructType {
@@ -153,7 +151,7 @@ impl SLPType {
             SLPType::Pointer(_) => true,
             SLPType::AutoderefPointer(_) => false,
             SLPType::DynArray(_) => true,
-            SLPType::FixedArray { size, index_offset, ty } => false,
+            SLPType::FixedArray { .. } => false,
             SLPType::Struct(_, _, _) => false,
             SLPType::RefCounter(_) => true,
         }
@@ -183,11 +181,18 @@ impl SLPType {
             SLPType::Pointer(t) => Id(format!("ptr@{}", t.normalized_name().0)),
             SLPType::AutoderefPointer(t) => Id(format!("autoref@{}", t.normalized_name().0)),
             SLPType::DynArray(t) => Id(format!("dinarray@{}", t.normalized_name().0)),
-            SLPType::FixedArray { size, index_offset, ty } => Id(format!("fixsizearray{size}_{index_offset}@{}", ty.normalized_name().0)),
-            SLPType::Struct(s, t, _) => Id(format!("struct_{}_{}",s, &t.0)),
+            SLPType::FixedArray {
+                size,
+                index_offset,
+                ty,
+            } => Id(format!(
+                "fixsizearray{size}_{index_offset}@{}",
+                ty.normalized_name().0
+            )),
+            SLPType::Struct(s, t, _) => Id(format!("struct_{}_{}", s, &t.0)),
             SLPType::RefCounter(t) => Id(format!("rc@{}", t.normalized_name().0)),
         }
-    } 
+    }
     pub fn is_trivially_copiable(&self) -> bool {
         match self {
             SLPType::PrimitiveType(x) => match x {
@@ -210,10 +215,10 @@ impl SLPType {
                 SLPPrimitiveType::Void => todo!(),
                 SLPPrimitiveType::Nil => true,
             },
-            SLPType::Pointer(x) => true,
-            SLPType::AutoderefPointer(x) => true,
+            SLPType::Pointer(_x) => true,
+            SLPType::AutoderefPointer(_x) => true,
             SLPType::DynArray(_) => false,
-            SLPType::FixedArray { size, index_offset, ty } => ty.is_trivially_copiable(),
+            SLPType::FixedArray { ty, .. } => ty.is_trivially_copiable(),
             SLPType::Struct(_, _, t) => *t,
             SLPType::RefCounter(_) => false,
         }
@@ -268,11 +273,7 @@ impl SLPType {
             SLPType::PrimitiveType(_) => None,
             SLPType::Pointer(_) => None,
             SLPType::DynArray(_) => None,
-            SLPType::FixedArray {
-                size: _,
-                index_offset: _,
-                ty,
-            } => None,
+            SLPType::FixedArray { .. } => None,
             SLPType::Struct(_, _, _) => None,
             SLPType::AutoderefPointer(_) => None,
             SLPType::RefCounter(rc) => Some(&rc),
@@ -373,8 +374,7 @@ impl SLPType {
     }
     pub fn pretty_representation(&self) -> String {
         match self {
-            SLPType::PrimitiveType(pt) =>
-            match pt {
+            SLPType::PrimitiveType(pt) => match pt {
                 SLPPrimitiveType::Int8 => "int8".into(),
                 SLPPrimitiveType::Int16 => "int16".into(),
                 SLPPrimitiveType::Int32 => "int32".into(),
@@ -393,13 +393,40 @@ impl SLPType {
                 SLPPrimitiveType::Nil => "nil".into(),
                 SLPPrimitiveType::String => todo!(),
                 SLPPrimitiveType::StringLiteral(_) => todo!(), // Handle this case separately or raise an error,
+            },
+            SLPType::Pointer(p) => {
+                format!("^{}", p.pretty_representation())
             }
-            SLPType::Pointer(_) => todo!(),
-            SLPType::AutoderefPointer(_) => todo!(),
-            SLPType::DynArray(_) => todo!(),
-            SLPType::FixedArray { size, index_offset, ty } => todo!(),
-            SLPType::Struct(_, _, _) => todo!(),
-            SLPType::RefCounter(_) => todo!(),
+            SLPType::AutoderefPointer(p) => {
+                format!("ref {}", p.pretty_representation())
+            }
+            SLPType::DynArray(el) => {
+                format!("array of {}", el.pretty_representation())
+            }
+            SLPType::FixedArray {
+                size,
+                index_offset,
+                ty,
+            } => {
+                format!(
+                    "array [{}..{}] of {}",
+                    index_offset,
+                    (*size as i64) - index_offset - 1,
+                    ty.pretty_representation()
+                )
+            }
+            SLPType::Struct(filename, id, ..) => {
+                format!("{}::{}", filename, id.0)
+            }
+            SLPType::RefCounter(ty) => {
+                if let SLPType::DynArray(_) = ty.as_ref() {
+                    ty.pretty_representation()
+                } else if let SLPType::Struct(_, _, _) = ty.as_ref() {
+                    ty.pretty_representation()
+                } else {
+                    format!("refcount of {}", ty.pretty_representation())
+                }
+            }
         }
     }
 }

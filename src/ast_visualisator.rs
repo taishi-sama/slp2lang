@@ -3,7 +3,8 @@ use std::{iter, vec};
 use text_trees::StringTreeNode;
 
 use crate::ast::{
-    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, RecordField, Statement, Type, TypeDeclElement, TypeDeclSectionBody, Usings, VarDecl
+    ArgDecl, Constant, Declaration, Expr, Identificator, ProgramFile, RecordField, Statement, Type,
+    TypeDeclElement, TypeDeclSectionBody, Usings, VarDecl,
 };
 
 pub fn get_program_tree(pf: &ProgramFile) -> StringTreeNode {
@@ -53,11 +54,16 @@ pub fn type_decl_element(e: &TypeDeclElement) -> StringTreeNode {
         TypeDeclElement::TypeAlias(_, n, t) => {
             StringTreeNode::with_child_nodes(format!("{} = ", n), iter::once(types(t)))
         }
-        TypeDeclElement::RecordDeclare(_, n, fields, ty) => StringTreeNode::with_child_nodes(format!("{n} = {}", 
-        match ty {
-            crate::ast::RecordType::Record => "record",
-            crate::ast::RecordType::Class => "class",
-        } ), fields.iter().map(record_field)),
+        TypeDeclElement::RecordDeclare(_, n, fields, ty) => StringTreeNode::with_child_nodes(
+            format!(
+                "{n} = {}",
+                match ty {
+                    crate::ast::RecordType::Record => "record",
+                    crate::ast::RecordType::Class => "class",
+                }
+            ),
+            fields.iter().map(record_field),
+        ),
     }
 }
 
@@ -112,22 +118,30 @@ pub fn statements(st: &Statement) -> StringTreeNode {
             "FunctionCall".to_string(),
             iter::once(expressions(&x.func)).chain(x.args.iter().map(expressions)),
         ),
-        Statement::Defer(_, x) =>  StringTreeNode::with_child_nodes(
-            "Defer".to_string(),
-            vec![statements(x)].into_iter()
-        ),
+        Statement::Defer(_, x) => {
+            StringTreeNode::with_child_nodes("Defer".to_string(), vec![statements(x)].into_iter())
+        }
         Statement::For(_, b) => StringTreeNode::with_child_nodes(
             "For".to_string(),
-            vec![StringTreeNode::new(format!("{} {} :=", if b.is_new {"var"} else {""}, b.var_id)),
-            expressions(&b.initial_value),
-            StringTreeNode::new(format!("{}", match &b.direction {
-                crate::ast::ForDirection::Up => "to",
-                crate::ast::ForDirection::Down => "downto",
-            })),
-            expressions(&b.final_value),
-            StringTreeNode::new(format!("Do")),
-            statements(&b.body)
-            ].into_iter()
+            vec![
+                StringTreeNode::new(format!(
+                    "{} {} :=",
+                    if b.is_new { "var" } else { "" },
+                    b.var_id
+                )),
+                expressions(&b.initial_value),
+                StringTreeNode::new(format!(
+                    "{}",
+                    match &b.direction {
+                        crate::ast::ForDirection::Up => "to",
+                        crate::ast::ForDirection::Down => "downto",
+                    }
+                )),
+                expressions(&b.final_value),
+                StringTreeNode::new(format!("Do")),
+                statements(&b.body),
+            ]
+            .into_iter(),
         ),
     }
 }
@@ -253,15 +267,16 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
         ),
         Expr::OpNew(_, x, s, t) => StringTreeNode::with_child_nodes(
             "New".to_string(),
-            iter::once(StringTreeNode::new(format!("{:?}", x))).chain(t.iter().map(expressions)),
+            iter::once(StringTreeNode::new(format!("{:?}", x)))
+                .chain(s.as_ref().iter().map(|a| expressions(&a)))
+                .chain(t.iter().map(expressions)),
         ),
         Expr::OpBinIndex(_, x, y) => StringTreeNode::with_child_nodes(
             "BinIndex".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
-        Expr::NilLiteral(_) => StringTreeNode::with_child_nodes(
-            "NilLiteral".to_string(),
-            vec![].into_iter(),
-        ),
+        Expr::NilLiteral(_) => {
+            StringTreeNode::with_child_nodes("NilLiteral".to_string(), vec![].into_iter())
+        }
     }
 }

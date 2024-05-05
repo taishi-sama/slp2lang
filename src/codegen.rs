@@ -1,13 +1,27 @@
 use std::{collections::HashMap, sync::Arc};
 
 use inkwell::{
-    builder::Builder, context::Context, module::{Linkage, Module}, targets::TargetMachine, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType}, values::{AggregateValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue}, AddressSpace, IntPredicate
+    builder::Builder,
+    context::Context,
+    module::{Linkage, Module},
+    targets::TargetMachine,
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType},
+    values::{
+        AggregateValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
+        PointerValue,
+    },
+    AddressSpace, IntPredicate,
 };
 
 use crate::{
-    buildins::BuildInModule, compiler::FileId, semtree::{
-        BoolBinOp, CodeBlock, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable, RhsKind, STExpr, STStatement, SemanticTree, VarDecl
-    }, symbols::{FunctionDecl, GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}
+    buildins::BuildInModule,
+    compiler::FileId,
+    semtree::{
+        BoolBinOp, CodeBlock, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable,
+        RhsKind, STExpr, STStatement, SemanticTree, VarDecl,
+    },
+    symbols::{FunctionDecl, GlobalSymbolResolver, Id},
+    types::{SLPPrimitiveType, SLPType},
 };
 
 pub struct CodegenContext {
@@ -46,21 +60,30 @@ impl<'a> Codegen<'a> {
             match decl {
                 crate::symbols::SLPTypeDecl::TypeAlias(_) => (),
                 crate::symbols::SLPTypeDecl::StructDecl(_) => {
-                    let d =  &tyr.reverse_filename_translation[fid];
+                    let d = &tyr.reverse_filename_translation[fid];
                     let canonical_name = format!("{}${}", d, &id.0);
                     self.ctx.context.opaque_struct_type(&canonical_name);
-                },
+                }
             }
         }
         for ((fid, id), decl) in &tyr.types {
             match decl {
                 crate::symbols::SLPTypeDecl::TypeAlias(_) => (),
                 crate::symbols::SLPTypeDecl::StructDecl(st) => {
-                    let d =  &tyr.reverse_filename_translation[fid];
+                    let d = &tyr.reverse_filename_translation[fid];
                     let canonical_name = format!("{}${}", d, &id.0);
-                    let body: Vec<_> = st.fields.iter().map(|x|&x.1).map(|x|self.slp_type_to_llvm(&x)).collect();
-                    self.ctx.context.get_struct_type(&canonical_name).unwrap().set_body(&body, false);
-                },
+                    let body: Vec<_> = st
+                        .fields
+                        .iter()
+                        .map(|x| &x.1)
+                        .map(|x| self.slp_type_to_llvm(&x))
+                        .collect();
+                    self.ctx
+                        .context
+                        .get_struct_type(&canonical_name)
+                        .unwrap()
+                        .set_body(&body, false);
+                }
             }
         }
     }
@@ -70,10 +93,9 @@ impl<'a> Codegen<'a> {
         syms.extend(buildins);
         for f in &semtree.root.funcs {
             //println!("{:?}", f);
-            let id = semtree.types_resolver.canonical_functions(
-                &semtree.fileid,
-                &f.function_name,
-            );
+            let id = semtree
+                .types_resolver
+                .canonical_functions(&semtree.fileid, &f.function_name);
             let t = syms.get(&id).unwrap().clone();
             self.compile_function(&f, t, &syms, &semtree.types_resolver);
         }
@@ -92,19 +114,14 @@ impl<'a> Codegen<'a> {
         for (id, function) in &buildins.buildins {
             let ty = self.slp_sem_to_llvm_func(&function.function_args, &function.return_arg);
             let name = BuildInModule::canonical_functions(id);
-            let func = self.module.add_function(
-        &name.0,
-            ty,
-            Some(Linkage::External)
-            );
+            let func = self
+                .module
+                .add_function(&name.0, ty, Some(Linkage::External));
             hm.insert(name, func);
         }
         hm
     }
-    pub fn declare_symbols<'b>(
-        &self,
-        semtree: &'b SemanticTree,
-    ) -> HashMap<Id, FunctionValue<'a>> {
+    pub fn declare_symbols<'b>(&self, semtree: &'b SemanticTree) -> HashMap<Id, FunctionValue<'a>> {
         let mut hm = HashMap::new();
         for dep in &semtree.types_resolver.deps[&semtree.fileid] {
             let t = self.declare_symbol(dep, &semtree.types_resolver, true);
@@ -122,36 +139,44 @@ impl<'a> Codegen<'a> {
     ) -> Vec<(Id, FunctionValue<'a>)> {
         let mut v = vec![];
         if let Some(t) = &tyr.function_declare_order.get(fid) {
-        for ids in t.iter() {
-            let s = tyr.functions.get(&(fid.clone(), ids.clone())).unwrap();
-            match s {
-                FunctionDecl::FunctionDecl { loc: _loc, input, output } => {
-                    let ty = self.slp_sem_to_llvm_func(&input, output);
-                    let name = tyr.canonical_functions(fid, ids);
-                    let func = self.module.add_function(
-                        &name.0,
-                        ty,
-                        Some(if are_external {
-                            Linkage::External
-                        } else {
-                            Linkage::External
-                        }),
-                    );
-                    v.push((name, func));
-                }
-                FunctionDecl::ExternFunctionDecl { loc: _loc, input, output } => {
-                    let ty = self.slp_sem_to_llvm_func(&input, output);
-                    let name = tyr.canonical_functions(fid, ids);
-                    let func = self.module.add_function(
-                        &name.0,
-                        ty,
-                        Some(inkwell::module::Linkage::External),
-                    );
-                    v.push((name, func));
+            for ids in t.iter() {
+                let s = tyr.functions.get(&(fid.clone(), ids.clone())).unwrap();
+                match s {
+                    FunctionDecl::FunctionDecl {
+                        loc: _loc,
+                        input,
+                        output,
+                    } => {
+                        let ty = self.slp_sem_to_llvm_func(&input, output);
+                        let name = tyr.canonical_functions(fid, ids);
+                        let func = self.module.add_function(
+                            &name.0,
+                            ty,
+                            Some(if are_external {
+                                Linkage::External
+                            } else {
+                                Linkage::External
+                            }),
+                        );
+                        v.push((name, func));
+                    }
+                    FunctionDecl::ExternFunctionDecl {
+                        loc: _loc,
+                        input,
+                        output,
+                    } => {
+                        let ty = self.slp_sem_to_llvm_func(&input, output);
+                        let name = tyr.canonical_functions(fid, ids);
+                        let func = self.module.add_function(
+                            &name.0,
+                            ty,
+                            Some(inkwell::module::Linkage::External),
+                        );
+                        v.push((name, func));
+                    }
                 }
             }
         }
-    }
         v
     }
 
@@ -195,17 +220,17 @@ impl<'a> Codegen<'a> {
     //Generate local mutable variables;
     fn generate_variable_prelude<'b>(
         &self,
-        func: &FunctionValue,
+        _func: &FunctionValue,
         f: &'b Function,
     ) -> HashMap<LocalVariable, PointerValue<'a>> {
         let mut hm = HashMap::new();
 
-
-        
         //Allocate stack space for variables in the program
-        let variables = f.body
+        let variables = f
+            .body
             .common_statements
-            .iter().chain(f.body.defer_statements.iter())
+            .iter()
+            .chain(f.body.defer_statements.iter())
             .map(|x| self.get_variables_list(x).into_iter())
             .flatten();
         for v in variables {
@@ -217,14 +242,19 @@ impl<'a> Codegen<'a> {
     }
     fn get_variables_list<'b>(&self, stmt: &'b STStatement) -> Vec<&'b VarDecl> {
         match stmt {
-            STStatement::CodeBlock(_, b) => b.common_statements
-                .iter().chain(b.defer_statements.iter())
+            STStatement::CodeBlock(_, b) => b
+                .common_statements
+                .iter()
+                .chain(b.defer_statements.iter())
                 .map(|x| self.get_variables_list(x))
                 .flatten()
                 .collect(),
             STStatement::Print(_, _) => vec![],
             STStatement::FunctionCall(_, _) => vec![],
-            STStatement::Assignment(_, _, st, _) => st.as_ref().map(|x| self.get_variables_list(&x)).unwrap_or(vec![]),
+            STStatement::Assignment(_, _, st, _) => st
+                .as_ref()
+                .map(|x| self.get_variables_list(&x))
+                .unwrap_or(vec![]),
             STStatement::If(_, _, s1, s2) => self
                 .get_variables_list(&s1)
                 .into_iter()
@@ -244,11 +274,14 @@ impl<'a> Codegen<'a> {
         }
     }
     pub fn get_pointer_sized_int(&self) -> IntType<'a> {
-        let t = self.target_machine.get_target_data().get_pointer_byte_size(None);
+        let t = self
+            .target_machine
+            .get_target_data()
+            .get_pointer_byte_size(None);
         match t {
             4 => self.ctx.context.i32_type(),
             8 => self.ctx.context.i64_type(),
-            a @ _  => unimplemented!("WTH, pointer size expected to be only 32 bit or 64 bit {a}"),
+            a @ _ => unimplemented!("WTH, pointer size expected to be only 32 bit or 64 bit {a}"),
         }
     }
     pub fn slp_type_to_llvm(&self, ty: &SLPType) -> BasicTypeEnum<'a> {
@@ -265,9 +298,15 @@ impl<'a> Codegen<'a> {
 
             SLPType::DynArray(b) => {
                 let arr_lenght = self.get_pointer_sized_int().into();
-                let arr_ty = self.slp_type_to_llvm(&b).ptr_type(Default::default()).into();
-                self.ctx.context.struct_type(&[arr_lenght, arr_ty], false).into()
-            },
+                let arr_ty = self
+                    .slp_type_to_llvm(&b)
+                    .ptr_type(Default::default())
+                    .into();
+                self.ctx
+                    .context
+                    .struct_type(&[arr_lenght, arr_ty], false)
+                    .into()
+            }
             SLPType::FixedArray {
                 size,
                 index_offset: _index_offset,
@@ -278,13 +317,27 @@ impl<'a> Codegen<'a> {
                 .into(),
             SLPType::Struct(fid, n, _) => {
                 let struct_name = format!("{fid}${}", n.0);
-                self.ctx.context.get_struct_type(&struct_name).unwrap().into()
-            },
+                self.ctx
+                    .context
+                    .get_struct_type(&struct_name)
+                    .unwrap()
+                    .into()
+            }
             SLPType::RefCounter(b) => {
-                let rc_counter = self.get_pointer_sized_int().as_basic_type_enum().ptr_type(Default::default()).into();
-                let rc_ty = self.slp_type_to_llvm(&b).ptr_type(AddressSpace::default()).into();
-                self.ctx.context.struct_type(&[rc_counter, rc_ty], false).into()
-            },
+                let rc_counter = self
+                    .get_pointer_sized_int()
+                    .as_basic_type_enum()
+                    .ptr_type(Default::default())
+                    .into();
+                let rc_ty = self
+                    .slp_type_to_llvm(&b)
+                    .ptr_type(AddressSpace::default())
+                    .into();
+                self.ctx
+                    .context
+                    .struct_type(&[rc_counter, rc_ty], false)
+                    .into()
+            }
         }
     }
     pub fn slp_primitive_type_to_llvm(&self, ty: &SLPPrimitiveType) -> BasicTypeEnum<'a> {
@@ -329,15 +382,17 @@ impl<'a> Codegen<'a> {
                 SLPPrimitiveType::Uint32 => self.ctx.context.i32_type().const_zero().into(),
                 SLPPrimitiveType::Uint64 => self.ctx.context.i64_type().const_zero().into(),
                 SLPPrimitiveType::ISize => self
-                .ctx
-                .context
-                .ptr_sized_int_type(&self.target_machine.get_target_data(), None).const_zero()
-                .into(),
+                    .ctx
+                    .context
+                    .ptr_sized_int_type(&self.target_machine.get_target_data(), None)
+                    .const_zero()
+                    .into(),
                 SLPPrimitiveType::USize => self
-                .ctx
-                .context
-                .ptr_sized_int_type(&self.target_machine.get_target_data(), None).const_zero()
-                .into(),
+                    .ctx
+                    .context
+                    .ptr_sized_int_type(&self.target_machine.get_target_data(), None)
+                    .const_zero()
+                    .into(),
                 SLPPrimitiveType::Float32 => self.ctx.context.f32_type().const_zero().into(),
                 SLPPrimitiveType::Float64 => self.ctx.context.f64_type().const_zero().into(),
                 SLPPrimitiveType::String => todo!(),
@@ -347,56 +402,106 @@ impl<'a> Codegen<'a> {
                 SLPPrimitiveType::Void => todo!(),
                 SLPPrimitiveType::Nil => todo!(),
             },
-            SLPType::Pointer(ptr) => self.slp_type_to_llvm(&ptr).ptr_type(Default::default()).const_null().into(),
-            SLPType::AutoderefPointer(_) => unreachable!("Autoderef pointers should never created as default values {ty:#?}"),
+            SLPType::Pointer(ptr) => self
+                .slp_type_to_llvm(&ptr)
+                .ptr_type(Default::default())
+                .const_null()
+                .into(),
+            SLPType::AutoderefPointer(_) => {
+                unreachable!("Autoderef pointers should never created as default values {ty:#?}")
+            }
             SLPType::DynArray(ty) => {
                 let arr_lenght = self.get_pointer_sized_int().into();
-                let arr_ty = self.slp_type_to_llvm(&ty).ptr_type(Default::default()).into();
-                self.ctx.context.struct_type(&[arr_lenght, arr_ty], false).const_zero().into()
-            },
-            SLPType::FixedArray { size, index_offset, ty } => {
+                let arr_ty = self
+                    .slp_type_to_llvm(&ty)
+                    .ptr_type(Default::default())
+                    .into();
+                self.ctx
+                    .context
+                    .struct_type(&[arr_lenght, arr_ty], false)
+                    .const_zero()
+                    .into()
+            }
+            SLPType::FixedArray {
+                size,
+                index_offset: _,
+                ty,
+            } => {
                 let val = self.build_default(ty, tyr);
                 let llvm_ty = self.slp_type_to_llvm(&ty);
-                let mut arr_val = llvm_ty.array_type(size.clone().try_into().unwrap()).const_zero();
+                let mut arr_val = llvm_ty
+                    .array_type(size.clone().try_into().unwrap())
+                    .const_zero();
                 for i in 0..*size {
-                    arr_val = self.builder.build_insert_value(arr_val.as_aggregate_value_enum(), val, i.try_into().unwrap(), "default_array").unwrap().into_array_value()
-
+                    arr_val = self
+                        .builder
+                        .build_insert_value(
+                            arr_val.as_aggregate_value_enum(),
+                            val,
+                            i.try_into().unwrap(),
+                            "default_array",
+                        )
+                        .unwrap()
+                        .into_array_value()
                 }
                 arr_val.into()
-            },
-            SLPType::Struct(fid, id, d) => {
+            }
+            SLPType::Struct(fid, id, _d) => {
                 let t = tyr.get_struct(fid, id).unwrap().unwrap();
-                let def : Vec<_> = t.fields.iter().map(|x|self.build_default(&x.1, tyr)).collect(); 
+                let def: Vec<_> = t
+                    .fields
+                    .iter()
+                    .map(|x| self.build_default(&x.1, tyr))
+                    .collect();
                 let str = self.slp_type_to_llvm(ty).into_struct_type();
                 str.const_named_struct(&def).into()
-
-            },
-            SLPType::RefCounter(rc) => self.slp_type_to_llvm(ty).const_zero(),
+            }
+            SLPType::RefCounter(_rc) => self.slp_type_to_llvm(ty).const_zero(),
         }
     }
-    fn build_is_null<'b>(&self, expr: &'b STExpr, localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>, syms: &HashMap<Id, FunctionValue<'a>>, tyr: &GlobalSymbolResolver, func: FunctionValue<'a>) -> BasicValueEnum<'a> {
+    fn build_is_null<'b>(
+        &self,
+        expr: &'b STExpr,
+        localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
+        syms: &HashMap<Id, FunctionValue<'a>>,
+        tyr: &GlobalSymbolResolver,
+        func: FunctionValue<'a>,
+    ) -> BasicValueEnum<'a> {
         let t = self.visit_expression(expr, localvar_stackalloc, syms, tyr, func);
 
         match &expr.ret_type {
             SLPType::PrimitiveType(_) => todo!(),
-            SLPType::Pointer(ptr) => self.builder.build_is_null(t.into_pointer_value(), "is_null").into(),
+            SLPType::Pointer(_ptr) => self
+                .builder
+                .build_is_null(t.into_pointer_value(), "is_null")
+                .into(),
             SLPType::AutoderefPointer(_) => todo!(),
             SLPType::DynArray(_) => {
                 //let t: PointerValue<'a> = unsafe { self.builder.build_gep(, t.into_pointer_value(), 0, "rc_nullcheck_1") };
                 //let q = self.builder.build_struct_gep(self.get_pointer_sized_int().as_basic_type_enum(), t.into_pointer_value(), 0, "").unwrap();
                 let stct = t.into_struct_value();
-                let q = self.builder.build_extract_value(stct, 1, "is_null").unwrap();
-                self.builder.build_is_null(q.into_pointer_value(), "is_null").into()
-            },
-            SLPType::FixedArray { size, index_offset, ty } => todo!(),
+                let q = self
+                    .builder
+                    .build_extract_value(stct, 1, "is_null")
+                    .unwrap();
+                self.builder
+                    .build_is_null(q.into_pointer_value(), "is_null")
+                    .into()
+            }
+            SLPType::FixedArray { .. } => todo!(),
             SLPType::Struct(_, _, _) => todo!(),
             SLPType::RefCounter(_) => {
                 //let t: PointerValue<'a> = unsafe { self.builder.build_gep(, t.into_pointer_value(), 0, "rc_nullcheck_1") };
                 //let q = self.builder.build_struct_gep(self.get_pointer_sized_int().as_basic_type_enum(), t.into_pointer_value(), 0, "").unwrap();
                 let stct = t.into_struct_value();
-                let q = self.builder.build_extract_value(stct, 0, "is_null").unwrap();
-                self.builder.build_is_null(q.into_pointer_value(), "is_null").into()
-            },
+                let q = self
+                    .builder
+                    .build_extract_value(stct, 0, "is_null")
+                    .unwrap();
+                self.builder
+                    .build_is_null(q.into_pointer_value(), "is_null")
+                    .into()
+            }
         }
     }
     fn generate_main_body_of_function<'b>(
@@ -409,7 +514,8 @@ impl<'a> Codegen<'a> {
     ) {
         self.visit_codeblock(&f.body, func, localvar_stackalloc, syms, tyr)
     }
-    fn visit_codeblock<'b>(&self,
+    fn visit_codeblock<'b>(
+        &self,
         cb: &'b CodeBlock,
         func: FunctionValue<'a>,
         localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
@@ -421,7 +527,6 @@ impl<'a> Codegen<'a> {
         }
         for j in cb.defer_statements.iter().rev() {
             self.visit_statement(j, func, localvar_stackalloc, syms, tyr)
-
         }
     }
     fn visit_statement<'b>(
@@ -441,7 +546,6 @@ impl<'a> Codegen<'a> {
                 let mut vls = vec![];
                 for arg in &fc.args {
                     vls.push(self.visit_expression(arg, localvar_stackalloc, syms, tyr, func))
-                    
                 }
                 let fnct = syms[&fc.func];
                 let vls2: Vec<_> = vls
@@ -462,7 +566,7 @@ impl<'a> Codegen<'a> {
                     .map(|x| -> BasicMetadataValueEnum<'a> { x.into() })
                     .collect();
                 self.builder.build_call(fnct, &vls2, "");
-            },
+            }
 
             STStatement::Assignment(_l, target, drop, to) => {
                 let expr = self.visit_expression(&to, localvar_stackalloc, syms, tyr, func);
@@ -470,9 +574,9 @@ impl<'a> Codegen<'a> {
                     self.visit_statement(&d, func, localvar_stackalloc, syms, tyr)
                 }
                 match &target.as_ref().kind {
-
                     RhsKind::Deref(ptr_expr) => {
-                        let ptr = self.visit_expression(ptr_expr, localvar_stackalloc, syms, tyr, func);
+                        let ptr =
+                            self.visit_expression(ptr_expr, localvar_stackalloc, syms, tyr, func);
                         let ptr_val = ptr.into_pointer_value();
                         self.builder.build_store(ptr_val, expr);
                     }
@@ -537,27 +641,44 @@ impl<'a> Codegen<'a> {
             }
             STStatement::RepeatUntil(_, _, _) => todo!(),
             STStatement::VarDecl(_l, vd) => {
-                let expr = self.visit_expression(&vd.init_expr, localvar_stackalloc, syms, tyr, func);
+                let expr =
+                    self.visit_expression(&vd.init_expr, localvar_stackalloc, syms, tyr, func);
                 self.builder.build_store(localvar_stackalloc[&vd.id], expr);
             }
             STStatement::Empty() => (),
             STStatement::DeferHint(_, _) => (),
             STStatement::MemoryFree(_, b) => {
-                if let SLPType::RefCounter(rs) = &b.ret_type {
-                    let expr = self.visit_expression(&b, localvar_stackalloc, syms, tyr, func).into_struct_value();
+                if let SLPType::RefCounter(_rs) = &b.ret_type {
+                    let expr = self
+                        .visit_expression(&b, localvar_stackalloc, syms, tyr, func)
+                        .into_struct_value();
                     //let pointee = self.slp_type_to_llvm(&b.ret_type);
-                    self.builder.build_free(self.builder.build_extract_value(expr, 0, "counter_ptr").unwrap().into_pointer_value());
-                    self.builder.build_free(self.builder.build_extract_value(expr, 1, "counter_ptr").unwrap().into_pointer_value());
-
-                } else if let SLPType::DynArray(rs) = &b.ret_type{
-                    let expr = self.visit_expression(&b, localvar_stackalloc, syms, tyr, func).into_struct_value();
-                    self.builder.build_free(self.builder.build_extract_value(expr, 1, "counter_ptr").unwrap().into_pointer_value());
-                    
+                    self.builder.build_free(
+                        self.builder
+                            .build_extract_value(expr, 0, "counter_ptr")
+                            .unwrap()
+                            .into_pointer_value(),
+                    );
+                    self.builder.build_free(
+                        self.builder
+                            .build_extract_value(expr, 1, "counter_ptr")
+                            .unwrap()
+                            .into_pointer_value(),
+                    );
+                } else if let SLPType::DynArray(_rs) = &b.ret_type {
+                    let expr = self
+                        .visit_expression(&b, localvar_stackalloc, syms, tyr, func)
+                        .into_struct_value();
+                    self.builder.build_free(
+                        self.builder
+                            .build_extract_value(expr, 1, "counter_ptr")
+                            .unwrap()
+                            .into_pointer_value(),
+                    );
                 } else {
                     todo!()
                 }
-            },
-
+            }
         }
     }
 
@@ -567,7 +688,7 @@ impl<'a> Codegen<'a> {
         localvar_stackalloc: &HashMap<LocalVariable, PointerValue<'a>>,
         syms: &HashMap<Id, FunctionValue<'a>>,
         tyr: &GlobalSymbolResolver,
-        func: FunctionValue<'a>
+        func: FunctionValue<'a>,
     ) -> BasicValueEnum<'a> {
         let ty = self.slp_type_to_llvm(&expr.ret_type);
 
@@ -621,53 +742,52 @@ impl<'a> Codegen<'a> {
                     crate::semtree::TypeConversionKind::SignedToUnsigned => inp,
                     crate::semtree::TypeConversionKind::UnsignedToSigned => inp,
                     crate::semtree::TypeConversionKind::SignedToUnsignedExtend => self
-                    .builder
-                    .build_int_cast_sign_flag(
-                        inp.into_int_value(),
-                        ty.into_int_type(),
-                        false,
-                        "SignedToUnsignedExtend",
-                    )
-                    .into(),
+                        .builder
+                        .build_int_cast_sign_flag(
+                            inp.into_int_value(),
+                            ty.into_int_type(),
+                            false,
+                            "SignedToUnsignedExtend",
+                        )
+                        .into(),
                     crate::semtree::TypeConversionKind::UnsignedToSignedExtend => self
-                    .builder
-                    .build_int_cast_sign_flag(
-                        inp.into_int_value(),
-                        ty.into_int_type(),
-                        false,
-                        "UnsignedToSignedExtend",
-                    )
-                    .into(),
+                        .builder
+                        .build_int_cast_sign_flag(
+                            inp.into_int_value(),
+                            ty.into_int_type(),
+                            false,
+                            "UnsignedToSignedExtend",
+                        )
+                        .into(),
                     crate::semtree::TypeConversionKind::SignedToUnsignedTruncate => self
-                    .builder
-                    .build_int_cast_sign_flag(
-                        inp.into_int_value(),
-                        ty.into_int_type(),
-                        false,
-                        "SignedToUnsignedTruncate",
-                    )
-                    .into(),
+                        .builder
+                        .build_int_cast_sign_flag(
+                            inp.into_int_value(),
+                            ty.into_int_type(),
+                            false,
+                            "SignedToUnsignedTruncate",
+                        )
+                        .into(),
                     crate::semtree::TypeConversionKind::UnsignedToSignedTruncate => self
-                    .builder
-                    .build_int_cast_sign_flag(
-                        inp.into_int_value(),
-                        ty.into_int_type(),
-                        true,
-                        "UnsignedToSignedTruncate",
-                    )
-                    .into(),
+                        .builder
+                        .build_int_cast_sign_flag(
+                            inp.into_int_value(),
+                            ty.into_int_type(),
+                            true,
+                            "UnsignedToSignedTruncate",
+                        )
+                        .into(),
                     crate::semtree::TypeConversionKind::IntToFloat => todo!(),
                     crate::semtree::TypeConversionKind::UintToFloat => todo!(),
                     crate::semtree::TypeConversionKind::ToUsize => self
-                    .builder
-                    .build_int_cast_sign_flag(
-                        inp.into_int_value(),
-                        ty.into_int_type(),
-                        false,
-                        "ToUint",
-                    )
-                    .into(),
-
+                        .builder
+                        .build_int_cast_sign_flag(
+                            inp.into_int_value(),
+                            ty.into_int_type(),
+                            false,
+                            "ToUint",
+                        )
+                        .into(),
                 }
             }
             ExprKind::NumberLiteral(l) => match l {
@@ -701,12 +821,14 @@ impl<'a> Codegen<'a> {
                 crate::semtree::NumberLiteral::U8(i) => {
                     BasicValueEnum::IntValue(self.ctx.context.i8_type().const_int(*i as u64, false))
                 }
-                crate::semtree::NumberLiteral::ISize(i) => {
-                    self.get_pointer_sized_int().const_int(*i as u64, true).into()
-                },
-                crate::semtree::NumberLiteral::USize(i) => {
-                    self.get_pointer_sized_int().const_int(*i as u64, false).into()
-                },
+                crate::semtree::NumberLiteral::ISize(i) => self
+                    .get_pointer_sized_int()
+                    .const_int(*i as u64, true)
+                    .into(),
+                crate::semtree::NumberLiteral::USize(i) => self
+                    .get_pointer_sized_int()
+                    .const_int(*i as u64, false)
+                    .into(),
             },
             ExprKind::FloatLiteral(_) => todo!(),
             ExprKind::CharLiteral(c) => BasicValueEnum::IntValue(
@@ -866,34 +988,52 @@ impl<'a> Codegen<'a> {
                 self.builder.build_load(pointee_type, ptr, "")
             }
             ExprKind::GetElementRefInReffedArray(ref_array, index) => {
-                let indexable = self.visit_expression(ref_array, localvar_stackalloc, syms, tyr, func);
+                let indexable =
+                    self.visit_expression(ref_array, localvar_stackalloc, syms, tyr, func);
                 let index = self.visit_expression(&index, localvar_stackalloc, syms, tyr, func);
                 let ptr = indexable.into_pointer_value();
-                if ref_array.ret_type.get_underlying_autoderef_type().unwrap().is_dyn_array() {
-                    let pointee_type =
-                        self.slp_type_to_llvm(ref_array.ret_type.get_underlying_autoderef_type().unwrap());
-                    let element_type = self.slp_type_to_llvm(ref_array.ret_type.get_underlying_autoderef_type().unwrap().get_underlying_array_type().unwrap());
+                if ref_array
+                    .ret_type
+                    .get_underlying_autoderef_type()
+                    .unwrap()
+                    .is_dyn_array()
+                {
+                    let pointee_type = self.slp_type_to_llvm(
+                        ref_array.ret_type.get_underlying_autoderef_type().unwrap(),
+                    );
+                    let element_type = self.slp_type_to_llvm(
+                        ref_array
+                            .ret_type
+                            .get_underlying_autoderef_type()
+                            .unwrap()
+                            .get_underlying_array_type()
+                            .unwrap(),
+                    );
                     //println!("{pointee_type}");
-                    let array_ptr_loc = self.builder.build_struct_gep(pointee_type, ptr, 1, "").unwrap();
-                    let array_ptr = self.builder.build_load(element_type.ptr_type(Default::default()), array_ptr_loc, "").into_pointer_value();
+                    let array_ptr_loc = self
+                        .builder
+                        .build_struct_gep(pointee_type, ptr, 1, "")
+                        .unwrap();
+                    let array_ptr = self
+                        .builder
+                        .build_load(element_type.ptr_type(Default::default()), array_ptr_loc, "")
+                        .into_pointer_value();
                     unsafe {
                         //Pray to compiler gods
                         self.builder
                             .build_gep(element_type, array_ptr, &vec![index.into_int_value()], "")
                             .into()
-                        }
+                    }
                 } else {
-
-                    let pointee_type =
-                    self.slp_type_to_llvm(expr.ret_type.get_underlying_autoderef_type().unwrap());
+                    let pointee_type = self
+                        .slp_type_to_llvm(expr.ret_type.get_underlying_autoderef_type().unwrap());
                     unsafe {
-                    //Pray to compiler gods
-                    self.builder
-                        .build_gep(pointee_type, ptr, &vec![index.into_int_value()], "")
-                        .into()
+                        //Pray to compiler gods
+                        self.builder
+                            .build_gep(pointee_type, ptr, &vec![index.into_int_value()], "")
+                            .into()
                     }
                 }
-
             }
             ExprKind::GetLocalVariableRef(r) => {
                 let ptr = localvar_stackalloc[r].clone();
@@ -909,96 +1049,199 @@ impl<'a> Codegen<'a> {
                 let sty = ty.into_struct_type();
                 let mut f = sty.get_undef();
                 for (i, val) in t.into_iter().enumerate() {
-                    let t = self.builder.build_insert_value(f, val, i as u32, &format!("struct_build_{i}"));
+                    let t = self.builder.build_insert_value(
+                        f,
+                        val,
+                        i as u32,
+                        &format!("struct_build_{i}"),
+                    );
                     let t = t.unwrap();
                     f = t.into_struct_value();
-                };
+                }
                 f.into()
-            },
+            }
             ExprKind::GetElementRefInReffedRecord(x, y) => {
                 let pointee_type =
                     self.slp_type_to_llvm(&x.ret_type.get_underlying_autoderef_type().unwrap());
                 let structure = self.visit_expression(x, localvar_stackalloc, syms, tyr, func);
                 let ptr = structure.into_pointer_value();
 
-                self.builder.build_struct_gep(pointee_type, ptr, *y, "").unwrap().into()
-            },
+                self.builder
+                    .build_struct_gep(pointee_type, ptr, *y, "")
+                    .unwrap()
+                    .into()
+            }
             ExprKind::Default => self.build_default(&expr.ret_type, tyr),
             ExprKind::IsNull(expr) => {
                 self.build_is_null(expr, localvar_stackalloc, syms, tyr, func)
-            },
+            }
             ExprKind::RefCountDecrease(rc_ref) => {
-                let refcounter = self.visit_expression(&rc_ref, localvar_stackalloc, syms, tyr, func);
-                let refcounter_type = self.slp_type_to_llvm(&rc_ref.ret_type.get_underlying_autoderef_type().unwrap());
-                let counter_field = self.builder.build_struct_gep(refcounter_type, refcounter.into_pointer_value(), 0, "rc_ref").unwrap();
-                let counter = self.builder.build_load(self.get_pointer_sized_int().ptr_type(Default::default()), counter_field, "").into_pointer_value();
+                let refcounter =
+                    self.visit_expression(&rc_ref, localvar_stackalloc, syms, tyr, func);
+                let refcounter_type = self
+                    .slp_type_to_llvm(&rc_ref.ret_type.get_underlying_autoderef_type().unwrap());
+                let counter_field = self
+                    .builder
+                    .build_struct_gep(
+                        refcounter_type,
+                        refcounter.into_pointer_value(),
+                        0,
+                        "rc_ref",
+                    )
+                    .unwrap();
+                let counter = self
+                    .builder
+                    .build_load(
+                        self.get_pointer_sized_int().ptr_type(Default::default()),
+                        counter_field,
+                        "",
+                    )
+                    .into_pointer_value();
                 let const_1 = self.get_pointer_sized_int().const_int(1, false);
-                let prev = self.builder.build_atomicrmw(inkwell::AtomicRMWBinOp::Sub, counter, const_1, inkwell::AtomicOrdering::SequentiallyConsistent).unwrap();
-                self.builder.build_int_compare(IntPredicate::EQ, prev, const_1, "rc_compare").into()
-            },
+                let prev = self
+                    .builder
+                    .build_atomicrmw(
+                        inkwell::AtomicRMWBinOp::Sub,
+                        counter,
+                        const_1,
+                        inkwell::AtomicOrdering::SequentiallyConsistent,
+                    )
+                    .unwrap();
+                self.builder
+                    .build_int_compare(IntPredicate::EQ, prev, const_1, "rc_compare")
+                    .into()
+            }
             ExprKind::RefCountIncrease(rc_ref) => {
-                let refcounter = self.visit_expression(&rc_ref, localvar_stackalloc, syms, tyr, func);
-                let refcounter_type = self.slp_type_to_llvm(&rc_ref.ret_type.get_underlying_autoderef_type().unwrap());
-                let counter_field = self.builder.build_struct_gep(refcounter_type, refcounter.into_pointer_value(), 0, "rc_ref").unwrap();
-                let counter = self.builder.build_load(self.get_pointer_sized_int().ptr_type(Default::default()), counter_field, "").into_pointer_value();
+                let refcounter =
+                    self.visit_expression(&rc_ref, localvar_stackalloc, syms, tyr, func);
+                let refcounter_type = self
+                    .slp_type_to_llvm(&rc_ref.ret_type.get_underlying_autoderef_type().unwrap());
+                let counter_field = self
+                    .builder
+                    .build_struct_gep(
+                        refcounter_type,
+                        refcounter.into_pointer_value(),
+                        0,
+                        "rc_ref",
+                    )
+                    .unwrap();
+                let counter = self
+                    .builder
+                    .build_load(
+                        self.get_pointer_sized_int().ptr_type(Default::default()),
+                        counter_field,
+                        "",
+                    )
+                    .into_pointer_value();
                 let const_1 = self.get_pointer_sized_int().const_int(1, false);
-                let prev = self.builder.build_atomicrmw(inkwell::AtomicRMWBinOp::Add, counter, const_1, inkwell::AtomicOrdering::SequentiallyConsistent).unwrap();
-                self.builder.build_load(refcounter_type, refcounter.into_pointer_value(), "rc")
-            },
+                let _prev = self
+                    .builder
+                    .build_atomicrmw(
+                        inkwell::AtomicRMWBinOp::Add,
+                        counter,
+                        const_1,
+                        inkwell::AtomicOrdering::SequentiallyConsistent,
+                    )
+                    .unwrap();
+                self.builder
+                    .build_load(refcounter_type, refcounter.into_pointer_value(), "rc")
+            }
             ExprKind::GetElementBehindReffedReferenceCounter(e) => {
                 let ex = self.visit_expression(&e, localvar_stackalloc, syms, tyr, func);
-                let pointee = self.slp_type_to_llvm(&e.ret_type.get_underlying_autoderef_type().unwrap());
-                let inside_ref = self.builder.build_struct_gep(pointee, ex.into_pointer_value(), 1, "rc_ref").unwrap();
+                let pointee =
+                    self.slp_type_to_llvm(&e.ret_type.get_underlying_autoderef_type().unwrap());
+                let inside_ref = self
+                    .builder
+                    .build_struct_gep(pointee, ex.into_pointer_value(), 1, "rc_ref")
+                    .unwrap();
                 let t = self.slp_type_to_llvm(&expr.ret_type);
                 self.builder.build_load(t, inside_ref, "loaded_ptr").into()
-                
-            },
+            }
             ExprKind::ConstructRefcounterFromInternalContent(e) => {
                 let ex = self.visit_expression(&e, localvar_stackalloc, syms, tyr, func);
-                
+
                 let llvm_type = self.slp_type_to_llvm(&e.ret_type);
                 println!("~~~~~~{:#?}", e.ret_type);
                 println!("~~~~~~{}", llvm_type);
 
-                let rc_type = self.slp_type_to_llvm(&SLPType::RefCounter(Box::new(e.ret_type.clone())));
+                let rc_type =
+                    self.slp_type_to_llvm(&SLPType::RefCounter(Box::new(e.ret_type.clone())));
 
-                let counter =  self.builder.build_malloc(self.get_pointer_sized_int(), "refcounter_malloc").unwrap();
+                let counter = self
+                    .builder
+                    .build_malloc(self.get_pointer_sized_int(), "refcounter_malloc")
+                    .unwrap();
                 println!("{}", counter);
-                self.builder.build_store(counter, self.get_pointer_sized_int().const_int(1, false));
-                
-                let internal_content = self.builder.build_malloc(llvm_type, "refcounter_intenal_content_malloc").unwrap();
+                self.builder
+                    .build_store(counter, self.get_pointer_sized_int().const_int(1, false));
+
+                let internal_content = self
+                    .builder
+                    .build_malloc(llvm_type, "refcounter_intenal_content_malloc")
+                    .unwrap();
                 println!("~~~~~~{}", ex);
 
                 self.builder.build_store(internal_content, ex);
                 let raw_rc = rc_type.const_zero().into_struct_value();
-                let raw_rc2 = self.builder.build_insert_value(raw_rc, counter, 0, "counter_insertion").unwrap();
-                let result_rc = self.builder.build_insert_value(raw_rc2, internal_content, 1, "intenal_content_insertion").unwrap();
+                let raw_rc2 = self
+                    .builder
+                    .build_insert_value(raw_rc, counter, 0, "counter_insertion")
+                    .unwrap();
+                let result_rc = self
+                    .builder
+                    .build_insert_value(raw_rc2, internal_content, 1, "intenal_content_insertion")
+                    .unwrap();
                 result_rc.into_struct_value().into()
-            },
-            ExprKind::FunctionArg(i) => {func.get_nth_param((*i).try_into().unwrap()).unwrap()},
+            }
+            ExprKind::FunctionArg(i) => func.get_nth_param((*i).try_into().unwrap()).unwrap(),
             ExprKind::NilLiteral => todo!(),
             ExprKind::ConstructDynArrayFromElements(_) => todo!(),
             ExprKind::GetReffedDynArrayLength(_) => todo!(),
             ExprKind::ConstructUninitizedDynArray(count) => {
                 let size = self.visit_expression(&count, localvar_stackalloc, syms, tyr, func);
-                let true_size = self.builder.build_int_cast(size.into_int_value(), self.get_pointer_sized_int(), "");
+                let true_size = self.builder.build_int_cast(
+                    size.into_int_value(),
+                    self.get_pointer_sized_int(),
+                    "",
+                );
                 let ty = self.slp_type_to_llvm(expr.ret_type.get_underlying_array_type().unwrap());
-                
-                let arr = self.builder.build_array_malloc(ty, true_size, "test").unwrap();
-                let def = self.build_default(&expr.ret_type, tyr).into_struct_value();
-                let temp1 = self.builder.build_insert_value(def, true_size, 0, "").unwrap().into_struct_value();
-                self.builder.build_insert_value(temp1, arr, 1, "").unwrap().into_struct_value().into()
 
-            },
+                let arr = self
+                    .builder
+                    .build_array_malloc(ty, true_size, "test")
+                    .unwrap();
+                let def = self.build_default(&expr.ret_type, tyr).into_struct_value();
+                let temp1 = self
+                    .builder
+                    .build_insert_value(def, true_size, 0, "")
+                    .unwrap()
+                    .into_struct_value();
+                self.builder
+                    .build_insert_value(temp1, arr, 1, "")
+                    .unwrap()
+                    .into_struct_value()
+                    .into()
+            }
             ExprKind::DynArrayIntLen(r) => {
                 let expr = self.visit_expression(&r, localvar_stackalloc, syms, tyr, func);
-                let pre = self.builder.build_extract_value(expr.into_struct_value(), 0, "len_extract").unwrap();
-                self.builder.build_int_cast(pre.into_int_value(), self.ctx.context.i32_type(), "len_cast").into()
-            },
+                let pre = self
+                    .builder
+                    .build_extract_value(expr.into_struct_value(), 0, "len_extract")
+                    .unwrap();
+                self.builder
+                    .build_int_cast(
+                        pre.into_int_value(),
+                        self.ctx.context.i32_type(),
+                        "len_cast",
+                    )
+                    .into()
+            }
             ExprKind::DynArrayLongLen(r) => {
                 let expr = self.visit_expression(&r, localvar_stackalloc, syms, tyr, func);
-                self.builder.build_extract_value(expr.into_struct_value(), 0, "len_extract").unwrap()
-            },
+                self.builder
+                    .build_extract_value(expr.into_struct_value(), 0, "len_extract")
+                    .unwrap()
+            }
         }
     }
     pub fn slp_func_to_llvm_func(
@@ -1006,7 +1249,6 @@ impl<'a> Codegen<'a> {
         args: &[(crate::symbols::Id, SLPType)],
         ret: &SLPType,
     ) -> FunctionType<'a> {
-
         let args_list: Vec<BasicMetadataTypeEnum<'a>> = args
             .iter()
             .map(|x| self.slp_type_to_llvm(&x.1).into())
@@ -1017,7 +1259,6 @@ impl<'a> Codegen<'a> {
             }
             y => self.slp_type_to_llvm(y).fn_type(&args_list, false),
         }
-
     }
     pub fn slp_sem_to_llvm_func(&self, args: &[(Id, SLPType)], ret: &SLPType) -> FunctionType<'a> {
         let args_list: Vec<BasicMetadataTypeEnum<'a>> = args

@@ -2,7 +2,7 @@
 name = "rstd"
 version = "0.1.0"
 edition = "2021"
-panic = 'abort'
+
 
 [lib]
 crate-type = ["staticlib"]
@@ -10,3 +10,9 @@ crate-type = ["staticlib"]
 
 [dependencies]
 console = "0.15.8"
+
+[profile.dev]
+panic = 'abort'
+
+[profile.release]
+panic = 'abort'

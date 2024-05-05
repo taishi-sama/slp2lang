@@ -8,14 +8,23 @@
 // Link resulting .obj file into executable
 
 use std::{
-    cell::RefCell, collections::{HashMap, VecDeque}, fs::{self, read_to_string, File}, io::Read, path::{Path, PathBuf}, str::FromStr, sync::Arc
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    fs,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
 };
 
 use anyhow::Ok;
-use source_span::{fmt::Formatter, DefaultMetrics, SourceBuffer};
 
 use crate::{
-    ast::{self, ProgramFile}, ast_visualisator, buildins::BuildInModule, error_handler::{ErrorHandler, InfileLoc}, semtree::SemanticTree, semtree_visualisator, symbols::{Id, TypeResolverGenerator}
+    ast::{self, ProgramFile},
+    ast_visualisator,
+    buildins::BuildInModule,
+    error_handler::ErrorHandler,
+    semtree::SemanticTree,
+    symbols::{Id, TypeResolverGenerator},
 };
 const COMPILER_BUILDINS_MODULE_FID: FileId = FileId(0);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -50,9 +59,16 @@ impl Compiler {
         self.add_fid_as("$build-in$", COMPILER_BUILDINS_MODULE_FID);
         let fid = self.path_to_fileid_mut(&initial_file);
 
-        let ast = crate::grammar::ProgramBlockParser::new()
-            .parse(fid.0.clone(), &text)
-            .unwrap();
+        let ast: Result<
+            ProgramFile,
+            lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token, &str>,
+        > = crate::grammar::ProgramBlockParser::new().parse(fid.0.clone(), &text);
+        if let Err(e) = ast {
+            self.error_handler.add_syntax_error(fid.0.clone(), &e, &self.id_to_filepath);
+            self.error_handler.display_errors()?;
+            panic!()
+        }
+        let ast = ast.unwrap();
         let pf = Arc::new(ast);
         println!("{}", ast_visualisator::get_program_tree(&pf));
         self.asts.insert(fid.0, pf.clone());
@@ -69,14 +85,16 @@ impl Compiler {
         if type_resolver_raw.is_err() {
             for e in type_resolver_raw.err().unwrap() {
                 self.error_handler.add_error(e, &self.id_to_filepath);
-
             }
             self.error_handler.display_errors()?;
             panic!()
         }
         let mut type_resolver = type_resolver_raw.unwrap();
         for (ids, _deps) in self.deps.iter() {
-            println!("Resolving {}", type_resolver.reverse_filename_translation[ids]);
+            println!(
+                "Resolving {}",
+                type_resolver.reverse_filename_translation[ids]
+            );
             type_resolver.fill_function_decl(&self.asts[ids], ids)?
         }
         println!("Function declarations resolved");
@@ -93,18 +111,17 @@ impl Compiler {
                 Id(p),
                 ids.clone(),
                 type_resolver_arc.clone(),
-                buildins.clone()
+                buildins.clone(),
             );
             let semtree_unwrap = match semtree {
                 std::result::Result::Ok(st) => st,
                 Err(err) => {
                     for e in err {
                         self.error_handler.add_error(e, &self.id_to_filepath);
-
                     }
                     self.error_handler.display_errors()?;
                     panic!()
-                },
+                }
             };
             semtrees.push(semtree_unwrap);
         }
@@ -137,8 +154,13 @@ impl Compiler {
                         println!("File loaded: {}", f.to_string_lossy());
                         let text = fs::read_to_string(&f)?;
                         let ast = crate::grammar::ProgramBlockParser::new()
-                            .parse(fid.clone(), &text )
-                            .unwrap();
+                            .parse(fid.clone(), &text);
+                        if let Err(e) = ast {
+                            self.error_handler.add_syntax_error(fid.clone(), &e, &self.id_to_filepath);
+                            self.error_handler.display_errors()?;
+                            panic!()
+                        }
+                        let ast = ast.unwrap();
                         self.asts.insert(fid, Arc::new(ast));
                         self.queue_on_check.push_back(fid);
                     } else {
@@ -164,17 +186,16 @@ impl Compiler {
         path.file_stem().unwrap().to_string_lossy().into_owned()
     }
     fn add_fid_as(&mut self, str: &str, fid: FileId) {
-        let counter = self.filename_to_id.len() as u32 + 1;
+        //let counter = self.filename_to_id.len() as u32 + 1;
         Arc::get_mut(&mut self.filename_to_id)
-                .unwrap()
-                .insert(str.to_string(), FileId(counter));
+            .unwrap()
+            .insert(str.to_string(), fid);
         Arc::get_mut(&mut self.id_to_filename)
-                .unwrap()
-                .insert(FileId(counter), str.to_string());
+            .unwrap()
+            .insert(fid, str.to_string());
         self.id_to_filepath
-                .insert(FileId(counter), PathBuf::from_str(str).unwrap());
-        
-    } 
+            .insert(fid, PathBuf::from_str(str).unwrap());
+    }
     fn path_to_fileid_mut(&mut self, path: &Path) -> (FileId, bool) {
         //Properly do hierarchy
         let p = Self::path_into_string(path);

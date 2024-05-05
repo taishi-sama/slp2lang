@@ -1,4 +1,3 @@
-use core::str;
 use std::fmt::Display;
 
 use crate::compiler::FileId;
@@ -45,7 +44,7 @@ pub struct TypeDeclSectionBody {
 #[derive(Debug, Clone)]
 pub enum TypeDeclElement {
     TypeAlias(Loc, String, Type),
-    RecordDeclare(Loc, String, Vec<RecordField>, RecordType), 
+    RecordDeclare(Loc, String, Vec<RecordField>, RecordType),
 }
 #[derive(Debug, Clone)]
 pub enum RecordType {
@@ -120,7 +119,6 @@ pub enum Expr {
     OpUnDeref(Loc, Box<Expr>),
     OpUnGetRef(Loc, Box<Expr>),
     OpBinIndex(Loc, Box<Expr>, Box<Expr>),
-    //OpUnTypecast(Loc, TypeDecl, Box<Expr>),
     //Distinguish from typecast at next stages
     OpFunctionCall(Loc, FunctionCall),
     OpUnAs(Loc, Box<Expr>, TypeDecl),
@@ -161,7 +159,7 @@ pub struct ForLoop {
     pub initial_value: Box<Expr>,
     pub direction: ForDirection,
     pub final_value: Box<Expr>,
-    pub body: Box<Statement>
+    pub body: Box<Statement>,
 }
 #[derive(Debug, Clone)]
 pub enum ForDirection {
