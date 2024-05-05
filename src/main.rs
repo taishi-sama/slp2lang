@@ -89,7 +89,7 @@ pub fn new_compile(file: &str, output_filename: &str) {
             println!("{}: {}", &id.0, semtree_visualisator::function(func))
         }
         cdgn.register_structs(&tyr);
-        cdgn.compile_buildins(&tyr, &internal);
+        cdgn.compile_buildins(&tyr, &internal).unwrap();
         cdgn
     };
 
@@ -98,7 +98,7 @@ pub fn new_compile(file: &str, output_filename: &str) {
     for i in &res {
         let cdgn: Codegen = Codegen::new(&cctx, &i.semtree_name.0, target_machine.clone());
         cdgn.register_structs(i.types_resolver.as_ref());
-        cdgn.compile_semtree(i);
+        cdgn.compile_semtree(i).unwrap();
         match cdgn.module.verify() {
             Ok(_) => {
                 println!(
