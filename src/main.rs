@@ -11,7 +11,7 @@ use inkwell::{
 };
 use lalrpop_util::lalrpop_mod;
 
-use crate::linkage::LinkerBuilder;
+use crate::linkage::{GnuLinker, Linker, LinkerBuilder, MSVCLinker};
 
 pub mod ast;
 pub mod ast_visualisator;
@@ -150,20 +150,35 @@ pub fn new_compile(file: &str, output_filename: &str) {
         create_dir(&output_dir).unwrap();
     }
 
-    let filename = p.file_stem().unwrap();
-    let object_output = (&output_dir).join(Path::new(filename).with_extension("o"));
-    let executable_output = (&output_dir).join(filename);
+    let mut filename = p.file_stem().unwrap().to_owned();
+    #[cfg(target_os = "windows")]
+    filename.push(".exe");
+    let object_output = output_dir.join(Path::new(&filename).with_extension("o"));
+    let executable_output = output_dir.join(filename);
 
     target_machine
         .write_to_file(&main_module.module, FileType::Object, &object_output)
         .unwrap();
     println!("Emit object file to {}", object_output.to_string_lossy());
-    let linker = LinkerBuilder::new_linux_x86_64().link_gnu_linker_flavor(
-        ENABLE_ASAN,
-        &object_output,
-        &executable_output,
-    );
-    linker.unwrap();
+    //let linker = LinkerBuilder::new_linux_x86_64().link_gnu_linker_flavor(
+    //    ENABLE_ASAN,
+    //    &object_output,
+    //    &executable_output,
+    //);
+    //linker.unwrap();
+    let mut linker: Box<dyn Linker> = {
+        #[cfg(target_os = "windows")]
+        {
+            Box::new(MSVCLinker::new_windows_x86_64_msvs())
+        }
+        #[cfg(target_os = "linux")]
+        {
+            Box::new(GnuLinker::new_linux_x86_64())
+        }
+    };
+    linker.add_target_obj(&object_output);
+    linker.set_output_file(&executable_output);
+    linker.link();
     println!(
         "Linkage complete... File available at {:}",
         executable_output.to_string_lossy()
