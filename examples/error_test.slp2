@@ -6,6 +6,6 @@ uses error_test2;
 
 
 begin
-    //error_test3::do_nothing();
-    var a : int32 = end + 1;
+    error_test3::do_nothing();
+    //var a : int32 = end + 1;
 end.

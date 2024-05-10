@@ -10,8 +10,8 @@ use inkwell::{
     OptimizationLevel,
 };
 use lalrpop_util::lalrpop_mod;
-
-use crate::linkage::{GnuLinker, Linker, LinkerBuilder, MSVCLinker};
+#[allow(unused_imports)]
+use crate::linkage::{GnuLinker, Linker, MSVCLinker};
 
 pub mod ast;
 pub mod ast_visualisator;
@@ -149,7 +149,7 @@ pub fn new_compile(file: &str, output_filename: &str) {
     if !Path::exists(&output_dir) {
         create_dir(&output_dir).unwrap();
     }
-
+    #[allow(unused_mut)]
     let mut filename = p.file_stem().unwrap().to_owned();
     #[cfg(target_os = "windows")]
     filename.push(".exe");

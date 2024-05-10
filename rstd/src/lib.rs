@@ -1,6 +1,5 @@
 pub mod type_representations;
 
-use std::io;
 
 use console::Term;
 

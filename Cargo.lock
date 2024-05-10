@@ -72,6 +72,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "compiler"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cc",
+ "inkwell",
+ "lalrpop",
+ "lalrpop-util",
+ "regex",
+ "source-span",
+ "text_trees",
+ "thiserror",
+ "utf8-decode",
+]
+
+[[package]]
 name = "console"
 version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -526,22 +542,6 @@ name = "siphasher"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38b58827f4464d87d377d175e90bf58eb00fd8716ff0a62f80356b5e61555d0d"
-
-[[package]]
-name = "slp2lang"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cc",
- "inkwell",
- "lalrpop",
- "lalrpop-util",
- "regex",
- "source-span",
- "text_trees",
- "thiserror",
- "utf8-decode",
-]
 
 [[package]]
 name = "smallvec"
