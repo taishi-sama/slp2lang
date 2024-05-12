@@ -16,12 +16,12 @@ pub extern "C" fn rc_putchar(c: i32) {
 }
 #[no_mangle]
 pub extern "C" fn rc_putint32(c: i32) {
-    print!("{c}")
+    print!("{c}");
     std::io::stdout().flush().unwrap();
 }
 #[no_mangle]
 pub extern "C" fn rc_putint64(c: i64) {
-    print!("{c}")
+    print!("{c}");
     std::io::stdout().flush().unwrap();
 }
 #[no_mangle]
