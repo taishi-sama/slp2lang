@@ -12,14 +12,17 @@ pub extern "C" fn rc_putchar(c: i32) {
     if let Some(t) = char::from_u32(c as _) {
         print!("{t}")
     }
+    std::io::stdout().flush().unwrap();
 }
 #[no_mangle]
 pub extern "C" fn rc_putint32(c: i32) {
     print!("{c}")
+    std::io::stdout().flush().unwrap();
 }
 #[no_mangle]
 pub extern "C" fn rc_putint64(c: i64) {
     print!("{c}")
+    std::io::stdout().flush().unwrap();
 }
 #[no_mangle]
 pub extern "C" fn rc_getchar() -> u32 {
