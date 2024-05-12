@@ -13,6 +13,12 @@ procedure PutInt64(c: int64);
 begin
     rstd::rc_putint64(c)
 end;
+
+procedure PutString(var c: string);
+begin
+    rstd::rc_putstring(c)
+end;
+
 function GetChar():char;
 begin
     Result := rstd::rc_getchar();

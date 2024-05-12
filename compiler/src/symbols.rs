@@ -359,7 +359,7 @@ impl GlobalSymbolResolver {
                         "uint32" => SLPPrimitiveType::Uint32,
                         "uint64" => SLPPrimitiveType::Uint64,
                         "usize" => SLPPrimitiveType::USize,
-                        "string" => SLPPrimitiveType::String,
+                        "string" => return Ok(SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(SLPType::PrimitiveType(SLPPrimitiveType::Char)))))),
                         "bool" => SLPPrimitiveType::Bool,
                         "void" => SLPPrimitiveType::Void,
                         "char" => SLPPrimitiveType::Char,

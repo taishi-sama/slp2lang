@@ -241,5 +241,8 @@ pub fn expr(expression: &STExpr) -> StringTreeNode {
         ),
         ExprKind::DynArrayIntLen(_) => todo!(),
         ExprKind::DynArrayLongLen(_) => todo!(),
+        ExprKind::GetConstUTF32StringReference(c) => StringTreeNode::new(
+            format!("Const string \"{}\"", c.iter().fold(String::new(), |mut x, y| {x.push(*y); x}))
+        ),
     }
 }

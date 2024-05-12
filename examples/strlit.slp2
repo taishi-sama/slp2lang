@@ -1,0 +1,7 @@
+uses std_char;
+
+begin
+    var s: string := "Hello world!";
+    std_char::PutString(s);
+    std_char::PutChar('\n');
+end.

@@ -29,7 +29,7 @@ impl GnuLinker {
             target: "x86_64-pc-linux-gnu".into(), 
             linker: "cc".into(), 
             target_objs: vec![], 
-            linker_options: vec![],
+            linker_options: vec!["-fPIE".to_string()],
             
             std_dir: dirname.join("std"),
             std_filename: "librstd.a".into(), 

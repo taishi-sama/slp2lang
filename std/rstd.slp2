@@ -2,3 +2,4 @@ external function rc_putchar(c: char): void;
 external function rc_putint32(c: int32): void;
 external function rc_putint64(c: int64): void;
 external function rc_getchar(): char;
+external function rc_putstring(var c: string): void;

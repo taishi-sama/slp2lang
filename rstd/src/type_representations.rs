@@ -1,15 +1,15 @@
 use std::{cell::UnsafeCell, ptr, sync::atomic::AtomicUsize};
 #[allow(dead_code)]
 #[repr(C)]
-struct SLPRefCounter<T> {
-    counter: *const AtomicUsize,
-    content: *const UnsafeCell<T>,
+pub struct SLPRefCounter<T> {
+    pub counter: *const AtomicUsize,
+    pub content: *const UnsafeCell<T>,
 }
 #[allow(dead_code)]
 #[repr(C)]
-struct SLPDynArray<T> {
-    len: usize,
-    array: *const UnsafeCell<T>,
+pub struct SLPDynArray<T> {
+    pub len: usize,
+    pub array: *const UnsafeCell<T>,
 }
 impl<T> SLPDynArray<T> {
     #[allow(dead_code)]

@@ -588,7 +588,6 @@ impl SemanticTree {
             SLPPrimitiveType::USize => ExprKind::NumberLiteral(NumberLiteral::USize(val)),
             SLPPrimitiveType::Float32 => todo!(),
             SLPPrimitiveType::Float64 => todo!(),
-            SLPPrimitiveType::String => todo!(),
             SLPPrimitiveType::StringLiteral(_) => todo!(),
             SLPPrimitiveType::Char => todo!(),
             SLPPrimitiveType::Bool => todo!(),
@@ -1102,7 +1101,6 @@ impl SemanticTree {
                     SLPPrimitiveType::USize => todo!(),
                     SLPPrimitiveType::Float32 => todo!(),
                     SLPPrimitiveType::Float64 => todo!(),
-                    SLPPrimitiveType::String => todo!(),
                     SLPPrimitiveType::Char => todo!(),
                     SLPPrimitiveType::Bool => todo!(),
                     SLPPrimitiveType::Void => todo!(),
@@ -1219,7 +1217,20 @@ impl SemanticTree {
     fn visit_expression(&mut self, expr: &Expr, scope: &Scope) -> Result<STExpr, CompilerErrors> {
         Ok(match expr {
             Expr::Constant(l, c) => match c {
-                ast::Constant::String(_) => todo!(),
+                ast::Constant::String(c) => {
+                    let t: Vec<_> = c.chars().collect();
+                    let lit = STExpr::new(SLPType::PrimitiveType(SLPPrimitiveType::StringLiteral(t.len().try_into().unwrap()))
+                        .wrap_autoderef_or_pass(), l.clone(), 
+                        ExprKind::GetConstUTF32StringReference(t.clone())
+                    );
+                    let buildin = self.buildins.borrow_mut().build_or_get_stringbuilder()?;
+                    let buildin_call = STExpr::new(SLPType::DynArray(Box::new(SLPType::PrimitiveType(SLPPrimitiveType::Char))), l.clone(), 
+                    ExprKind::BuildInCall(BuildInCall{func: buildin, args: vec![Self::build_int_constant(t.len().try_into().unwrap(), SLPPrimitiveType::ISize, l.clone())?, lit],
+                         ret_type: SLPType::DynArray(Box::new(SLPType::PrimitiveType(SLPPrimitiveType::Char))) })
+                    );
+                    let build_string = STExpr::new(SLPType::string(), l.clone(), ExprKind::ConstructRefcounterFromInternalContent(Box::new(buildin_call)));
+                    build_string
+                },
 
                 ast::Constant::Bool(b) => STExpr {
                     ret_type: SLPType::PrimitiveType(crate::types::SLPPrimitiveType::Bool),
@@ -2059,6 +2070,8 @@ pub enum ExprKind {
     ConstructRefcounterFromInternalContent(Box<STExpr>),
     ConstructDynArrayFromElements(Vec<STExpr>),
     ConstructUninitizedDynArray(Box<STExpr>),
+
+    GetConstUTF32StringReference(Vec<char>),
 
     ///Returns int32 length. Expects type by value, so deref before passing.
     DynArrayIntLen(Box<STExpr>),

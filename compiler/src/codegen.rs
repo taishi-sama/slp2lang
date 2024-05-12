@@ -14,14 +14,10 @@ use inkwell::{
 };
 
 use crate::{
-    buildins::BuildInModule,
-    compiler::FileId,
-    semtree::{
+    buildins::BuildInModule, compiler::FileId, semtree::{
         BoolBinOp, CodeBlock, ComparationKind, ExprKind, Function, IntBinOp, LocalVariable,
         RhsKind, STExpr, STStatement, SemanticTree, VarDecl,
-    },
-    symbols::{FunctionDecl, GlobalSymbolResolver, Id},
-    types::{SLPPrimitiveType, SLPType},
+    }, semtree_visualisator, symbols::{FunctionDecl, GlobalSymbolResolver, Id}, types::{SLPPrimitiveType, SLPType}
 };
 
 pub struct CodegenContext {
@@ -357,13 +353,16 @@ impl<'a> Codegen<'a> {
                 .context
                 .ptr_sized_int_type(&self.target_machine.get_target_data(), None)
                 .into(),
-            SLPPrimitiveType::String => todo!(),
             SLPPrimitiveType::Bool => self.ctx.context.bool_type().into(),
             SLPPrimitiveType::Void => panic!("Void type encountered outside function return value"),
             SLPPrimitiveType::Float32 => self.ctx.context.f32_type().into(),
             SLPPrimitiveType::Float64 => self.ctx.context.f64_type().into(),
             SLPPrimitiveType::Char => self.ctx.context.i32_type().into(),
-            SLPPrimitiveType::StringLiteral(_) => todo!(),
+            SLPPrimitiveType::StringLiteral(i) => if u32::MAX == *i {
+                self.ctx.context.i32_type().array_type(0).into()
+            } else {
+                self.ctx.context.i32_type().array_type(*i).into()
+            },
             SLPPrimitiveType::Nil => todo!(),
         }
     }
@@ -392,7 +391,6 @@ impl<'a> Codegen<'a> {
                     .into(),
                 SLPPrimitiveType::Float32 => self.ctx.context.f32_type().const_zero().into(),
                 SLPPrimitiveType::Float64 => self.ctx.context.f64_type().const_zero().into(),
-                SLPPrimitiveType::String => todo!(),
                 SLPPrimitiveType::StringLiteral(_) => todo!(),
                 SLPPrimitiveType::Char => self.ctx.context.i32_type().const_zero().into(),
                 SLPPrimitiveType::Bool => self.ctx.context.bool_type().const_zero().into(),
@@ -984,7 +982,12 @@ impl<'a> Codegen<'a> {
             ExprKind::GetElementRefInReffedArray(ref_array, index) => {
                 let indexable =
                     self.visit_expression(ref_array, localvar_stackalloc, syms, tyr, func)?;
+                println!("--------");
+                println!("{}:\n{}", ref_array.ret_type.pretty_representation(), semtree_visualisator::expr(ref_array));
+                println!("{}:\n{}", index.ret_type.pretty_representation(), semtree_visualisator::expr(index));
                 let index = self.visit_expression(&index, localvar_stackalloc, syms, tyr, func)?;
+
+
                 let ptr = indexable.into_pointer_value();
                 if ref_array
                     .ret_type
@@ -1147,8 +1150,8 @@ impl<'a> Codegen<'a> {
                 let ex = self.visit_expression(&e, localvar_stackalloc, syms, tyr, func)?;
 
                 let llvm_type = self.slp_type_to_llvm(&e.ret_type);
-                println!("~~~~~~{:#?}", e.ret_type);
-                println!("~~~~~~{}", llvm_type);
+                //println!("~~~~~~{:#?}", e.ret_type);
+                //println!("~~~~~~{}", llvm_type);
 
                 let rc_type =
                     self.slp_type_to_llvm(&SLPType::RefCounter(Box::new(e.ret_type.clone())));
@@ -1157,7 +1160,7 @@ impl<'a> Codegen<'a> {
                     .builder
                     .build_malloc(self.get_pointer_sized_int(), "refcounter_malloc")
                     ?;
-                println!("{}", counter);
+                //println!("{}", counter);
                 self.builder
                     .build_store(counter, self.get_pointer_sized_int().const_int(1, false))?;
 
@@ -1165,7 +1168,7 @@ impl<'a> Codegen<'a> {
                     .builder
                     .build_malloc(llvm_type, "refcounter_intenal_content_malloc")
                     ?;
-                println!("~~~~~~{}", ex);
+                //println!("~~~~~~{}", ex);
 
                 self.builder.build_store(internal_content, ex)?;
                 let raw_rc = rc_type.const_zero().into_struct_value();
@@ -1229,6 +1232,27 @@ impl<'a> Codegen<'a> {
                     .build_extract_value(expr.into_struct_value(), 0, "len_extract")
                     ?
             }
+            ExprKind::GetConstUTF32StringReference(l) => {
+                //println!("~-~-~-~-~-~-~-~-~-~-~");
+                //println!("{}", l.len());
+                //println!("{}", expr.ret_type.pretty_representation());
+                let ty =  self.slp_type_to_llvm(&SLPType::PrimitiveType(SLPPrimitiveType::StringLiteral(l.len() as u32)));
+                //println!("{}", ty);
+                let g = self.module.add_global(ty, Default::default(), "string_literal");
+                let mut vals = vec![];
+                for i in l {
+                    vals.push(self.ctx.context.i32_type().const_int((*i) as u32 as u64, false))
+                }
+                let init_val = self.ctx.context.i32_type().const_array(&vals);
+                g.set_initializer(&init_val);
+                g.set_linkage(Linkage::Private);
+                //g.set_section(Some(".rodata"));
+                g.set_constant(true);
+                g.set_unnamed_addr(true);
+                g.set_alignment(4);
+                //g.set_dll_storage_class(inkwell::DLLStorageClass::Default);
+                g.as_pointer_value().into()
+            },
         })
     }
     pub fn slp_func_to_llvm_func(

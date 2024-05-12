@@ -42,7 +42,7 @@ fn main() {
 pub fn new_compile(file: &str, output_filename: &str) {
     Target::initialize_x86(&InitializationConfig::default());
     let opt = OptimizationLevel::Default;
-    let reloc = RelocMode::Default;
+    let reloc = RelocMode::PIC;
     let model = CodeModel::Default;
     let target = Target::from_name("x86-64").unwrap();
     let target_triple = {

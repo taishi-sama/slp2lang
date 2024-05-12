@@ -29,7 +29,7 @@ pub enum SLPPrimitiveType {
     USize,
     Float32,
     Float64,
-    String,
+    ///u32::MAX represents no length check
     StringLiteral(u32),
     Char,
     Bool,
@@ -51,7 +51,6 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::ISize => true,
             SLPPrimitiveType::USize => true,
 
-            SLPPrimitiveType::String => false,
             SLPPrimitiveType::Char => false,
             SLPPrimitiveType::Bool => false,
             SLPPrimitiveType::Void => false,
@@ -76,7 +75,6 @@ impl SLPPrimitiveType {
             SLPPrimitiveType::USize => todo!(),
             SLPPrimitiveType::Float32 => Some(4),
             SLPPrimitiveType::Float64 => Some(8),
-            SLPPrimitiveType::String => None,
             SLPPrimitiveType::Bool => None,
             SLPPrimitiveType::Void => None,
             SLPPrimitiveType::Char => Some(4),
@@ -138,6 +136,9 @@ impl SLPType {
     pub fn void() -> Self {
         SLPType::PrimitiveType(SLPPrimitiveType::Void)
     }
+    pub fn string() -> Self {
+        SLPType::RefCounter(Box::new(SLPType::DynArray(Box::new(SLPType::PrimitiveType(SLPPrimitiveType::Char)))))
+    }
     pub fn wrap_autoderef_or_pass(&self) -> Self {
         if let SLPType::AutoderefPointer(_) = self {
             self.clone()
@@ -171,7 +172,6 @@ impl SLPType {
                 SLPPrimitiveType::USize => Id("usize".to_string()),
                 SLPPrimitiveType::Float32 => Id("float32".to_string()),
                 SLPPrimitiveType::Float64 => Id("float64".to_string()),
-                SLPPrimitiveType::String => Id("string".to_string()),
                 SLPPrimitiveType::StringLiteral(l) => Id(format!("strlit{}", l)),
                 SLPPrimitiveType::Char => Id(format!("char")),
                 SLPPrimitiveType::Bool => Id(format!("bool")),
@@ -208,7 +208,6 @@ impl SLPType {
                 SLPPrimitiveType::USize => true,
                 SLPPrimitiveType::Float32 => true,
                 SLPPrimitiveType::Float64 => true,
-                SLPPrimitiveType::String => todo!(),
                 SLPPrimitiveType::StringLiteral(_) => todo!(),
                 SLPPrimitiveType::Char => true,
                 SLPPrimitiveType::Bool => true,
@@ -391,8 +390,7 @@ impl SLPType {
                 SLPPrimitiveType::Bool => "bool".into(),
                 SLPPrimitiveType::Void => "void".into(),
                 SLPPrimitiveType::Nil => "nil".into(),
-                SLPPrimitiveType::String => todo!(),
-                SLPPrimitiveType::StringLiteral(_) => todo!(), // Handle this case separately or raise an error,
+                SLPPrimitiveType::StringLiteral(i) => "stringLiteral".into(), // Handle this case separately or raise an error,
             },
             SLPType::Pointer(p) => {
                 format!("^{}", p.pretty_representation())

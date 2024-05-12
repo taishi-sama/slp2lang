@@ -1,7 +1,7 @@
 [workspace]
-members = [ "compiler","rstd"]
+members = [ "compiler"]
 resolver = "2"
-exclude = ["bin_blobs", "examples", "std"]
+exclude = ["bin_blobs", "examples", "std", "rstd"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
