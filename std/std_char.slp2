@@ -14,7 +14,7 @@ begin
     rstd::rc_putint64(c)
 end;
 
-procedure PutString(var c: string);
+procedure PutString(c: string);
 begin
     rstd::rc_putstring(c)
 end;

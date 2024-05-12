@@ -4,4 +4,6 @@ begin
     var s: string := "Hello world!";
     std_char::PutString(s);
     std_char::PutChar('\n');
+    std_char::PutString("Привет, мир!");
+    std_char::PutChar('\n');
 end.
