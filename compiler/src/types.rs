@@ -390,7 +390,7 @@ impl SLPType {
                 SLPPrimitiveType::Bool => "bool".into(),
                 SLPPrimitiveType::Void => "void".into(),
                 SLPPrimitiveType::Nil => "nil".into(),
-                SLPPrimitiveType::StringLiteral(i) => "stringLiteral".into(), // Handle this case separately or raise an error,
+                SLPPrimitiveType::StringLiteral(_i) => "stringLiteral".into(), // Handle this case separately or raise an error,
             },
             SLPType::Pointer(p) => {
                 format!("^{}", p.pretty_representation())
