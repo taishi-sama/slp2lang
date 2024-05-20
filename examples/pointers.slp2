@@ -1,5 +1,11 @@
 uses std_char;
 
+type 
+    a = record
+        field: int32; 
+    end;
+
+
 begin
     var val := 10;
     var p := @val;
@@ -8,5 +14,13 @@ begin
     p^ := 15;
     std_char::PutInt32(p^);
     std_char::PutChar('\n');
-
+    var rec := new a(5);
+    p := @rec.field;
+    std_char::PutInt32(p^);
+    std_char::PutChar('\n');
+    p^ := 9;
+    std_char::PutInt32(p^);
+    std_char::PutChar('\n');
+    std_char::PutInt32(rec.field);
+    std_char::PutChar('\n');
 end.

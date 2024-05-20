@@ -1312,7 +1312,7 @@ impl SemanticTree {
             },
             Expr::OpUnGetRef(l, x) => {
                 let expr = self.visit_expression(&x, scope)?;
-                let t = Self::try_get_autoref(expr)?;
+                let t = Self::autoref_or_pass(expr)?;
                 if let Some(q) = t.ret_type.get_underlying_autoderef_type() {
                     STExpr::new(SLPType::Pointer(Box::new(q.clone())), l.clone(), ExprKind::TypeCast(Box::new(t), TypeConversionKind::Identity))
                 } else {
