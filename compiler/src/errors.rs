@@ -30,6 +30,7 @@ pub enum CompilerErrors {
     InvalidNewOpArgumentCount(Loc, String, usize, usize),
     #[error("")]
     InvalidTypeForNew(Loc, String),
+
     #[error("")]
     ///Opetarion, Type
     InvalidOperationForType(Loc, String, String),

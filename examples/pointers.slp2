@@ -1,0 +1,12 @@
+uses std_char;
+
+begin
+    var val := 10;
+    var p := @val;
+    std_char::PutInt32(p^);
+    std_char::PutChar('\n');
+    p^ := 15;
+    std_char::PutInt32(p^);
+    std_char::PutChar('\n');
+
+end.

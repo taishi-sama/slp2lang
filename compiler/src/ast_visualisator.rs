@@ -251,8 +251,8 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             "BinLesserEq".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
-        Expr::OpUnDeref(_, _) => todo!(),
-        Expr::OpUnGetRef(_, _) => todo!(),
+        Expr::OpUnDeref(_, x) => StringTreeNode::with_child_nodes("PointerDeref".to_string(), vec![expressions(x)].into_iter()),
+        Expr::OpUnGetRef(_, x) => StringTreeNode::with_child_nodes("PointerRef".to_string(), vec![expressions(x)].into_iter()),
         Expr::OpFunctionCall(_, x) => StringTreeNode::with_child_nodes(
             "FunctionCall".to_string(),
             iter::once(expressions(&x.func)).chain(x.args.iter().map(expressions)),

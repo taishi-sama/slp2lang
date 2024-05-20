@@ -1,0 +1,12 @@
+uses std_char;
+
+begin
+    var a := "Test";
+    defer begin
+        std_char::PutString(a);
+        std_char::PutChar('\n');
+    end;
+    var a := "Hello world!";
+    std_char::PutString(a);
+    std_char::PutChar('\n');
+end.

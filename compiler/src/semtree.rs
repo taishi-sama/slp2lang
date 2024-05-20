@@ -1302,8 +1302,23 @@ impl SemanticTree {
             Expr::OpBinNotEq(l, x, y) => {
                 self.visit_comparations(*l, &x, &y, scope, ComparationKind::NotEqual)?
             }
-            Expr::OpUnDeref(_, _) => todo!(),
-            Expr::OpUnGetRef(_, _) => todo!(),
+            Expr::OpUnDeref(l, x) => {
+                let expr = self.visit_expression(&x, scope)?;
+                if let Some(p) = expr.ret_type.get_underlying_pointer_type() {
+                    STExpr::new(p.wrap_autoderef_or_pass(), l.clone(), ExprKind::TypeCast(Box::new(expr), TypeConversionKind::Identity))
+                } else {
+                    return Err(CompilerErrors::InvalidOperationForType(l.clone(), "^".to_owned(), expr.ret_type.pretty_representation()));
+                }
+            },
+            Expr::OpUnGetRef(l, x) => {
+                let expr = self.visit_expression(&x, scope)?;
+                let t = Self::try_get_autoref(expr)?;
+                if let Some(q) = t.ret_type.get_underlying_autoderef_type() {
+                    STExpr::new(SLPType::Pointer(Box::new(q.clone())), l.clone(), ExprKind::TypeCast(Box::new(t), TypeConversionKind::Identity))
+                } else {
+                    unreachable!()
+                }
+            },
             Expr::OpBinIndex(l, indexable, index) => {
                 self.visit_array_index(indexable, index, scope, l.clone())?
             }
