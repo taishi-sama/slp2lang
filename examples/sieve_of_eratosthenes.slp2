@@ -10,7 +10,7 @@ begin
 end;
 
 begin
-  var size := 100000;
+  var size := 2147483647 / 2;
   var sieve := new bool[size + 1]();
   for var i := sieve.Low to sieve.High do 
   begin
