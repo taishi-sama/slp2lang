@@ -68,7 +68,7 @@ impl CompilerErrors {
             CompilerErrors::IntExpected(l, _) => l.clone(),
             CompilerErrors::FieldDoesntExists(l, _, _) => l.clone(),
             CompilerErrors::TypesNotSame(l, _, _) => l.clone(),
-            CompilerErrors::LocalVariableDoesntExist(_, _) => todo!(),
+            CompilerErrors::LocalVariableDoesntExist(l, _) => l.clone(),
             CompilerErrors::NegateSymbolToUnsignedError(l) => l.clone(),
             CompilerErrors::InvalidSuffix(l, _) => l.clone(),
             CompilerErrors::InvalidNumber(l, _) => l.clone(),

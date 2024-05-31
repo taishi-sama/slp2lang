@@ -218,7 +218,10 @@ pub fn expressions(ex: &Expr) -> StringTreeNode {
             "BinXor".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),
         ),
-        Expr::OpUnNot(_, _) => todo!(),
+        Expr::OpUnNot(_, x) => StringTreeNode::with_child_nodes(
+            "UnNot".to_string(),
+            vec![expressions(x)].into_iter()
+        ),
         Expr::OpBinShl(_, x, y) => StringTreeNode::with_child_nodes(
             "BinShl".to_string(),
             vec![expressions(x), expressions(y)].into_iter(),

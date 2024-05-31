@@ -1258,7 +1258,7 @@ impl SemanticTree {
                         }
                     }
                 } else {
-                    todo!()
+                    return Err(CompilerErrors::LocalVariableDoesntExist(l.clone(), i.to_string()));
                 }
             }
             Expr::OpBinPlus(l, x, y) => self.visit_int_bin_op(*l, &x, &y, scope, IntBinOp::Add)?,
