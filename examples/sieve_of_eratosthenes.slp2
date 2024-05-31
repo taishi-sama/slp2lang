@@ -20,14 +20,14 @@ begin
   for var i := 2 to sq do 
   begin
     if sieve[i] then 
-	begin
-	  var j:= i * i;
-	  while j <= size do 
-	  begin
-	    sieve[j] := false;
-		j := j + i;
-	  end;
-	end;
+    begin
+      var j:= i * i;
+      while j <= size do 
+      begin
+        sieve[j] := false;
+    	j := j + i;
+      end;
+    end;
   end;
   var highest_index := sieve.High;
   while not sieve[highest_index] do 
